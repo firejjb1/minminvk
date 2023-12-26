@@ -6,6 +6,7 @@
 #include <glm/mat4x4.hpp>
 #include <memory>
 #include <vector>
+#include <set>
 #include <optional>
 
 typedef uint32_t u32;
@@ -33,6 +34,9 @@ auto MakeShared(Args&&... args) -> decltype(std::make_shared<T>(std::forward<Arg
 
 template<class T>
 using Vector = std::vector<T>; 
+
+template<class T>
+using Set = std::set<T>;
 
 constexpr auto DebugPrint = printf;
 

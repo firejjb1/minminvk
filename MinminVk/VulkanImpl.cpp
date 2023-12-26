@@ -6,7 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #include "Device.h"
-
+#include "Presentation.h"
 
 namespace VulkanImpl
 {
@@ -24,6 +24,19 @@ namespace VulkanImpl
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	VkDevice device;
 	VkQueue graphicsQueue;
+	VkSurfaceKHR surface;
+	VkQueue presentQueue;
+
+	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+		VkDebugUtilsMessageTypeFlagsEXT messageType,
+		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+		void* pUserData) {
+
+		DebugPrint("%s\n", pCallbackData->pMessage);
+
+		return VK_FALSE;
+	}
 
 	bool CheckValidationLayerSupport()
 	{
@@ -50,22 +63,24 @@ namespace VulkanImpl
 
 		return true;
 	}
-	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-		VkDebugUtilsMessageTypeFlagsEXT messageType,
-		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-		void* pUserData) {
 
-		DebugPrint("%s\n", pCallbackData->pMessage);
-
-		return VK_FALSE;
+	void CreateSurface(GLFWwindow* window)
+	{ 
+		
+		glfwCreateWindowSurface(instance, window, nullptr, &surface);
 	}
+
 	Vector<const char*> GetRequiredExtensions() {
 		u32 glfwExtensionCount = 0;
 		const char** glfwExtensions;
 		glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+		Vector<const char*> extensions;
+		// glfw extension is likely just this
+		// extensions.push_back("VK_KHR_surface");
+		for (uint32_t i = 0; i < glfwExtensionCount; i++) {
+			extensions.emplace_back(glfwExtensions[i]);
+		}
 
-		std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 		extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
 
 		if (enableValidationLayers) {
@@ -169,8 +184,10 @@ namespace VulkanImpl
 
 	struct QueueFamilyIndices {
 		std::optional<u32> graphicsFamily;
+		std::optional<uint32_t> presentFamily;
+
 		bool isComplete() {
-			return graphicsFamily.has_value();
+			return graphicsFamily.has_value() && presentFamily.has_value();
 		}
 	};
 
@@ -182,12 +199,17 @@ namespace VulkanImpl
 
 		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
 		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
 		u32 i = 0;
 		for (const auto& queueFamily : queueFamilies) {
 			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 				indices.graphicsFamily = i;
 			}
-
+			VkBool32 presentSupport = false;
+			vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+			if (presentSupport) {
+				indices.presentFamily = i;
+			}
 			if (indices.isComplete()) {
 				break;
 			}
@@ -240,18 +262,24 @@ namespace VulkanImpl
 	{
 		QueueFamilyIndices indices = FindQueueFamilies(physicalDevice);
 
-		VkDeviceQueueCreateInfo queueCreateInfo{};
-		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-		queueCreateInfo.queueCount = 1;
-		f32 queuePriority = 1.0f;
-		queueCreateInfo.pQueuePriorities = &queuePriority;
+		Vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+		Set<u32> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+		float queuePriority = 1.f;
+		for (u32 queueFamily : uniqueQueueFamilies)
+		{
+			VkDeviceQueueCreateInfo queueCreateInfo{};
+			queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			queueCreateInfo.queueFamilyIndex = queueFamily;
+			queueCreateInfo.queueCount = 1;
+			queueCreateInfo.pQueuePriorities = &queuePriority;
+			queueCreateInfos.push_back(queueCreateInfo);
+		}
 
 		VkPhysicalDeviceFeatures deviceFeatures{};
 		VkDeviceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		createInfo.pQueueCreateInfos = &queueCreateInfo;
-		createInfo.queueCreateInfoCount = 1;
+		createInfo.pQueueCreateInfos = queueCreateInfos.data();
+		createInfo.queueCreateInfoCount = static_cast<u32>(queueCreateInfos.size());
 
 		createInfo.pEnabledFeatures = &deviceFeatures;
 		createInfo.enabledExtensionCount = 0;
@@ -267,16 +295,17 @@ namespace VulkanImpl
 			throw std::runtime_error("failed to create logical device!");
 		}
 		vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+		vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+
 	}
 }
 
 
 namespace Graphics
 {
+	// Device
 	void Device::Init()
 	{
-		VulkanImpl::CreateInstance();
-		VulkanImpl::SetupDebugMessenger();
 		VulkanImpl::PickPhysicalDevice();
 		VulkanImpl::CreateLogicalDevice();
 	}
@@ -284,10 +313,17 @@ namespace Graphics
 	void Device::CleanUp()
 	{
 		vkDestroyDevice(VulkanImpl::device, nullptr);
-		if (VulkanImpl::enableValidationLayers) {
-			VulkanImpl::DestroyDebugUtilsMessengerEXT(VulkanImpl::instance, VulkanImpl::debugMessenger, nullptr);
-		}
-		vkDestroyInstance(VulkanImpl::instance, nullptr);
+	}
+
+	// Presentation
+	void Presentation::Init(void* window)
+	{
+		VulkanImpl::CreateSurface((GLFWwindow*)window);
+	}
+
+	void Presentation::CleanUp()
+	{
+		vkDestroySurfaceKHR(VulkanImpl::instance, VulkanImpl::surface, nullptr);
 	}
 }
 

@@ -148,6 +148,7 @@
   <ItemGroup>
     <ClInclude Include="Device.h" />
     <ClInclude Include="Graphics.h" />
+    <ClInclude Include="Presentation.h" />
     <ClInclude Include="Type.h" />
     <ClInclude Include="VulkanImpl.cpp" />
   </ItemGroup>

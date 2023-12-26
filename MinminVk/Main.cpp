@@ -17,8 +17,8 @@ namespace Application
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan window", nullptr, nullptr);
-
-        Graphics::InitGraphics();
+        
+        Graphics::InitGraphics(window);
 
     }
 
