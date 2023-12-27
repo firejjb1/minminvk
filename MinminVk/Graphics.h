@@ -26,6 +26,7 @@ namespace Graphics
 
 		presentation->Init(window);
 		device->Init();
+		presentation->InitSwapChain();
 	}
 
 	void MainRender()

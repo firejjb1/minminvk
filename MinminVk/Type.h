@@ -8,6 +8,9 @@
 #include <vector>
 #include <set>
 #include <optional>
+#include <string>
+#include <limits>
+#include <algorithm>
 
 typedef uint32_t u32;
 typedef float f32;
@@ -24,6 +27,8 @@ typedef glm::vec2 vec2;
 typedef glm::vec3 vec3;
 typedef glm::vec4 vec4;
 
+typedef std::string String;
+
 template <class T>
 using SharedPtr = std::shared_ptr<T>;
 template <class T, class... Args>
@@ -37,6 +42,18 @@ using Vector = std::vector<T>;
 
 template<class T>
 using Set = std::set<T>;
+
+template<class T>
+auto Min(const T& a, const T& b) -> const T&
+{
+	return std::min<T>(a, b);
+}
+
+template<class T>
+auto Max(const T& a, const T& b) -> const T&
+{
+	return std::max<T>(a, b);
+}
 
 constexpr auto DebugPrint = printf;
 
