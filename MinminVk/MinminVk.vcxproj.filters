@@ -35,5 +35,23 @@
     <ClInclude Include="Presentation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Pipeline.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IO.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="triangle.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="triangle.frag" />
+    <None Include="compile.bat">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

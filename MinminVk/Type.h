@@ -27,6 +27,10 @@ typedef glm::vec2 vec2;
 typedef glm::vec3 vec3;
 typedef glm::vec4 vec4;
 
+typedef glm::uvec2 vec2u;
+typedef glm::uvec3 vec3u;
+typedef glm::uvec4 vec4u;
+
 typedef std::string String;
 
 template <class T>

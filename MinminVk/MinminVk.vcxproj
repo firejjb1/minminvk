@@ -148,9 +148,17 @@
   <ItemGroup>
     <ClInclude Include="Device.h" />
     <ClInclude Include="Graphics.h" />
+    <ClInclude Include="IO.h" />
+    <ClInclude Include="Pipeline.h" />
     <ClInclude Include="Presentation.h" />
+    <ClInclude Include="Shader.h" />
     <ClInclude Include="Type.h" />
     <ClInclude Include="VulkanImpl.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="compile.bat" />
+    <None Include="triangle.frag" />
+    <None Include="triangle.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
