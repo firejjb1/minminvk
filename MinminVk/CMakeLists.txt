@@ -106,6 +106,7 @@ set(HEADER_FILES
 	"graphics/Pipeline.h"
 	"graphics/Presentation.h"
 	"graphics/Shader.h"
+	"graphics/Texture.h"
 )
 
 IF(WIN32)
@@ -123,6 +124,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
  )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC SHADERS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/")
+# disable validation layers, etc
+# target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 

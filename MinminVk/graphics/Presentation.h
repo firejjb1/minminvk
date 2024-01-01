@@ -1,5 +1,7 @@
 #pragma once
 
+#include <graphics/Texture.h>
+
 namespace Graphics
 {
 	struct Presentation
@@ -13,8 +15,7 @@ namespace Graphics
 			//u32 maxImageCount = 0; // 0 means no maximum
 			/*u32 width;
 			u32 height;*/
-			enum class FormatType { RGBA8_UNORM, RGBA8_SRGB, R10G10B10A2_UNORM_PACK32, COUNT };
-			FormatType format = FormatType::RGBA8_SRGB;
+			Texture::FormatType format = Texture::FormatType::RGBA8_SRGB;
 			enum class ColorSpaceType { SRGB_NOLINEAR , COUNT };
 			ColorSpaceType colorSpace = ColorSpaceType::SRGB_NOLINEAR;
 			enum class ModeType { FIFO, FIFO_RELAXED, MAILBOX, IMMEDIATE, COUNT };

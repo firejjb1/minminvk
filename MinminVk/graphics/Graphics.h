@@ -13,6 +13,7 @@ namespace Graphics
 	SharedPtr<Device> device;
 	SharedPtr<Presentation> presentation;
 	SharedPtr<GraphicsPipeline> forwardPipeline;
+	SharedPtr<RenderPass> forwardPass;
 	
 	void InitGraphics(void * window)
 	{
@@ -23,17 +24,30 @@ namespace Graphics
 		device->Init();
 		presentation->InitSwapChain();
 
+		// 
 		// TODO parse glsl file and compile them in Shader class
 		forwardPipeline = MakeShared<GraphicsPipeline>(
 			MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
 			MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main")
 		);
-		forwardPipeline->Init();
+
+		forwardPass = MakeShared<RenderPass>(forwardPipeline);
+
+		
 
 	}
 
 	void MainRender()
 	{
+		// basic forward pass
+		// 1. get renderpass and get command buffer
+		// 2. set pipeline state command
+		// 
+		// 3. for each mesh
+		//	 3.1 bind resources commands
+		//	 3.2 draw command
+
+		// 3.3 send to swapchain
 
 	}
 

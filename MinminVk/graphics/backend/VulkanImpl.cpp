@@ -40,8 +40,10 @@ namespace VulkanImpl
 	Vector<VkImage> swapChainImages;
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
-
+	Vector<VkRenderPass> renderPasses;
 	Vector<VkPipelineLayout> pipelineLayouts;
+	Vector<VkPipeline> pipelines;
+	Vector<VkFramebuffer> swapChainFramebuffers;
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -294,6 +296,17 @@ namespace VulkanImpl
 		return isSuitable;
 	}
 
+	VkFormat MapToVulkanFormat(Graphics::Texture::FormatType format)
+	{
+		if (format == Graphics::Texture::FormatType::RGBA8_SRGB)
+			return VK_FORMAT_B8G8R8A8_SRGB; 
+		if (format == Graphics::Texture::FormatType::R10G10B10A2_UNORM_PACK32)
+			return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+		if (format == Graphics::Texture::FormatType::RGBA8_UNORM)
+			return VK_FORMAT_B8G8R8A8_UNORM;
+		return VK_FORMAT_B8G8R8A8_SRGB;
+	}
+
 	VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats, Graphics::Presentation::SwapChainDetails &swapChainDetails) 
 	{
 
@@ -304,19 +317,18 @@ namespace VulkanImpl
 			}
 
 			// manual matching, make a table if gets too many
-			if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && swapChainDetails.format == Graphics::Presentation::SwapChainDetails::FormatType::RGBA8_SRGB
+			if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && swapChainDetails.format == Graphics::Texture::FormatType::RGBA8_SRGB
 				&& availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR && swapChainDetails.colorSpace == Graphics::Presentation::SwapChainDetails::ColorSpaceType::SRGB_NOLINEAR) {
 				return availableFormat;
 			}
-			if (availableFormat.format == VK_FORMAT_A2R10G10B10_UNORM_PACK32 && swapChainDetails.format == Graphics::Presentation::SwapChainDetails::FormatType::R10G10B10A2_UNORM_PACK32
+			if (availableFormat.format == VK_FORMAT_A2R10G10B10_UNORM_PACK32 && swapChainDetails.format == Graphics::Texture::FormatType::R10G10B10A2_UNORM_PACK32
 				&& availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR && swapChainDetails.colorSpace == Graphics::Presentation::SwapChainDetails::ColorSpaceType::SRGB_NOLINEAR) {
 				return availableFormat;
 			}
-			if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && swapChainDetails.format == Graphics::Presentation::SwapChainDetails::FormatType::RGBA8_UNORM
+			if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && swapChainDetails.format == Graphics::Texture::FormatType::RGBA8_UNORM
 				&& availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR && swapChainDetails.colorSpace == Graphics::Presentation::SwapChainDetails::ColorSpaceType::SRGB_NOLINEAR) {
 				return availableFormat;
 			}
-			
 		}
 		return availableFormats[0];
 	}
@@ -513,7 +525,7 @@ namespace VulkanImpl
 
 	}
 
-	u32 CreateGraphicsPipeline(SharedPtr<Graphics::Shader> vertexShader, SharedPtr<Graphics::Shader> fragShader, Graphics::GraphicsPipeline* pipeline)
+	Graphics::PipeLineID CreateGraphicsPipeline(SharedPtr<Graphics::Shader> vertexShader, SharedPtr<Graphics::Shader> fragShader, Graphics::GraphicsPipeline* pipeline, Graphics::RenderPassID renderPassID)
 	{
 		VkShaderModule vertShaderModule = createShaderModule(vertexShader->shaderCode);
 		VkShaderModule fragShaderModule = createShaderModule(fragShader->shaderCode);
@@ -550,6 +562,13 @@ namespace VulkanImpl
 		dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 		dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStatesVK.size());
 		dynamicState.pDynamicStates = dynamicStatesVK.data();
+
+		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		vertexInputInfo.vertexBindingDescriptionCount = 0;
+		vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
+		vertexInputInfo.vertexAttributeDescriptionCount = 0;
+		vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
 
 		VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
 		inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -603,6 +622,7 @@ namespace VulkanImpl
 		if (rasterStates.find(Graphics::GraphicsPipeline::RasterState::RASTER_DISCARD) != rasterStates.cend())
 			rasterizer.rasterizerDiscardEnable = VK_TRUE;
 		rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+		rasterizer.lineWidth = 1;
 		if (rasterStates.find(Graphics::GraphicsPipeline::RasterState::RASTER_POLYGON_MODE_LINE) != rasterStates.cend())
 		{
 			rasterizer.lineWidth = pipeline->lineWidth;
@@ -672,10 +692,121 @@ namespace VulkanImpl
 			throw std::runtime_error("failed to create pipeline layout!");
 		}
 
+		VkGraphicsPipelineCreateInfo pipelineInfo{};
+		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		pipelineInfo.stageCount = 2;
+		pipelineInfo.pStages = shaderStages;
+
+		pipelineInfo.pVertexInputState = &vertexInputInfo;
+		pipelineInfo.pInputAssemblyState = &inputAssembly;
+		pipelineInfo.pViewportState = &viewportState;
+		pipelineInfo.pRasterizationState = &rasterizer;
+		pipelineInfo.pMultisampleState = &multisampling;
+		pipelineInfo.pDepthStencilState = nullptr; // Optional
+		pipelineInfo.pColorBlendState = &colorBlending;
+		pipelineInfo.pDynamicState = &dynamicState;
+
+		pipelineInfo.layout = pipelineLayout;
+
+		pipelineInfo.renderPass = renderPasses[renderPassID.id];
+		pipelineInfo.subpass = 0;
+		
+		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
+		pipelineInfo.basePipelineIndex = -1; // Optional
+
+		VkPipeline &graphicsPipeline = pipelines.emplace_back();
+		if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create graphics pipeline!");
+		}
 		vkDestroyShaderModule(device, fragShaderModule, nullptr);
 		vkDestroyShaderModule(device, vertShaderModule, nullptr);
-		return pipelineLayouts.size();
+
+		// assuming layout and pipeline vectors are same size
+		return Graphics::PipeLineID{ (u32)pipelineLayouts.size() - 1, pipeline };
 	}
+
+	VkSampleCountFlagBits MapToVulkanCountFlag(u32 count)
+	{
+		if (count <= 1)
+			return VK_SAMPLE_COUNT_1_BIT;
+		if (count <= 2)
+			return VK_SAMPLE_COUNT_2_BIT;
+		if (count <= 4)
+			return VK_SAMPLE_COUNT_4_BIT;
+		if (count <= 8);
+			return VK_SAMPLE_COUNT_8_BIT;
+		if (count <= 16)
+			return VK_SAMPLE_COUNT_16_BIT;
+		if (count <= 32)
+			return VK_SAMPLE_COUNT_32_BIT;
+		return VK_SAMPLE_COUNT_64_BIT;
+	}
+	VkAttachmentLoadOp MapToVulkanLoadOp(Graphics::RenderPass::AttachmentOpType opType)
+	{
+		if (opType == Graphics::RenderPass::AttachmentOpType::CLEAR)
+			return VK_ATTACHMENT_LOAD_OP_CLEAR;
+		if (opType == Graphics::RenderPass::AttachmentOpType::DONTCARE)
+			return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		return VK_ATTACHMENT_LOAD_OP_NONE_EXT;
+	}
+	VkAttachmentStoreOp MapToVulkanStoreOp(Graphics::RenderPass::AttachmentOpType opType)
+	{
+		if (opType == Graphics::RenderPass::AttachmentOpType::STORE)
+			return VK_ATTACHMENT_STORE_OP_STORE;
+		return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	}
+	VkImageLayout MapToVulkanImageLayout(Graphics::Texture::LayoutType layout)
+	{
+		if (layout == Graphics::Texture::LayoutType::PRESENT_SRC)
+			return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		if (layout == Graphics::Texture::LayoutType::COLOR_ATTACHMENT)
+			return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		if (layout == Graphics::Texture::LayoutType::DEPTH_ATTACHMENT)
+			return VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+		if (layout == Graphics::Texture::LayoutType::READ_ONLY)
+			return VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
+		if (layout == Graphics::Texture::LayoutType::TRANSFER_DST)
+			return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		return VK_IMAGE_LAYOUT_UNDEFINED;
+	}
+
+	Graphics::RenderPassID CreateRenderPass(Graphics::RenderPass* renderPass)
+	{
+		VkAttachmentDescription colorAttachment{};
+		colorAttachment.format = MapToVulkanFormat(renderPass->formatType);
+		colorAttachment.samples = MapToVulkanCountFlag(renderPass->numSamples);
+		colorAttachment.loadOp = MapToVulkanLoadOp(renderPass->loadOp);
+		colorAttachment.storeOp = MapToVulkanStoreOp(renderPass->storeOp);
+		colorAttachment.stencilLoadOp = MapToVulkanLoadOp(renderPass->stencilLoadOp);
+		colorAttachment.stencilStoreOp = MapToVulkanStoreOp(renderPass->stencilStoreOp);
+		colorAttachment.initialLayout = MapToVulkanImageLayout(renderPass->initialLayout);
+		colorAttachment.finalLayout = MapToVulkanImageLayout(renderPass->finalLayout);
+
+		VkAttachmentReference colorAttachmentRef{};
+		colorAttachmentRef.attachment = 0;
+		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription subpass{};
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.colorAttachmentCount = 1;
+		subpass.pColorAttachments = &colorAttachmentRef;
+		VkRenderPassCreateInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount = 1;
+		renderPassInfo.pAttachments = &colorAttachment;
+		renderPassInfo.subpassCount = 1;
+		renderPassInfo.pSubpasses = &subpass;
+		auto& renderPassVK = renderPasses.emplace_back();
+		if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPassVK) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create render pass!");
+		}
+		Graphics::RenderPassID id;
+		id.id = renderPasses.size() - 1;
+		id.pointer = renderPass;
+		return id;
+	}
+
+	
 
 
 }
@@ -693,9 +824,11 @@ namespace Graphics
 	void Device::CleanUp()
 	{
 		for (auto& layout : VulkanImpl::pipelineLayouts)
-		{
 			vkDestroyPipelineLayout(VulkanImpl::device, layout, nullptr);
-		}
+		for (auto& pipeline : VulkanImpl::pipelines)
+			vkDestroyPipeline(VulkanImpl::device, pipeline, nullptr);
+		for (auto renderpass : VulkanImpl::renderPasses)
+			vkDestroyRenderPass(VulkanImpl::device, renderpass, nullptr);
 		vkDestroyDevice(VulkanImpl::device, nullptr);
 
 		if (VulkanImpl::enableValidationLayers) {
@@ -723,26 +856,22 @@ namespace Graphics
 
 	void Presentation::CleanUp()
 	{
-		for (auto imageView : VulkanImpl::swapChainImageViews) {
+		for (auto imageView : VulkanImpl::swapChainImageViews)
 			vkDestroyImageView(VulkanImpl::device, imageView, nullptr);
-		}
+
 		vkDestroySwapchainKHR(VulkanImpl::device, VulkanImpl::swapChain, nullptr);
 		vkDestroySurfaceKHR(VulkanImpl::instance, VulkanImpl::surface, nullptr);
 	}
 
 	// Pipeline
-	void GraphicsPipeline::Init()
+	void GraphicsPipeline::Init(Graphics::RenderPassID renderPassID)
 	{
-		pipelineId = VulkanImpl::CreateGraphicsPipeline(vertexShader, fragmentShader, this);
+		pipelineID = VulkanImpl::CreateGraphicsPipeline(vertexShader, fragmentShader, this, renderPassID);
+	}
 
+	// RenderPass
+	void RenderPass::Init()
+	{
+		renderPassID = VulkanImpl::CreateRenderPass(this);
 	}
 }
-
-// namespace Test
-// {
-// 	void TestVK()
-// 	{
-// 		u32 extensionCount = 0;
-// 		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-// 	}
-// }

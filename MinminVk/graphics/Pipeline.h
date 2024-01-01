@@ -1,12 +1,62 @@
 #pragma once
 
-#include "Shader.h"
+#include <graphics/Shader.h>
+#include <graphics/Texture.h>
 
 namespace Graphics
 {
+	struct RenderPass;
+	struct Pipeline;
+
+	struct RenderPassID { u32 id = 0; RenderPass* pointer; };
+	struct PipeLineID { u32 id = 0; Pipeline* pointer; };
+
 	struct Pipeline
 	{
-		virtual void Init() = 0;
+		// assigned by order they are created, starting with 1
+		PipeLineID pipelineID;
+		RenderPassID parentRenderPassID;
+
+		virtual void Init(RenderPassID) = 0;
+	};
+
+
+	struct RenderPass
+	{
+		RenderPassID renderPassID;
+
+		SharedPtr<Pipeline> pso;
+
+		Texture::FormatType formatType = Texture::FormatType::RGBA8_SRGB;
+		u32 numSamples = 1;
+		enum class AttachmentOpType { CLEAR, STORE, DONTCARE };
+		AttachmentOpType loadOp = AttachmentOpType::CLEAR;
+		AttachmentOpType storeOp = AttachmentOpType::STORE;
+		AttachmentOpType stencilLoadOp = AttachmentOpType::DONTCARE;
+		AttachmentOpType stencilStoreOp = AttachmentOpType::DONTCARE;
+
+		Texture::LayoutType initialLayout = Texture::LayoutType::UNDEFINED;
+		Texture::LayoutType finalLayout = Texture::LayoutType::PRESENT_SRC;
+
+		struct SubPass
+		{
+			u32 colorAttachmentIndex = 0;
+			enum class SubPassType { GRAPHICS };
+			SubPassType subPassType = SubPassType::GRAPHICS;
+
+			u32 colorAttachmentCount = 1;
+			
+		};
+		SubPass subPass;
+
+		RenderPass(SharedPtr<Pipeline> pso) : pso{pso} 
+		{
+			Init();
+			pso->Init(renderPassID);
+
+		}
+
+		void Init();
 	};
 
 
@@ -93,12 +143,9 @@ namespace Graphics
 		BlendFactorType blendDestFactorType;
 		BlendOpType blendOpType;
 
-		// assigned by order they are created, starting with 1
-		u32 pipelineId = 0;
-
 		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShade)
 			: vertexShader{ vertexShader }, fragmentShader { fragmentShade } {}
 
-		void Init() override;
+		void Init(RenderPassID) override;
 	};
 }
