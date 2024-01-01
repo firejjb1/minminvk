@@ -40,6 +40,7 @@ namespace Graphics
 	void MainRender()
 	{
 		// basic forward pass
+		// 0. wait for previous frame and acquire image from swapchain
 		// 1. get renderpass and get command buffer
 		// 2. set pipeline state command
 		// 
