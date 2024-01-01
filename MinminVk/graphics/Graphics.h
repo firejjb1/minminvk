@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Type.h"
-#include "Device.h"
-#include "Presentation.h"
-#include "Pipeline.h"
+#include <util/Type.h>
+#include <graphics/Device.h>
+#include <graphics/Presentation.h>
+#include <graphics/Pipeline.h>
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"

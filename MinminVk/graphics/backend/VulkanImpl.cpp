@@ -1,11 +1,11 @@
 // Concrete implementation of all headers related to graphics that use a Vulkan backend
 
-#include "vulkan/vulkan.h"
+#include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
-#include "Device.h"
-#include "Presentation.h"
-#include "Pipeline.h"
+#include <graphics/Device.h>
+#include <graphics/Presentation.h>
+#include <graphics/Pipeline.h>
 
 namespace VulkanImpl
 {
@@ -16,10 +16,10 @@ namespace VulkanImpl
 	};
 	Vector<VkImageView> swapChainImageViews;
 
-#ifdef DEBUG
-	const bool enableValidationLayers = true;
-#else
+#ifdef NODEBUG
 	const bool enableValidationLayers = false;
+#else
+	const bool enableValidationLayers = true;
 #endif
 	const Vector<const char*> validationLayers =
 	{

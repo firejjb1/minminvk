@@ -5,6 +5,11 @@ set (CMAKE_CSS_FLAGS "-std=c++17")
 
 include_directories(external/glm)
 
+set(GLFW_BUILD_DOCS OFF CACHE BOOL OFF FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL OFF FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL OFF FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL OFF FORCE)
+set(GLFW_LIBRARY_TYPE OFF CACHE BOOL "STATIC" FORCE)
 add_subdirectory(external/glfw)
 include_directories(external/glfw/include)
 
@@ -114,9 +119,8 @@ ENDIF(WIN32)
 add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-	graphics
-	util
-)
+ 	.
+ )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC SHADERS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/")
 

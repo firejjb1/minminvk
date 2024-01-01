@@ -3,8 +3,8 @@
 #ifndef SHADER_H
 #define SHADER_H
 
-#include "Type.h"
-#include "IO.h"
+#include <util/Type.h>
+#include <util/IO.h>
 
 namespace Graphics 
 {
