@@ -2,9 +2,20 @@
 
 #include <util/Type.h>
 #include <graphics/Pipeline.h>
+#include <graphics/Presentation.h>
 
 namespace Graphics
 {
+	struct Device;
+
+	struct RenderContext
+	{
+		u32 frameID = 0;
+		SharedPtr<RenderPass> renderPass;
+		SharedPtr<Presentation> presentation;
+		SharedPtr<Device> device;
+	};
+
 	struct CommandList
 	{
 		u32 commandListID = 0;
@@ -16,13 +27,14 @@ namespace Graphics
 	{
 		Vector<CommandList> commandLists;
 
-		// TODO
-		CommandList GetCommandList(u32 index) { return commandLists[index]; }
+		CommandList& GetCommandList(u32 index) { return commandLists[index]; }
 		
 		void Init();
-		CommandList BeginRecording(SharedPtr<RenderPass>, const u32 frameID);
+		bool BeginRecording(RenderContext&);
 
-		void EndRecording(CommandList&, const u32 frameID);
+		void EndRecording(RenderContext&);
 		void CleanUp();
 	};
+
+
 }

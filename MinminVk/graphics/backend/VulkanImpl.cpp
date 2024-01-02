@@ -28,6 +28,8 @@ namespace VulkanImpl
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
 
+	void* windowVK;
+
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debugMessenger;
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -455,7 +457,7 @@ namespace VulkanImpl
 		VkPresentModeKHR presentMode = VulkanImpl::ChooseSwapPresentMode(swapChainSupport.presentModes, swapChainDetails);
 		VkExtent2D extent = VulkanImpl::ChooseSwapExtent(swapChainSupport.capabilities, (GLFWwindow*)window);
 		uint32_t imageCount = Max<u32>(swapChainDetails.targetImageCount, swapChainSupport.capabilities.minImageCount + 1);
-
+		windowVK = window;
 		if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
 			imageCount = swapChainSupport.capabilities.maxImageCount;
 		}
@@ -485,7 +487,7 @@ namespace VulkanImpl
 		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		createInfo.presentMode = presentMode;
 		createInfo.clipped = VK_TRUE;
-		// TODO: swapchain recreation
+
 		createInfo.oldSwapchain = VK_NULL_HANDLE;
 		if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create swap chain!");
@@ -497,7 +499,7 @@ namespace VulkanImpl
 		swapChainExtent = extent;
 	}
 
-	void CreateImageViews()
+	void CreateSwapchainImageViews()
 	{
 		swapChainImageViews.resize(swapChainImages.size());
 		for (size_t i = 0; i < swapChainImages.size(); i++) {
@@ -974,15 +976,35 @@ namespace VulkanImpl
 		}
 	}
 
-	void RecreateSwapchain()
+	void CleanupSwapChain() 
 	{
-		vkDeviceWaitIdle(device);
+		for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
+			vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
+		}
 
-		//CreateSwapChain();
-		//CreateImageViews();
-		//CreateFramebuffers();
+		for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+			vkDestroyImageView(device, swapChainImageViews[i], nullptr);
+		}
+
+		vkDestroySwapchainKHR(device, swapChain, nullptr);
 	}
 
+	void RecreateSwapchain(Graphics::RenderContext &context)
+	{
+		int width = 0, height = 0;
+		glfwGetFramebufferSize((GLFWwindow*) windowVK, &width, &height);
+		while (width == 0 || height == 0) {
+			glfwGetFramebufferSize((GLFWwindow*)windowVK, &width, &height);
+			glfwWaitEvents();
+		}
+		vkDeviceWaitIdle(device);
+		CleanupSwapChain();
+
+		CreateSwapChain(context.presentation->swapChainDetails, windowVK);
+		CreateSwapchainImageViews();
+		CreateFramebuffers(context.renderPass);
+	}
+	
 }
 
 
@@ -1000,8 +1022,11 @@ namespace Graphics
 		VulkanImpl::CreateSyncObjects();
 	}
 
-	Graphics::CommandList Device::BeginRecording(SharedPtr<Graphics::RenderPass> renderPass, const u32 frameID)
+	bool Device::BeginRecording(Graphics::RenderContext& context)
 	{
+		SharedPtr<Graphics::RenderPass> renderPass = context.renderPass;
+		const u32 frameID = context.frameID;
+
 		if (!renderPass->isFrameBufferCreated)
 		{
 			VulkanImpl::CreateFramebuffers(renderPass);
@@ -1010,24 +1035,31 @@ namespace Graphics
 		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		// wait for previous frame to finish
 		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::inFlightFences[swapID], VK_TRUE, UINT64_MAX);
-		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::inFlightFences[swapID]);
 		// acquire an image from the swap chain
 		u32 imageIndex;
-		vkAcquireNextImageKHR(VulkanImpl::device, VulkanImpl::swapChain, UINT64_MAX, VulkanImpl::imageAvailableSemaphores[swapID], VK_NULL_HANDLE, &imageIndex);
-
+		VkResult result = vkAcquireNextImageKHR(VulkanImpl::device, VulkanImpl::swapChain, UINT64_MAX, VulkanImpl::imageAvailableSemaphores[swapID], VK_NULL_HANDLE, &imageIndex);
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+			VulkanImpl::RecreateSwapchain(context);
+			return false;
+		}
+		else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+			throw std::runtime_error("failed to acquire swap chain image!");
+		}
+		// Only reset the fence if we are submitting work
+		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::inFlightFences[swapID]);
 		// record a command buffer which draws the scene onto the image
-		auto commandList = GetCommandList(swapID);
+		auto &commandList = GetCommandList(swapID);
 		commandList.imageIndex = imageIndex;
 		VulkanImpl::RecordCommandBuffer(commandList, renderPass->renderPassID, renderPass->pso->pipelineID);
-		return commandList;
+		return true;
 	}
 
-	void Graphics::Device::EndRecording(Graphics::CommandList& commandList, const u32 frameID)
+	void Graphics::Device::EndRecording(RenderContext& context)
 	{
 		// submit the command buffer
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 
 		VkSemaphore waitSemaphores[] = { VulkanImpl::imageAvailableSemaphores[swapID]};
 		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
@@ -1036,6 +1068,7 @@ namespace Graphics
 		submitInfo.pWaitDstStageMask = waitStages;
 
 		submitInfo.commandBufferCount = 1;
+		const auto &commandList = GetCommandList(swapID);
 		VkCommandBuffer commandBuffer = VulkanImpl::commandBuffers[commandList.commandListID];
 		submitInfo.pCommandBuffers = &commandBuffer;
 
@@ -1058,7 +1091,14 @@ namespace Graphics
 		presentInfo.pSwapchains = swapChains;
 		presentInfo.pImageIndices = &commandList.imageIndex;
 		presentInfo.pResults = nullptr; // Optional
-		vkQueuePresentKHR(VulkanImpl::presentQueue, &presentInfo);
+		auto result = vkQueuePresentKHR(VulkanImpl::presentQueue, &presentInfo);
+		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+			VulkanImpl::RecreateSwapchain(context);
+		}
+		else if (result != VK_SUCCESS) {
+			throw std::runtime_error("failed to present swap chain image!");
+		}
+
 	}
 
 	void Device::CleanUp()
@@ -1102,21 +1142,15 @@ namespace Graphics
 	void Presentation::InitSwapChain()
 	{
 		VulkanImpl::CreateSwapChain(this->swapChainDetails, this->window);
-		VulkanImpl::CreateImageViews();
+		VulkanImpl::CreateSwapchainImageViews();
 
 	}
 
 	void Presentation::CleanUp()
 	{
 		vkDeviceWaitIdle(VulkanImpl::device);
+		VulkanImpl::CleanupSwapChain();
 
-		for (auto framebuffer : VulkanImpl::swapChainFramebuffers) {
-			vkDestroyFramebuffer(VulkanImpl::device, framebuffer, nullptr);
-		}
-		for (auto imageView : VulkanImpl::swapChainImageViews)
-			vkDestroyImageView(VulkanImpl::device, imageView, nullptr);
-
-		vkDestroySwapchainKHR(VulkanImpl::device, VulkanImpl::swapChain, nullptr);
 		vkDestroySurfaceKHR(VulkanImpl::instance, VulkanImpl::surface, nullptr);
 
 	}
