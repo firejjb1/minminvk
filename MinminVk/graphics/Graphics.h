@@ -24,31 +24,36 @@ namespace Graphics
 		device->Init();
 		presentation->InitSwapChain();
 
-		// 
-		// TODO parse glsl file and compile them in Shader class
-		forwardPipeline = MakeShared<GraphicsPipeline>(
-			MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
-			MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main")
-		);
+		// forward pass
+		{
+			forwardPipeline = MakeShared<GraphicsPipeline>(
+				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
+				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main")
+			);
 
-		forwardPass = MakeShared<RenderPass>(forwardPipeline);
+			forwardPass = MakeShared<RenderPass>(forwardPipeline);
+		}
+
 
 		
 
 	}
 
-	void MainRender()
+	void MainRender(const u32 frameID)
 	{
 		// basic forward pass
 		// 0. wait for previous frame and acquire image from swapchain
 		// 1. get renderpass and get command buffer
 		// 2. set pipeline state command
-		// 
+		CommandList cmdList = device->BeginRecording(forwardPass, frameID);
+
 		// 3. for each mesh
 		//	 3.1 bind resources commands
 		//	 3.2 draw command
+		device->EndRecording(cmdList, frameID);
 
 		// 3.3 send to swapchain
+
 
 	}
 

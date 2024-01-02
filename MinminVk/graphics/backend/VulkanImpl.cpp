@@ -14,7 +14,6 @@ namespace VulkanImpl
 		Vector<VkSurfaceFormatKHR> formats;
 		Vector<VkPresentModeKHR> presentModes;
 	};
-	Vector<VkImageView> swapChainImageViews;
 
 #ifdef NODEBUG
 	const bool enableValidationLayers = false;
@@ -38,6 +37,7 @@ namespace VulkanImpl
 	VkQueue presentQueue;
 	VkSwapchainKHR swapChain;
 	Vector<VkImage> swapChainImages;
+	Vector<VkImageView> swapChainImageViews;
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
 	Vector<VkRenderPass> renderPasses;
@@ -47,6 +47,11 @@ namespace VulkanImpl
 	VkCommandPool commandPool;
 	Vector<VkCommandBuffer> commandBuffers;
 
+	u32 MAX_FRAMES_IN_FLIGHT = 2;
+	Vector<VkSemaphore> imageAvailableSemaphores;
+	Vector<VkSemaphore> imageFinishedSemaphores;
+	Vector<VkFence> inFlightFences;
+
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -54,7 +59,8 @@ namespace VulkanImpl
 		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 		void* pUserData) {
 
-		DebugPrint("%s\n", pCallbackData->pMessage);
+		if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+			DebugPrint("%s\n", pCallbackData->pMessage);
 
 		return VK_FALSE;
 	}
@@ -799,6 +805,21 @@ namespace VulkanImpl
 		renderPassInfo.pAttachments = &colorAttachment;
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &subpass;
+
+
+		VkSubpassDependency dependency{};
+		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependency.dstSubpass = 0;
+
+		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.srcAccessMask = 0;
+
+		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+		renderPassInfo.dependencyCount = 1;
+		renderPassInfo.pDependencies = &dependency;
+
 		auto& renderPassVK = renderPasses.emplace_back();
 		if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPassVK) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create render pass!");
@@ -810,26 +831,39 @@ namespace VulkanImpl
 	}
 
 	
-	void CreateFramebuffers()
+	void CreateFramebuffers(SharedPtr<Graphics::RenderPass> renderPass)
 	{
-		swapChainFramebuffers.resize(swapChainImageViews.size());
-		for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-			VkImageView attachments[] = {
-				swapChainImageViews[i]
-			};
+		if (renderPass->shouldFramebuffersMatchSwapchain)
+		{
+			swapChainFramebuffers.resize(swapChainImageViews.size());
+			for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+				VkImageView attachments[] = {
+					swapChainImageViews[i]
+				};
 
-			VkFramebufferCreateInfo framebufferInfo{};
-			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			//framebufferInfo.renderPass = renderPass;
-			framebufferInfo.attachmentCount = 1;
-			framebufferInfo.pAttachments = attachments;
-			framebufferInfo.width = swapChainExtent.width;
-			framebufferInfo.height = swapChainExtent.height;
-			framebufferInfo.layers = 1;
+				VkFramebufferCreateInfo framebufferInfo{};
+				framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+				auto& renderPassVK = renderPasses[renderPass->renderPassID.id];
+				framebufferInfo.renderPass = renderPassVK;
+				framebufferInfo.attachmentCount = 1;
+				framebufferInfo.pAttachments = attachments;
+				framebufferInfo.width = swapChainExtent.width;
+				framebufferInfo.height = swapChainExtent.height;
+				framebufferInfo.layers = 1;
 
-			if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
-				throw std::runtime_error("failed to create framebuffer!");
+				if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+					throw std::runtime_error("failed to create framebuffer!");
+				}
 			}
+		}
+		else
+		{
+			// TODO
+			/*for (auto& frameBuffer : renderPass->frameBuffers)
+			{
+				auto& attachments = frameBuffer.textureIDs;
+				VkImageView attachments[] = attachments.data();
+			}*/
 		}
 	}
 
@@ -846,28 +880,35 @@ namespace VulkanImpl
 		}
 	}
 
-	Graphics::CommandList CreateCommandBuffer()
+	Vector<Graphics::CommandList> CreateCommandBuffers()
 	{
+		commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
 		VkCommandBufferAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = commandPool;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = 1;
+		allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-		auto& commandBuffer = commandBuffers.emplace_back();
-		if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS) {
+		if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
 			throw std::runtime_error("failed to allocate command buffers!");
 		}
-		return Graphics::CommandList{
-				(u32) commandBuffers.size() - 1,
-				0,
-				false
-		};
+
+		Vector<Graphics::CommandList> commandLists;
+		for (u32 i = 0; i < commandBuffers.size(); ++i)
+		{
+			auto& cmdList = commandLists.emplace_back();
+			cmdList.commandListID = i;
+			cmdList.isSecondary = false;
+		}
+		return commandLists;
 	}
 
-	void RecordCommandBuffer(Graphics::CommandList commandList, u32 imageIndex, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID) 
+	void RecordCommandBuffer(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID) 
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
+		vkResetCommandBuffer(commandBuffer, 0);
+
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = 0; // Optional
@@ -881,7 +922,7 @@ namespace VulkanImpl
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		auto& renderPass = renderPasses[renderPassID.id];
 		renderPassInfo.renderPass = renderPass;
-		renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+		renderPassInfo.framebuffer = swapChainFramebuffers[commandList.imageIndex];
 
 		renderPassInfo.renderArea.offset = { 0, 0 };
 		renderPassInfo.renderArea.extent = swapChainExtent;
@@ -890,25 +931,56 @@ namespace VulkanImpl
 		renderPassInfo.clearValueCount = 1;
 		renderPassInfo.pClearValues = &clearColor;
 		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-		auto& graphicsPipeline = pipelines[pipelineID.id];
-		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-		VkViewport viewport{};
-		viewport.x = 0.0f;
-		viewport.y = 0.0f;
-		viewport.width = static_cast<float>(swapChainExtent.width);
-		viewport.height = static_cast<float>(swapChainExtent.height);
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+			auto& graphicsPipeline = pipelines[pipelineID.id];
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+			VkViewport viewport{};
+			viewport.x = 0.0f;
+			viewport.y = 0.0f;
+			viewport.width = static_cast<float>(swapChainExtent.width);
+			viewport.height = static_cast<float>(swapChainExtent.height);
+			viewport.minDepth = 0.0f;
+			viewport.maxDepth = 1.0f;
+			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-		VkRect2D scissor{};
-		scissor.offset = { 0, 0 };
-		scissor.extent = swapChainExtent;
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+			VkRect2D scissor{};
+			scissor.offset = { 0, 0 };
+			scissor.extent = swapChainExtent;
+			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+			vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+		vkCmdEndRenderPass(commandBuffer);
+
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
 			throw std::runtime_error("failed to record command buffer!");
 		}
+	}
+
+	void CreateSyncObjects()
+	{
+		imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+		imageFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+		inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+		VkSemaphoreCreateInfo semaphoreInfo{};
+		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		VkFenceCreateInfo fenceInfo{};
+		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+			if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+				vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageFinishedSemaphores[i]) != VK_SUCCESS ||
+				vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+
+				throw std::runtime_error("failed to create synchronization objects for a frame!");
+			}
+		}
+	}
+
+	void RecreateSwapchain()
+	{
+		vkDeviceWaitIdle(device);
+
+		//CreateSwapChain();
+		//CreateImageViews();
+		//CreateFramebuffers();
 	}
 
 }
@@ -922,18 +994,83 @@ namespace Graphics
 		VulkanImpl::PickPhysicalDevice();
 		VulkanImpl::CreateLogicalDevice();
 		VulkanImpl::CreateCommandPool();
-		commandLists.push_back(VulkanImpl::CreateCommandBuffer());
+		commandLists = VulkanImpl::CreateCommandBuffers();
+
+		// TODO should be here?
+		VulkanImpl::CreateSyncObjects();
 	}
 
-	Graphics::CommandList Device::BeginRecording(SharedPtr<Graphics::RenderPass> renderPass)
+	Graphics::CommandList Device::BeginRecording(SharedPtr<Graphics::RenderPass> renderPass, const u32 frameID)
 	{
-		auto commandList = GetCommandList();
-		VulkanImpl::RecordCommandBuffer(commandList, 0, renderPass->renderPassID, renderPass->pso->pipelineID);
+		if (!renderPass->isFrameBufferCreated)
+		{
+			VulkanImpl::CreateFramebuffers(renderPass);
+			renderPass->isFrameBufferCreated = true;
+		}
+		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		// wait for previous frame to finish
+		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::inFlightFences[swapID], VK_TRUE, UINT64_MAX);
+		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::inFlightFences[swapID]);
+		// acquire an image from the swap chain
+		u32 imageIndex;
+		vkAcquireNextImageKHR(VulkanImpl::device, VulkanImpl::swapChain, UINT64_MAX, VulkanImpl::imageAvailableSemaphores[swapID], VK_NULL_HANDLE, &imageIndex);
+
+		// record a command buffer which draws the scene onto the image
+		auto commandList = GetCommandList(swapID);
+		commandList.imageIndex = imageIndex;
+		VulkanImpl::RecordCommandBuffer(commandList, renderPass->renderPassID, renderPass->pso->pipelineID);
 		return commandList;
+	}
+
+	void Graphics::Device::EndRecording(Graphics::CommandList& commandList, const u32 frameID)
+	{
+		// submit the command buffer
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+
+		VkSemaphore waitSemaphores[] = { VulkanImpl::imageAvailableSemaphores[swapID]};
+		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = waitSemaphores;
+		submitInfo.pWaitDstStageMask = waitStages;
+
+		submitInfo.commandBufferCount = 1;
+		VkCommandBuffer commandBuffer = VulkanImpl::commandBuffers[commandList.commandListID];
+		submitInfo.pCommandBuffers = &commandBuffer;
+
+		VkSemaphore signalSemaphores[] = { VulkanImpl::imageFinishedSemaphores[swapID]};
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = signalSemaphores;
+
+		if (vkQueueSubmit(VulkanImpl::graphicsQueue, 1, &submitInfo, VulkanImpl::inFlightFences[swapID]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to submit draw command buffer!");
+		}
+
+		// submit to the swapchain
+		VkPresentInfoKHR presentInfo{};
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = signalSemaphores;
+		VkSwapchainKHR swapChains[] = { VulkanImpl::swapChain };
+		presentInfo.swapchainCount = 1;
+		presentInfo.pSwapchains = swapChains;
+		presentInfo.pImageIndices = &commandList.imageIndex;
+		presentInfo.pResults = nullptr; // Optional
+		vkQueuePresentKHR(VulkanImpl::presentQueue, &presentInfo);
 	}
 
 	void Device::CleanUp()
 	{
+
+		// TODO should be here?
+		for (size_t i = 0; i < VulkanImpl::MAX_FRAMES_IN_FLIGHT; i++) {
+			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageFinishedSemaphores[i], nullptr);
+			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageAvailableSemaphores[i], nullptr);
+			vkDestroyFence(VulkanImpl::device, VulkanImpl::inFlightFences[i], nullptr);
+		}
+
 		vkDestroyCommandPool(VulkanImpl::device, VulkanImpl::commandPool, nullptr);
 
 		for (auto& layout : VulkanImpl::pipelineLayouts)
@@ -957,20 +1094,22 @@ namespace Graphics
 		VulkanImpl::CreateInstance();
 		VulkanImpl::SetupDebugMessenger();
 
+		VulkanImpl::MAX_FRAMES_IN_FLIGHT = this->swapChainDetails.targetImageCount;
 		this->window = window;
 		VulkanImpl::CreateSurface((GLFWwindow*)window);
-
-		VulkanImpl::CreateFramebuffers();
 	}
 
 	void Presentation::InitSwapChain()
 	{
 		VulkanImpl::CreateSwapChain(this->swapChainDetails, this->window);
 		VulkanImpl::CreateImageViews();
+
 	}
 
 	void Presentation::CleanUp()
 	{
+		vkDeviceWaitIdle(VulkanImpl::device);
+
 		for (auto framebuffer : VulkanImpl::swapChainFramebuffers) {
 			vkDestroyFramebuffer(VulkanImpl::device, framebuffer, nullptr);
 		}
@@ -979,6 +1118,7 @@ namespace Graphics
 
 		vkDestroySwapchainKHR(VulkanImpl::device, VulkanImpl::swapChain, nullptr);
 		vkDestroySurfaceKHR(VulkanImpl::instance, VulkanImpl::surface, nullptr);
+
 	}
 
 	// Pipeline

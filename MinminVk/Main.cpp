@@ -11,6 +11,9 @@ namespace Application
     const uint32_t WIDTH = 800;
     const uint32_t HEIGHT = 600;
     GLFWwindow* window;
+
+    u32 frameID = 0;
+
     void InitApplication()
     {
         glfwInit();
@@ -26,7 +29,9 @@ namespace Application
     {
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
-            Graphics::MainRender();
+            Graphics::MainRender(frameID);
+
+            frameID++;
         }
     }
 

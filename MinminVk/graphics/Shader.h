@@ -24,6 +24,7 @@ namespace Graphics
 		};
 		ShaderType shaderType;
 
+		// TODO parse glsl file and compile them
 		Shader(String shaderPath, ShaderType shaderType, String entryPoint) 
 			: shaderPath {shaderPath}, shaderType{shaderType}, entryPoint{entryPoint}
 		{

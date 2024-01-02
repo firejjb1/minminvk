@@ -26,6 +26,7 @@ namespace Graphics
 		RenderPassID renderPassID;
 
 		SharedPtr<Pipeline> pso;
+		bool isFrameBufferCreated = false;
 
 		Texture::FormatType formatType = Texture::FormatType::RGBA8_SRGB;
 		u32 numSamples = 1;
@@ -45,9 +46,20 @@ namespace Graphics
 			SubPassType subPassType = SubPassType::GRAPHICS;
 
 			u32 colorAttachmentCount = 1;
-			
 		};
 		SubPass subPass;
+
+		bool shouldFramebuffersMatchSwapchain = true;
+		struct FrameBuffer
+		{
+			Vector<TextureID> textureIDs{};
+			// 0 value should match swapchain
+			u32 width = 0;
+			u32 height = 0;
+			u32 numLayers = 1;
+		};
+
+		Vector<FrameBuffer> frameBuffers;
 
 		RenderPass(SharedPtr<Pipeline> pso) : pso{pso} 
 		{
