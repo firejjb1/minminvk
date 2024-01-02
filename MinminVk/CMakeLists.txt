@@ -127,6 +127,10 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC SHADERS_DIR="${CMAKE_CURRENT_S
 # disable validation layers, etc
 # target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
 
+# define vulkan implementation. only supports vulkan for now
+target_compile_definitions(${PROJECT_NAME} PUBLIC VULKAN_IMPL)
+
+
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 
 target_link_libraries(${PROJECT_NAME} ${Vulkan_LIBRARY} ${LIBS})

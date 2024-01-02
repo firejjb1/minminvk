@@ -1,7 +1,3 @@
-// macros to setup depending on settings
-#define VULKAN_IMPL
-//#define NODEBUG
-// end macros
 #include <graphics/Graphics.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
