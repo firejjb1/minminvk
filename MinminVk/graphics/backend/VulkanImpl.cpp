@@ -6,6 +6,7 @@
 #include <graphics/Device.h>
 #include <graphics/Presentation.h>
 #include <graphics/Pipeline.h>
+#include <graphics/Geometry.h>
 
 namespace VulkanImpl
 {
@@ -48,6 +49,8 @@ namespace VulkanImpl
 	Vector<VkFramebuffer> swapChainFramebuffers;
 	VkCommandPool commandPool;
 	Vector<VkCommandBuffer> commandBuffers;
+	Vector<VkBuffer> vertexBuffers;
+	Vector<VkDeviceMemory> vertexBufferMemories;
 
 	u32 MAX_FRAMES_IN_FLIGHT = 2;
 	Vector<VkSemaphore> imageAvailableSemaphores;
@@ -536,6 +539,53 @@ namespace VulkanImpl
 
 	}
 
+	u32 FindMemoryType(u32 typeFilter, VkMemoryPropertyFlags properties) 
+	{
+		VkPhysicalDeviceMemoryProperties memProperties;
+		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+			if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+				return i;
+			}
+		}
+
+		throw std::runtime_error("failed to find suitable memory type!");
+	}
+
+	void CreateVertexBufferQuad(Graphics::Quad &quad)
+	{
+		VkBufferCreateInfo bufferInfo{};
+		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		const auto& vertices = quad.vertexDesc.vertices;
+		bufferInfo.size = sizeof(vertices[0]) * vertices.size();
+		bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		auto& vertexBuffer = vertexBuffers.emplace_back();
+		if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create vertex buffer!");
+		}
+		quad.geometryID.vertexBufferID = vertexBuffers.size() - 1;
+
+		VkMemoryRequirements memRequirements;
+		vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
+
+		VkMemoryAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = memRequirements.size;
+		allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		auto& vertexBufferMemory = vertexBufferMemories.emplace_back();
+		if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate vertex buffer memory!");
+		}
+		vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+		void* data;
+		vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+		memcpy(data, vertices.data(), (size_t)bufferInfo.size);
+		vkUnmapMemory(device, vertexBufferMemory);
+	}
+
 	Graphics::PipeLineID CreateGraphicsPipeline(SharedPtr<Graphics::Shader> vertexShader, SharedPtr<Graphics::Shader> fragShader, Graphics::GraphicsPipeline* pipeline, Graphics::RenderPassID renderPassID)
 	{
 		VkShaderModule vertShaderModule = createShaderModule(vertexShader->shaderCode);
@@ -574,12 +624,41 @@ namespace VulkanImpl
 		dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStatesVK.size());
 		dynamicState.pDynamicStates = dynamicStatesVK.data();
 
+
 		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInputInfo.vertexBindingDescriptionCount = 0;
-		vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
-		vertexInputInfo.vertexAttributeDescriptionCount = 0;
-		vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+		//vertexInputInfo.vertexBindingDescriptionCount = 0;
+		//vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
+		//vertexInputInfo.vertexAttributeDescriptionCount = 0;
+		//vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+
+		const Graphics::VertexBinding &vertexBinding = pipeline->vertexDesc->GetVertexBinding();
+		const Vector<Graphics::VertexAttribute>& vertexAttributes = pipeline->vertexDesc->GetVertexAttributes();
+		VkVertexInputBindingDescription bindingDescription{};
+		bindingDescription.binding = vertexBinding.binding;
+		bindingDescription.stride = vertexBinding.stride;
+		bindingDescription.inputRate = vertexBinding.inputRateType == Graphics::VertexBinding::InputRateType::VERTEX ?
+			VK_VERTEX_INPUT_RATE_VERTEX : VK_VERTEX_INPUT_RATE_INSTANCE;
+		Vector<VkVertexInputAttributeDescription> attributeDescriptionsVK;
+		for (const auto& attribute : vertexAttributes)
+		{
+			auto& attributeDescVK = attributeDescriptionsVK.emplace_back();
+			attributeDescVK.binding = attribute.binding;
+			attributeDescVK.location = attribute.location;
+			attributeDescVK.offset = attribute.offset;
+			if (attribute.vertexFormatType == Graphics::VertexAttribute::VertexFormatType::FLOAT)
+				attributeDescVK.format = VK_FORMAT_R32_SFLOAT;
+			else if (attribute.vertexFormatType == Graphics::VertexAttribute::VertexFormatType::VEC2)
+				attributeDescVK.format = VK_FORMAT_R32G32_SFLOAT;
+			else if (attribute.vertexFormatType == Graphics::VertexAttribute::VertexFormatType::VEC3)
+				attributeDescVK.format = VK_FORMAT_R32G32B32_SFLOAT;
+			else if (attribute.vertexFormatType == Graphics::VertexAttribute::VertexFormatType::VEC4)
+				attributeDescVK.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		}
+		vertexInputInfo.vertexBindingDescriptionCount = 1;
+		vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptionsVK.size());
+		vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+		vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptionsVK.data();
 
 		VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
 		inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -906,6 +985,20 @@ namespace VulkanImpl
 		return commandLists;
 	}
 
+	void DrawQuad(Graphics::CommandList commandList, Graphics::Quad& quad, Graphics::PipeLineID pipelineID)
+	{
+		auto& graphicsPipeline = pipelines[pipelineID.id];
+		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
+
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		auto& vertexBuffer = vertexBuffers[quad.geometryID.vertexBufferID];
+		VkBuffer vertexBuffers[] = { vertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+		vkCmdDraw(commandBuffer, static_cast<uint32_t>(quad.vertexDesc.vertices.size()), 1, 0, 0);
+	}
+
 	void RecordCommandBuffer(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID) 
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
@@ -948,7 +1041,11 @@ namespace VulkanImpl
 			scissor.offset = { 0, 0 };
 			scissor.extent = swapChainExtent;
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-			vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+	}
+
+	void EndRecordCommandbuffer(Graphics::CommandList commandList)
+	{
+		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 		vkCmdEndRenderPass(commandBuffer);
 
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -1056,10 +1153,14 @@ namespace Graphics
 
 	void Graphics::Device::EndRecording(RenderContext& context)
 	{
+		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		const auto& commandList = GetCommandList(swapID);
+		VkCommandBuffer commandBuffer = VulkanImpl::commandBuffers[commandList.commandListID];
+
+		VulkanImpl::EndRecordCommandbuffer(commandList);
 		// submit the command buffer
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 
 		VkSemaphore waitSemaphores[] = { VulkanImpl::imageAvailableSemaphores[swapID]};
 		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
@@ -1068,8 +1169,7 @@ namespace Graphics
 		submitInfo.pWaitDstStageMask = waitStages;
 
 		submitInfo.commandBufferCount = 1;
-		const auto &commandList = GetCommandList(swapID);
-		VkCommandBuffer commandBuffer = VulkanImpl::commandBuffers[commandList.commandListID];
+
 		submitInfo.pCommandBuffers = &commandBuffer;
 
 		VkSemaphore signalSemaphores[] = { VulkanImpl::imageFinishedSemaphores[swapID]};
@@ -1104,12 +1204,16 @@ namespace Graphics
 	void Device::CleanUp()
 	{
 
-		// TODO should be here?
 		for (size_t i = 0; i < VulkanImpl::MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageFinishedSemaphores[i], nullptr);
 			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageAvailableSemaphores[i], nullptr);
 			vkDestroyFence(VulkanImpl::device, VulkanImpl::inFlightFences[i], nullptr);
 		}
+
+		for (auto& buffer : VulkanImpl::vertexBuffers)
+			vkDestroyBuffer(VulkanImpl::device, buffer, nullptr);
+		for (auto& memory : VulkanImpl::vertexBufferMemories)
+			vkFreeMemory(VulkanImpl::device, memory, nullptr);
 
 		vkDestroyCommandPool(VulkanImpl::device, VulkanImpl::commandPool, nullptr);
 
@@ -1165,5 +1269,17 @@ namespace Graphics
 	void RenderPass::Init()
 	{
 		renderPassID = VulkanImpl::CreateRenderPass(this);
+	}
+
+	Quad::Quad()
+	{
+		VulkanImpl::CreateVertexBufferQuad(*this);
+	}
+
+	void Quad::Draw(RenderContext& context)
+	{
+		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto& commandList = context.device->GetCommandList(swapID);
+		VulkanImpl::DrawQuad(commandList, *this, context.renderPass->pso->pipelineID);
 	}
 }

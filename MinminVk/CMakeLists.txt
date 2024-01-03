@@ -107,6 +107,7 @@ set(HEADER_FILES
 	"graphics/Presentation.h"
 	"graphics/Shader.h"
 	"graphics/Texture.h"
+	"graphics/Geometry.h"
 )
 
 IF(WIN32)

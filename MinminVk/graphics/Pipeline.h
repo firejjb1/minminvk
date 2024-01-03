@@ -2,6 +2,7 @@
 
 #include <graphics/Shader.h>
 #include <graphics/Texture.h>
+#include <graphics/Geometry.h>
 
 namespace Graphics
 {
@@ -155,8 +156,10 @@ namespace Graphics
 		BlendFactorType blendDestFactorType;
 		BlendOpType blendOpType;
 
-		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShade)
-			: vertexShader{ vertexShader }, fragmentShader { fragmentShade } {}
+		SharedPtr<VertexDesc> vertexDesc;
+
+		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShader, SharedPtr<VertexDesc> vertexDesc)
+			: vertexShader{ vertexShader }, fragmentShader{ fragmentShader }, vertexDesc{ vertexDesc } {}
 
 		void Init(RenderPassID) override;
 	};

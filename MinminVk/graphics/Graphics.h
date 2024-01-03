@@ -13,6 +13,7 @@ namespace Graphics
 	SharedPtr<Presentation> presentation;
 	SharedPtr<GraphicsPipeline> forwardPipeline;
 	SharedPtr<RenderPass> forwardPass;
+	SharedPtr<Quad> quad;
 	
 	void InitGraphics(void * window)
 	{
@@ -30,10 +31,13 @@ namespace Graphics
 		{
 			forwardPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
-				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main")
+				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
+				MakeShared<BasicVertex>()
 			);
 
 			forwardPass = MakeShared<RenderPass>(forwardPipeline);
+
+			quad = MakeShared<Quad>();
 		}
 
 
@@ -43,24 +47,20 @@ namespace Graphics
 
 	void MainRender(const u32 frameID)
 	{
-		// basic forward pass
-		// 0. wait for previous frame and acquire image from swapchain
-		// 1. get renderpass and get command buffer
-		// 2. set pipeline state command
 		context.frameID = frameID;
-		context.renderPass = forwardPass;
 
-		bool success = device->BeginRecording(context);
-		if (!success)
-			return;
-		// 3. for each mesh
-		//	 3.1 bind resources commands
-		//	 3.2 draw command
+		// forward pass
+		{
+			context.renderPass = forwardPass;
 
-		device->EndRecording(context);
+			bool success = device->BeginRecording(context);
+			if (!success)
+				return;
 
-		// 3.3 send to swapchain
+			quad->Draw(context);
 
+			device->EndRecording(context);
+		}
 
 	}
 
