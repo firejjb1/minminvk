@@ -51,6 +51,8 @@ namespace VulkanImpl
 	Vector<VkCommandBuffer> commandBuffers;
 	Vector<VkBuffer> vertexBuffers;
 	Vector<VkDeviceMemory> vertexBufferMemories;
+	Vector<VkBuffer> indexBuffers;
+	Vector<VkDeviceMemory > indexBufferMemories;
 
 	u32 MAX_FRAMES_IN_FLIGHT = 2;
 	Vector<VkSemaphore> imageAvailableSemaphores;
@@ -635,6 +637,32 @@ namespace VulkanImpl
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
 	}
 
+	void CreateIndexBufferQuad(Graphics::Quad& quad)
+	{
+		const auto& indices = quad.indices;
+
+		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+		CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+		void* data;
+		vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+		memcpy(data, indices.data(), (size_t)bufferSize);
+		vkUnmapMemory(device, stagingBufferMemory);
+
+		auto& indexBuffer = indexBuffers.emplace_back();
+		auto& indexBufferMemory = indexBufferMemories.emplace_back();
+		CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+		quad.geometryID.indexBufferID = indexBuffers.size() - 1;
+
+		CopyBuffer(stagingBuffer, indexBuffer, bufferSize);
+
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
+	}
+
 	Graphics::PipeLineID CreateGraphicsPipeline(SharedPtr<Graphics::Shader> vertexShader, SharedPtr<Graphics::Shader> fragShader, Graphics::GraphicsPipeline* pipeline, Graphics::RenderPassID renderPassID)
 	{
 		VkShaderModule vertShaderModule = createShaderModule(vertexShader->shaderCode);
@@ -1044,8 +1072,9 @@ namespace VulkanImpl
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[quad.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
 
-		vkCmdDraw(commandBuffer, static_cast<uint32_t>(quad.vertexDesc.vertices.size()), 1, 0, 0);
+		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(quad.indices.size()), 1, 0, 0, 0);
 	}
 
 	void RecordCommandBuffer(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID) 
@@ -1263,6 +1292,10 @@ namespace Graphics
 			vkDestroyBuffer(VulkanImpl::device, buffer, nullptr);
 		for (auto& memory : VulkanImpl::vertexBufferMemories)
 			vkFreeMemory(VulkanImpl::device, memory, nullptr);
+		for (auto buffer : VulkanImpl::indexBuffers)
+			vkDestroyBuffer(VulkanImpl::device, buffer, nullptr);
+		for (auto& memory : VulkanImpl::indexBufferMemories)
+			vkFreeMemory(VulkanImpl::device, memory, nullptr);
 
 		vkDestroyCommandPool(VulkanImpl::device, VulkanImpl::commandPool, nullptr);
 
@@ -1323,6 +1356,7 @@ namespace Graphics
 	Quad::Quad()
 	{
 		VulkanImpl::CreateVertexBufferQuad(*this);
+		VulkanImpl::CreateIndexBufferQuad(*this);
 	}
 
 	void Quad::Draw(RenderContext& context)
