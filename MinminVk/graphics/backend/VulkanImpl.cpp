@@ -44,6 +44,7 @@ namespace VulkanImpl
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
 	Vector<VkRenderPass> renderPasses;
+	Vector<VkDescriptorSetLayout> descriptorSetLayouts;
 	Vector<VkPipelineLayout> pipelineLayouts;
 	Vector<VkPipeline> pipelines;
 	Vector<VkFramebuffer> swapChainFramebuffers;
@@ -53,6 +54,12 @@ namespace VulkanImpl
 	Vector<VkDeviceMemory> vertexBufferMemories;
 	Vector<VkBuffer> indexBuffers;
 	Vector<VkDeviceMemory > indexBufferMemories;
+	Vector<VkBuffer> uniformBuffers;
+	Vector<VkDeviceMemory> uniformBufferMemories;
+	Vector<void*> uniformBuffersMapped;
+	VkDescriptorPool descriptorPool;
+	Vector<VkDescriptorSet> uniformDescriptorSets;
+
 
 	u32 MAX_FRAMES_IN_FLIGHT = 2;
 	Vector<VkSemaphore> imageAvailableSemaphores;
@@ -115,7 +122,8 @@ namespace VulkanImpl
 			extensions.emplace_back(glfwExtensions[i]);
 		}
 
-		extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+		// renderdoc doesn't support
+		// extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
 
 		if (enableValidationLayers) {
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
@@ -211,8 +219,8 @@ namespace VulkanImpl
 
 		auto extensions = GetRequiredExtensions();
 
-
-		createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+		// renderdoc doesn't support
+		// createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
 		createInfo.enabledExtensionCount = (u32)extensions.size();
 		createInfo.ppEnabledExtensionNames = extensions.data();
@@ -612,9 +620,9 @@ namespace VulkanImpl
 
 	}
 
-	void CreateVertexBufferQuad(Graphics::Quad &quad)
+	void CreateVertexBuffer(Graphics::Geometry &geometry)
 	{
-		const auto& vertices = quad.vertexDesc.vertices;
+		const auto& vertices = geometry.GetVertexData().vertices;
 		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
 		VkBuffer stagingBuffer;
@@ -630,16 +638,16 @@ namespace VulkanImpl
 		auto& vertexBufferMemory = vertexBufferMemories.emplace_back();
 
 		CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
-		quad.geometryID.vertexBufferID = vertexBuffers.size() - 1;
+		geometry.geometryID.vertexBufferID = vertexBuffers.size() - 1;
 
 		CopyBuffer(stagingBuffer, vertexBuffer, bufferSize);
 		vkDestroyBuffer(device, stagingBuffer, nullptr);
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
 	}
 
-	void CreateIndexBufferQuad(Graphics::Quad& quad)
+	void CreateIndexBuffer(Graphics::Geometry& geometry)
 	{
-		const auto& indices = quad.indices;
+		const auto& indices = geometry.GetIndicesData();
 
 		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
@@ -655,12 +663,27 @@ namespace VulkanImpl
 		auto& indexBuffer = indexBuffers.emplace_back();
 		auto& indexBufferMemory = indexBufferMemories.emplace_back();
 		CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
-		quad.geometryID.indexBufferID = indexBuffers.size() - 1;
+		geometry.geometryID.indexBufferID = indexBuffers.size() - 1;
 
 		CopyBuffer(stagingBuffer, indexBuffer, bufferSize);
 
 		vkDestroyBuffer(device, stagingBuffer, nullptr);
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
+	}
+
+	void CreateBasicUniformBuffer(Graphics::BasicUniformBuffer& uniformDesc)
+	{
+		VkDeviceSize bufferSize = sizeof(Graphics::BasicUniformBuffer);
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			auto& uniformBuffer = uniformBuffers.emplace_back();
+			auto& uniformBufferMemory = uniformBufferMemories.emplace_back();
+			auto& uniformBufferMapped = uniformBuffersMapped.emplace_back();
+			assert(uniformBuffers.size() == uniformBufferMemories.size() && uniformBuffers.size() == uniformBuffersMapped.size());
+			uniformDesc.uniformBufferID = uniformBuffers.size() - 1;
+			CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffer, uniformBufferMemory);
+			vkMapMemory(device, uniformBufferMemory, 0, bufferSize, 0, &uniformBufferMapped);
+		}
 	}
 
 	Graphics::PipeLineID CreateGraphicsPipeline(SharedPtr<Graphics::Shader> vertexShader, SharedPtr<Graphics::Shader> fragShader, Graphics::GraphicsPipeline* pipeline, Graphics::RenderPassID renderPassID)
@@ -704,10 +727,6 @@ namespace VulkanImpl
 
 		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		//vertexInputInfo.vertexBindingDescriptionCount = 0;
-		//vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
-		//vertexInputInfo.vertexAttributeDescriptionCount = 0;
-		//vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
 
 		const Graphics::VertexBinding &vertexBinding = pipeline->vertexDesc->GetVertexBinding();
 		const Vector<Graphics::VertexAttribute>& vertexAttributes = pipeline->vertexDesc->GetVertexAttributes();
@@ -834,6 +853,10 @@ namespace VulkanImpl
 		pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
 		pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
 		pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+
+		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutInfo.setLayoutCount = 1;
+		pipelineLayoutInfo.pSetLayouts =  &descriptorSetLayouts[pipeline->uniformDesc->uniformLayoutID];
 
 		VkPipelineColorBlendAttachmentState colorBlendAttachment{};
 		colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -1062,19 +1085,23 @@ namespace VulkanImpl
 		return commandLists;
 	}
 
-	void DrawQuad(Graphics::CommandList commandList, Graphics::Quad& quad, Graphics::PipeLineID pipelineID)
+	void Draw(Graphics::CommandList commandList, Graphics::Geometry& geometry, Graphics::PipeLineID pipelineID)
 	{
 		auto& graphicsPipeline = pipelines[pipelineID.id];
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-		auto& vertexBuffer = vertexBuffers[quad.geometryID.vertexBufferID];
+		auto& vertexBuffer = vertexBuffers[geometry.geometryID.vertexBufferID];
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[quad.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
 
-		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(quad.indices.size()), 1, 0, 0, 0);
+		memcpy(uniformBuffersMapped[geometry.basicUniform->uniformBufferID], &geometry.basicUniform->transformUniform, sizeof(Graphics::BasicUniformBuffer::TransformUniform));
+
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[geometry.basicUniform->uniformLayoutID], 0, 1, &uniformDescriptorSets[geometry.basicUniform->uniformBufferID], 0, nullptr);
+
+		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(geometry.GetIndicesData().size()), 1, 0, 0, 0);
 	}
 
 	void RecordCommandBuffer(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID) 
@@ -1179,7 +1206,89 @@ namespace VulkanImpl
 		CreateSwapchainImageViews();
 		CreateFramebuffers(context.renderPass);
 	}
+
+	void CreateDescriptorSetLayout(Graphics::UniformDesc &uniform)
+	{
+		const auto& uniformBinding = uniform.GetUniformBinding();
+		VkDescriptorSetLayoutBinding uboLayoutBinding{};
+		uboLayoutBinding.binding = uniformBinding.binding;
+		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		// TODO array of descriptor could be used for bones animation
+		uboLayoutBinding.descriptorCount = 1;
+
+		uboLayoutBinding.stageFlags = 0;
+		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::UniformBinding::ShaderStageType::VERTEX ?  VK_SHADER_STAGE_VERTEX_BIT : 0;
+		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::UniformBinding::ShaderStageType::FRAGMENT ?  VK_SHADER_STAGE_FRAGMENT_BIT : 0;
+		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::UniformBinding::ShaderStageType::ALL_GRAPHICS ?  VK_SHADER_STAGE_ALL_GRAPHICS : 0;
+		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::UniformBinding::ShaderStageType::COMPUTE ?  VK_SHADER_STAGE_COMPUTE_BIT : 0;
+
+		uboLayoutBinding.pImmutableSamplers = nullptr; // TODO
+
+		auto& descriptorSetLayout = descriptorSetLayouts.emplace_back();
+		uniform.uniformLayoutID = descriptorSetLayouts.size() - 1;
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &uboLayoutBinding;
+
+		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+			throw std::runtime_error("failed to create descriptor set layout!");
+	}
 	
+	void CreateUniformDescriptorPool()
+	{
+		VkDescriptorPoolSize poolSize{};
+		poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		// assuming as many uniform descriptor sets as uniform buffers
+		poolSize.descriptorCount = uniformBuffers.size();
+
+		VkDescriptorPoolCreateInfo poolInfo{};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.poolSizeCount = 1;
+		poolInfo.pPoolSizes = &poolSize;
+		poolInfo.maxSets = uniformBuffers.size();
+
+		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create descriptor pool!");
+		}
+	}
+
+	void CreateUniformDescriptorSets(Graphics::BasicUniformBuffer& uniform)
+	{
+		// assuming as many uniform descriptor sets as uniform buffers
+		u32 setsSize = uniformBuffers.size();
+		Vector<VkDescriptorSetLayout> layouts(setsSize, descriptorSetLayouts[uniform.uniformLayoutID]);
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = descriptorPool;
+		allocInfo.descriptorSetCount = setsSize;
+		allocInfo.pSetLayouts = layouts.data();
+
+		uniformDescriptorSets.resize(setsSize);
+		if (vkAllocateDescriptorSets(device, &allocInfo, uniformDescriptorSets.data()) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate descriptor sets!");
+		}
+
+		for (size_t i = 0; i < setsSize; i++) {
+			VkDescriptorBufferInfo bufferInfo{};
+			bufferInfo.buffer = uniformBuffers[i];
+			bufferInfo.offset = 0;
+			bufferInfo.range = sizeof(Graphics::BasicUniformBuffer);
+
+			VkWriteDescriptorSet descriptorWrite{};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = uniformDescriptorSets[i];
+			descriptorWrite.dstBinding = 0;
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pBufferInfo = &bufferInfo;
+			descriptorWrite.pImageInfo = nullptr; // Optional
+			descriptorWrite.pTexelBufferView = nullptr; // Optional
+			vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+		}
+	}
 }
 
 
@@ -1297,6 +1406,16 @@ namespace Graphics
 		for (auto& memory : VulkanImpl::indexBufferMemories)
 			vkFreeMemory(VulkanImpl::device, memory, nullptr);
 
+		for (size_t i = 0; i < VulkanImpl::uniformBuffers.size(); i++) {
+			vkDestroyBuffer(VulkanImpl::device, VulkanImpl::uniformBuffers[i], nullptr);
+			vkFreeMemory(VulkanImpl::device, VulkanImpl::uniformBufferMemories[i], nullptr);
+		}
+		vkDestroyDescriptorPool(VulkanImpl::device, VulkanImpl::descriptorPool, nullptr);
+
+		for (auto& layout : VulkanImpl::descriptorSetLayouts)
+			vkDestroyDescriptorSetLayout(VulkanImpl::device, layout, nullptr);
+		
+
 		vkDestroyCommandPool(VulkanImpl::device, VulkanImpl::commandPool, nullptr);
 
 		for (auto& layout : VulkanImpl::pipelineLayouts)
@@ -1344,7 +1463,14 @@ namespace Graphics
 	// Pipeline
 	void GraphicsPipeline::Init(Graphics::RenderPassID renderPassID)
 	{
+		VulkanImpl::CreateDescriptorSetLayout(*this->uniformDesc);
+		VulkanImpl::CreateBasicUniformBuffer(*this->uniformDesc);
+
 		pipelineID = VulkanImpl::CreateGraphicsPipeline(vertexShader, fragmentShader, this, renderPassID);
+
+		VulkanImpl::CreateUniformDescriptorPool();
+		VulkanImpl::CreateUniformDescriptorSets(*this->uniformDesc);
+
 	}
 
 	// RenderPass
@@ -1353,16 +1479,23 @@ namespace Graphics
 		renderPassID = VulkanImpl::CreateRenderPass(this);
 	}
 
-	Quad::Quad()
+	Geometry::Geometry(SharedPtr<BasicUniformBuffer> basicUniform)
+		: basicUniform{basicUniform}
 	{
-		VulkanImpl::CreateVertexBufferQuad(*this);
-		VulkanImpl::CreateIndexBufferQuad(*this);
+
+	}
+
+	Quad::Quad(SharedPtr<BasicUniformBuffer> basicUniform)
+		: Geometry{ basicUniform }
+	{
+		VulkanImpl::CreateVertexBuffer(*this);
+		VulkanImpl::CreateIndexBuffer(*this);
 	}
 
 	void Quad::Draw(RenderContext& context)
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);
-		VulkanImpl::DrawQuad(commandList, *this, context.renderPass->pso->pipelineID);
+		VulkanImpl::Draw(commandList, *this, context.renderPass->pso->pipelineID);
 	}
 }

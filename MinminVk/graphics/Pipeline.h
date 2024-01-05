@@ -157,9 +157,10 @@ namespace Graphics
 		BlendOpType blendOpType;
 
 		SharedPtr<VertexDesc> vertexDesc;
+		SharedPtr<BasicUniformBuffer> uniformDesc;
 
-		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShader, SharedPtr<VertexDesc> vertexDesc)
-			: vertexShader{ vertexShader }, fragmentShader{ fragmentShader }, vertexDesc{ vertexDesc } {}
+		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShader, SharedPtr<VertexDesc> vertexDesc, SharedPtr<BasicUniformBuffer> uniformDesc)
+			: vertexShader{ vertexShader }, fragmentShader{ fragmentShader }, vertexDesc{ vertexDesc }, uniformDesc{ uniformDesc } {}
 
 		void Init(RenderPassID) override;
 	};

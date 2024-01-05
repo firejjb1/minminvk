@@ -32,20 +32,18 @@ namespace Graphics
 			forwardPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
-				MakeShared<BasicVertex>()
+				MakeShared<BasicVertex>(),
+				MakeShared<BasicUniformBuffer>()
 			);
 
 			forwardPass = MakeShared<RenderPass>(forwardPipeline);
 
-			quad = MakeShared<Quad>();
+			quad = MakeShared<Quad>(forwardPipeline->uniformDesc);
 		}
-
-
-		
 
 	}
 
-	void MainRender(const u32 frameID)
+	void MainRender(const u32 frameID, const f32 deltaTime)
 	{
 		context.frameID = frameID;
 
@@ -57,6 +55,7 @@ namespace Graphics
 			if (!success)
 				return;
 
+			quad->Update(deltaTime);
 			quad->Draw(context);
 
 			device->EndRecording(context);

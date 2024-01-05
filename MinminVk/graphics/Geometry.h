@@ -71,19 +71,64 @@ namespace Graphics
 		}
 	};
 
+	struct UniformBinding
+	{
+		u32 binding;
+		enum class ShaderStageType { VERTEX, FRAGMENT, COMPUTE, ALL_GRAPHICS };
+		ShaderStageType shaderStageType;
+	};
+
+	struct UniformDesc
+	{
+		u32 uniformLayoutID = 0;
+		u32 uniformBufferID = 0;
+		virtual UniformBinding GetUniformBinding() = 0;
+	};
+
 	struct GeometryID { u32 vertexBufferID = 0; u32 indexBufferID = 0; };
 
-	struct Quad
+	struct BasicUniformBuffer : UniformDesc
 	{
+		struct TransformUniform
+		{
+			alignas(16) mat4 model = mat4(1);
+			alignas(16) mat4 view = mat4(1);
+			alignas(16) mat4 proj = mat4(1);
+		};
+
+		TransformUniform transformUniform;
+
+		UniformBinding GetUniformBinding() override
+		{
+			UniformBinding uboBinding;
+			uboBinding.binding = 0;
+			uboBinding.shaderStageType = UniformBinding::ShaderStageType::VERTEX;
+			return uboBinding;
+		}
+	};
+
+	struct Geometry
+	{
+	GeometryID geometryID;
+	SharedPtr<BasicUniformBuffer> basicUniform;
+
+	protected:
+		BasicVertex vertexDesc;
+		Vector<u16> indices;
+	public:
+		virtual BasicVertex& GetVertexData() { return vertexDesc; }
+		virtual Vector<u16>& GetIndicesData() { return indices; }
+		virtual void Draw(RenderContext&) {};
+		virtual void Update(f32 deltaTime) {};
+
+		Geometry(SharedPtr<BasicUniformBuffer> basicUniform);
+
+	};
+
+	struct Quad : public Geometry
+	{
+	private:
 		BasicVertex vertexDesc{ Vector<BasicVertex::Vertex>{
-				//{{-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}},
-				//{{0.5f, 0.5f, 0.f}, {0.0f, 1.0f, 0.0f}},
-				//{{-0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}},
-
-				//{{-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}},
-				//{{0.5f, -0.5f, 0.f}, {0.0f, 1.0f, 0.0f}},
-				//{{0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}},
-
 				{{-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}},
 				{{0.5f, -0.5f, 0.f}, {0.0f, 1.0f, 0.0f}},
 				{{0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}},
@@ -94,12 +139,20 @@ namespace Graphics
 		Vector<u16> indices = {
 			0, 1, 2, 2, 3, 0
 		};
+	public:
 
-		GeometryID geometryID;
 
-		Quad();
+		Quad(SharedPtr<BasicUniformBuffer> uboTransform);
 
-		void Draw(RenderContext&);
+		BasicVertex& GetVertexData() override { return vertexDesc; }
+		Vector<u16>& GetIndicesData() override { return indices; }
+
+		void Draw(RenderContext&) override;
+
+		void Update(f32 deltaTime) override
+		{
+			
+		}
 
 	};
 

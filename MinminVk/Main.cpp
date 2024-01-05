@@ -1,6 +1,7 @@
 #include <graphics/Graphics.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <chrono>
 
 namespace Application
 {
@@ -23,10 +24,16 @@ namespace Application
 
     void ApplicationLoop()
     {
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
-            Graphics::MainRender(frameID);
+        auto startTime = std::chrono::high_resolution_clock::now();
 
+        while (!glfwWindowShouldClose(window)) {
+            auto currentTime = std::chrono::high_resolution_clock::now();
+
+            glfwPollEvents();
+            auto deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+            Graphics::MainRender(frameID, deltaTime);
+
+            startTime = currentTime;
             frameID++;
         }
     }
