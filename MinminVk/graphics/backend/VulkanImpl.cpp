@@ -1095,6 +1095,7 @@ namespace VulkanImpl
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 
+		geometry.basicUniform->transformUniform.model = geometry.modelMatrix;
 		memcpy(uniformBuffersMapped[geometry.basicUniform->uniformBufferID], &geometry.basicUniform->transformUniform, sizeof(Graphics::BasicUniformBuffer::TransformUniform));
 
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);

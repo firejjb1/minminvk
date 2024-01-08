@@ -2,6 +2,7 @@
 
 #include <util/Type.h>
 #include <graphics/Device.h>
+#include <util/Math.h>
 
 namespace Graphics
 {
@@ -111,6 +112,7 @@ namespace Graphics
 	{
 	GeometryID geometryID;
 	SharedPtr<BasicUniformBuffer> basicUniform;
+	mat4 modelMatrix = mat4(1);
 
 	protected:
 		BasicVertex vertexDesc;
@@ -151,7 +153,7 @@ namespace Graphics
 
 		void Update(f32 deltaTime) override
 		{
-			
+			modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, 0, 1));
 		}
 
 	};
