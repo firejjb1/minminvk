@@ -13,6 +13,9 @@ set(GLFW_LIBRARY_TYPE OFF CACHE BOOL "STATIC" FORCE)
 add_subdirectory(external/glfw)
 include_directories(external/glfw/include)
 
+# STB (header only library): Load images
+include_directories(external/stbImage)
+
 if (NOT CMAKE_VERSION VERSION_LESS 3.7.0)
 	message(STATUS "Using module to find Vulkan")
 	find_package(Vulkan)
@@ -126,6 +129,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
  )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC SHADERS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/")
+target_compile_definitions(${PROJECT_NAME} PUBLIC IMAGES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/images/")
 # disable validation layers, etc
 # target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
 

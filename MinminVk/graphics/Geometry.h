@@ -38,6 +38,7 @@ namespace Graphics
 		{
 			vec3 pos;
 			vec3 color;
+			vec2 texCoord;
 		};
 
 		Vector<Vertex> vertices;
@@ -68,7 +69,14 @@ namespace Graphics
 			colorAttribute.location = 1;
 			colorAttribute.offset = offsetof(Vertex, color);
 			colorAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
-			return Vector<VertexAttribute>{ posAttribute, colorAttribute };
+
+			VertexAttribute uvAttribute;
+			uvAttribute.binding = 0;
+			uvAttribute.location = 2;
+			uvAttribute.offset = offsetof(Vertex, texCoord);
+			uvAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC2;
+
+			return Vector<VertexAttribute>{ posAttribute, colorAttribute, uvAttribute };
 		}
 	};
 
@@ -113,6 +121,7 @@ namespace Graphics
 	GeometryID geometryID;
 	SharedPtr<BasicUniformBuffer> basicUniform;
 	mat4 modelMatrix = mat4(1);
+	Texture mainTexture;
 
 	protected:
 		BasicVertex vertexDesc;
@@ -123,7 +132,7 @@ namespace Graphics
 		virtual void Draw(RenderContext&) {};
 		virtual void Update(f32 deltaTime) {};
 
-		Geometry(SharedPtr<BasicUniformBuffer> basicUniform);
+		Geometry(SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture);
 
 	};
 
@@ -131,10 +140,10 @@ namespace Graphics
 	{
 	private:
 		BasicVertex vertexDesc{ Vector<BasicVertex::Vertex>{
-				{{-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}},
-				{{0.5f, -0.5f, 0.f}, {0.0f, 1.0f, 0.0f}},
-				{{0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}},
-				{{-0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}},
+				{ {-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+				{{0.5f, -0.5f, 0.f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+				{{0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+				{{-0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
 			}
 		};
 
@@ -144,7 +153,7 @@ namespace Graphics
 	public:
 
 
-		Quad(SharedPtr<BasicUniformBuffer> uboTransform);
+		Quad(SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture);
 
 		BasicVertex& GetVertexData() override { return vertexDesc; }
 		Vector<u16>& GetIndicesData() override { return indices; }

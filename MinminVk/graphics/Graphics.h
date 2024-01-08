@@ -5,6 +5,8 @@
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
+#define STATUE_IMAGE "statue.jpg"
+#define WALL_IMAGE "blue_floor_tiles_01_diff_1k.jpg"
 
 namespace Graphics
 {
@@ -26,6 +28,9 @@ namespace Graphics
 
 		context.device = device;
 		context.presentation = presentation;
+
+		Sampler linearClampSampler;
+		Texture texture(concat_str(IMAGES_DIR, WALL_IMAGE));
 		
 		// forward pass
 		{
@@ -38,7 +43,7 @@ namespace Graphics
 
 			forwardPass = MakeShared<RenderPass>(forwardPipeline);
 
-			quad = MakeShared<Quad>(forwardPipeline->uniformDesc);
+			quad = MakeShared<Quad>(forwardPipeline->uniformDesc, texture);
 		}
 
 	}

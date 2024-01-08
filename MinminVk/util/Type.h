@@ -67,3 +67,14 @@ auto Max(const T& a, const T& b) -> const T&
 
 constexpr auto DebugPrint = printf;
 
+template<class T>
+T EnumBitwiseOr(T a, T b)
+{
+	return static_cast<T>(static_cast<unsigned int>(a) | static_cast<unsigned int>(b));
+}
+
+template<class T>
+bool EnumBitwiseAnd(T a, T b)
+{
+	return static_cast<bool > (static_cast<unsigned int>(a) & static_cast<unsigned int>(b));
+}

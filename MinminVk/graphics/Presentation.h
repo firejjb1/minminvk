@@ -21,7 +21,7 @@ namespace Graphics
 			enum class ModeType { FIFO, FIFO_RELAXED, MAILBOX, IMMEDIATE, COUNT };
 			ModeType mode = ModeType::FIFO;
 
-			Vector<TextureID> textureIDs;
+			//Vector<TextureID> textureIDs;
 		};
 
 		SwapChainDetails swapChainDetails;

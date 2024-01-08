@@ -1,5 +1,8 @@
 #include "IO.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 namespace Util
 {
     
@@ -21,4 +24,18 @@ Vector<char> IO::ReadFile(const String& filename)
 
 	return buffer;
 }
+
+unsigned char* IO::ReadImage(i32& width, i32& height, const String& filename)
+{
+	int texWidth, texHeight, texChannels;
+	unsigned char * data = stbi_load(filename.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	if (!data) {
+		throw std::runtime_error("failed to load texture image!");
+	}
+	width = texWidth;
+	height = texHeight;
+	return data;
 }
+
+}
+
