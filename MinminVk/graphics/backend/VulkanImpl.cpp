@@ -64,6 +64,9 @@ namespace VulkanImpl
 	Vector<VkDeviceMemory> textureImageMemories;
 	Vector<VkImageView> textureImageViews;
 	Vector<VkSampler> textureSamplers;
+	VkImage depthImage;
+	VkDeviceMemory depthImageMemory;
+	VkImageView depthImageView;
 
 	u32 MAX_FRAMES_IN_FLIGHT = 2;
 	Vector<VkSemaphore> imageAvailableSemaphores;
@@ -113,6 +116,11 @@ namespace VulkanImpl
 	{ 
 		
 		glfwCreateWindowSurface(instance, window, nullptr, &surface);
+	}
+
+	void CreateDepthResources()
+	{
+
 	}
 
 	Vector<const char*> GetRequiredExtensions() {
@@ -327,11 +335,13 @@ namespace VulkanImpl
 	VkFormat MapToVulkanFormat(Graphics::Texture::FormatType format)
 	{
 		if (format == Graphics::Texture::FormatType::RGBA8_SRGB)
-			return VK_FORMAT_B8G8R8A8_SRGB; 
+			return VK_FORMAT_R8G8B8A8_SRGB;
 		if (format == Graphics::Texture::FormatType::R10G10B10A2_UNORM_PACK32)
 			return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
 		if (format == Graphics::Texture::FormatType::RGBA8_UNORM)
-			return VK_FORMAT_B8G8R8A8_UNORM;
+			return VK_FORMAT_R8G8B8A8_UNORM;
+		if (format == Graphics::Texture::FormatType::BGRA_SRGB)
+			return VK_FORMAT_B8G8R8A8_SRGB;
 		return VK_FORMAT_B8G8R8A8_SRGB;
 	}
 
@@ -474,6 +484,9 @@ namespace VulkanImpl
 		VkSurfaceFormatKHR surfaceFormat = VulkanImpl::ChooseSwapSurfaceFormat(swapChainSupport.formats, swapChainDetails);
 		VkPresentModeKHR presentMode = VulkanImpl::ChooseSwapPresentMode(swapChainSupport.presentModes, swapChainDetails);
 		VkExtent2D extent = VulkanImpl::ChooseSwapExtent(swapChainSupport.capabilities, (GLFWwindow*)window);
+
+		swapChainDetails.width = extent.width;
+		swapChainDetails.height = extent.height;
 		uint32_t imageCount = Max<u32>(swapChainDetails.targetImageCount, swapChainSupport.capabilities.minImageCount + 1);
 		windowVK = window;
 		if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
@@ -1029,9 +1042,9 @@ namespace VulkanImpl
 	{
 		VkImageUsageFlags result = 0;
 		if (EnumBitwiseAnd(usage, Graphics::Texture::UsageType::SAMPLED))
-			result = result == 0 ? VK_IMAGE_USAGE_SAMPLED_BIT : result | VK_IMAGE_USAGE_SAMPLED_BIT;
+			result = result == 0 ? VK_IMAGE_USAGE_SAMPLED_BIT : (result | VK_IMAGE_USAGE_SAMPLED_BIT);
 		if (EnumBitwiseAnd(usage, Graphics::Texture::UsageType::TRANSFER_DST))
-			result = result == 0 ? VK_IMAGE_USAGE_SAMPLED_BIT : result | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+			result = result == 0 ? VK_IMAGE_USAGE_SAMPLED_BIT : (result | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
 
 		return result;
 	}

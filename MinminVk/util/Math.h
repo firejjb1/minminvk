@@ -27,11 +27,11 @@ namespace Math
 
 	inline mat4 LookAt(const vec3 eye, const vec3 center, const vec3 up)
 	{
-		return glm::lookAt(eye, center, up);
+		return glm::lookAtLH(eye, center, up);
 	}
 
-	inline mat4 Perspective(f32 fovY, u32 width, u32 height, f32 zNear, f32 zFar)
+	inline mat4 Perspective(f32 fovY, i32 width, i32 height, f32 zNear, f32 zFar)
 	{
-		return glm::perspective(fovY, width / (f32)height, zNear, zFar);
+		return glm::perspectiveLH(fovY, width / (f32)height, zNear, zFar);
 	}
 }

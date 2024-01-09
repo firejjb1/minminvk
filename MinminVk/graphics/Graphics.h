@@ -7,6 +7,7 @@
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
 #define STATUE_IMAGE "statue.jpg"
 #define WALL_IMAGE "blue_floor_tiles_01_diff_1k.jpg"
+#define BLUE_IMAGE "blue.jpeg"
 
 namespace Graphics
 {
@@ -30,7 +31,7 @@ namespace Graphics
 		context.presentation = presentation;
 
 		Sampler linearClampSampler;
-		Texture texture(concat_str(IMAGES_DIR, WALL_IMAGE));
+		Texture texture(concat_str(IMAGES_DIR, STATUE_IMAGE));
 		
 		// forward pass
 		{
@@ -55,10 +56,18 @@ namespace Graphics
 		// forward pass
 		{
 			context.renderPass = forwardPass;
-
+			// view projection TODO abstract
+			{
+				forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(2.0f, 2.0f, 2.f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f));
+				i32 width = presentation->swapChainDetails.width;
+				i32 height = presentation->swapChainDetails.height;
+				forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.1f, 10.0f);
+				forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
+			}
 			bool success = device->BeginRecording(context);
 			if (!success)
 				return;
+
 
 			quad->Update(deltaTime);
 			quad->Draw(context);

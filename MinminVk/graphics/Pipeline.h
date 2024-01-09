@@ -29,7 +29,7 @@ namespace Graphics
 		SharedPtr<Pipeline> pso;
 		bool isFrameBufferCreated = false;
 
-		Texture::FormatType formatType = Texture::FormatType::RGBA8_SRGB;
+		Texture::FormatType formatType = Texture::FormatType::BGRA_SRGB;
 		u32 numSamples = 1;
 		enum class AttachmentOpType { CLEAR, STORE, DONTCARE };
 		AttachmentOpType loadOp = AttachmentOpType::CLEAR;
