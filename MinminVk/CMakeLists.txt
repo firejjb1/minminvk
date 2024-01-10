@@ -13,6 +13,8 @@ set(GLFW_LIBRARY_TYPE OFF CACHE BOOL "STATIC" FORCE)
 add_subdirectory(external/glfw)
 include_directories(external/glfw/include)
 
+include_directories(external/tinyobjloader)
+
 # STB (header only library): Load images
 include_directories(external/stbImage)
 
@@ -99,6 +101,7 @@ set(SOURCE_FILES
 	"Main.cpp"
 	"graphics/backend/VulkanImpl.cpp"
 	"util/IO.cpp"
+	"graphics/Import.cpp"
 )
 
 set(HEADER_FILES 
@@ -112,6 +115,7 @@ set(HEADER_FILES
 	"graphics/Shader.h"
 	"graphics/Texture.h"
 	"graphics/Geometry.h"
+	"graphics/Import.h"
 )
 
 IF(WIN32)
@@ -130,6 +134,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC SHADERS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/")
 target_compile_definitions(${PROJECT_NAME} PUBLIC IMAGES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/images/")
+target_compile_definitions(${PROJECT_NAME} PUBLIC OBJ_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/obj/")
 # disable validation layers, etc
 # target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
 

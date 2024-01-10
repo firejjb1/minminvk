@@ -8,6 +8,8 @@ namespace Graphics
 {
 	struct RenderPass;
 	struct Pipeline;
+	struct VertexDesc;
+	struct BasicUniformBuffer;
 
 	struct RenderPassID { u32 id = 0; RenderPass* pointer; };
 	struct PipeLineID { u32 id = 0; Pipeline* pointer; };

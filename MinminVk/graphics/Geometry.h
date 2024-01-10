@@ -3,6 +3,8 @@
 #include <util/Type.h>
 #include <graphics/Device.h>
 #include <util/Math.h>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/hash.hpp>
 
 namespace Graphics
 {
@@ -39,6 +41,11 @@ namespace Graphics
 			vec3 pos;
 			vec3 color;
 			vec2 texCoord;
+
+			bool operator==(const Vertex& other) const {
+				return pos == other.pos && color == other.color && texCoord == other.texCoord;
+			}
+
 		};
 
 		Vector<Vertex> vertices;
@@ -129,7 +136,7 @@ namespace Graphics
 	public:
 		virtual BasicVertex& GetVertexData() { return vertexDesc; }
 		virtual Vector<u16>& GetIndicesData() { return indices; }
-		virtual void Draw(RenderContext&) {};
+		virtual void Draw(RenderContext&);
 		virtual void Update(f32 deltaTime) {};
 
 		Geometry(SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture);
@@ -140,28 +147,15 @@ namespace Graphics
 	{
 	private:
 		BasicVertex vertexDesc{ Vector<BasicVertex::Vertex>{
-				//{ {-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-				//{{0.5f, -0.5f, 0.f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-				//{{0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-				//{{-0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-
-					  {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-	{{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-	{{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-	{{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
-
-	{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-	{{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-	{{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-	{{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+				{ {-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+				{{0.5f, -0.5f, 0.f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+				{{0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+				{{-0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
 			}
 		};
 
 		Vector<u16> indices = {
-			//0, 1, 2, 2, 3, 0
-
-				0, 1, 2, 2, 3, 0,
-	4, 5, 6, 6, 7, 4
+			0, 1, 2, 2, 3, 0
 		};
 	public:
 
@@ -171,8 +165,6 @@ namespace Graphics
 		BasicVertex& GetVertexData() override { return vertexDesc; }
 		Vector<u16>& GetIndicesData() override { return indices; }
 
-		void Draw(RenderContext&) override;
-
 		void Update(f32 deltaTime) override
 		{
 			//modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, 0, 1));
@@ -180,4 +172,24 @@ namespace Graphics
 
 	};
 
+	struct OBJMesh : public Geometry
+	{
+	public:
+		OBJMesh(SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture, String filename);
+		void Update(f32 deltaTime) override
+		{
+			//modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, 0, 1));
+		}
+	};
+
+}
+
+namespace std {
+	template<> struct hash<Graphics::BasicVertex::Vertex> {
+		size_t operator()(Graphics::BasicVertex::Vertex const& vertex) const {
+			return ((hash<glm::vec3>()(vertex.pos) ^
+				(hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
+				(hash<glm::vec2>()(vertex.texCoord) << 1);
+		}
+	};
 }

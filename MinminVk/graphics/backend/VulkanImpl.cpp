@@ -3,10 +3,13 @@
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
+#include <stb_image.h>
+
 #include <graphics/Device.h>
 #include <graphics/Presentation.h>
 #include <graphics/Pipeline.h>
 #include <graphics/Geometry.h>
+#include <graphics/Import.h>
 #include <util/IO.h>
 
 namespace VulkanImpl
@@ -1292,7 +1295,7 @@ namespace VulkanImpl
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = commandPool;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
+		allocInfo.commandBufferCount = (u32)commandBuffers.size();
 
 		if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
 			throw std::runtime_error("failed to allocate command buffers!");
@@ -1536,13 +1539,14 @@ namespace VulkanImpl
 			descriptorWrite.pBufferInfo = &bufferInfo;
 			descriptorWrite.pImageInfo = nullptr; // Optional
 			descriptorWrite.pTexelBufferView = nullptr; // Optional
-
+			u32 imageIndex = 0;
 			for (auto& imageInfo : imageInfos)
 			{
 				auto& texDescriptorWrite = descriptorWrites.emplace_back();
 				texDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				texDescriptorWrite.dstSet = uniformDescriptorSets[i];
-				texDescriptorWrite.dstBinding = 1;
+				texDescriptorWrite.dstBinding = 1 + imageIndex;
+				imageIndex++;
 				texDescriptorWrite.dstArrayElement = 0;
 				texDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 				texDescriptorWrite.descriptorCount = 1;
@@ -1892,7 +1896,21 @@ namespace Graphics
 		);
 	}
 
-	void Quad::Draw(RenderContext& context)
+	OBJMesh::OBJMesh(SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture, String filename)
+		: Geometry(basicUniform, mainTexture)
+	{
+		Import::LoadOBJ(vertexDesc, indices, filename);
+		VulkanImpl::CreateVertexBuffer(*this);
+		VulkanImpl::CreateIndexBuffer(*this);
+		VulkanImpl::UpdateDescriptorSets(
+			Vector<Graphics::TextureID>{
+			// add more textures in future
+			this->mainTexture.textureID
+		}
+		);
+	}
+
+	void Geometry::Draw(RenderContext& context)
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);

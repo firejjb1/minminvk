@@ -8,6 +8,8 @@
 #define STATUE_IMAGE "statue.jpg"
 #define WALL_IMAGE "blue_floor_tiles_01_diff_1k.jpg"
 #define BLUE_IMAGE "blue.jpeg"
+#define VIKING_IMAGE "viking_room.png"
+#define VIKING_MODEL "viking_room.obj"
 
 namespace Graphics
 {
@@ -17,6 +19,7 @@ namespace Graphics
 	SharedPtr<GraphicsPipeline> forwardPipeline;
 	SharedPtr<RenderPass> forwardPass;
 	SharedPtr<Quad> quad;
+	SharedPtr<OBJMesh> vikingRoom;
 	
 	void InitGraphics(void * window)
 	{
@@ -31,7 +34,7 @@ namespace Graphics
 		context.presentation = presentation;
 
 		Sampler linearClampSampler;
-		Texture texture(concat_str(IMAGES_DIR, STATUE_IMAGE));
+		Texture texture(concat_str(IMAGES_DIR, VIKING_IMAGE));
 		
 		// forward pass
 		{
@@ -45,6 +48,9 @@ namespace Graphics
 			forwardPass = MakeShared<RenderPass>(forwardPipeline);
 
 			quad = MakeShared<Quad>(forwardPipeline->uniformDesc, texture);
+
+			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
+
 		}
 
 	}
@@ -68,9 +74,10 @@ namespace Graphics
 			if (!success)
 				return;
 
-
-			quad->Update(deltaTime);
-			quad->Draw(context);
+			// TODO draw multiple (dynamic uniform buffer, multiple descriptor sets)
+			// TODO camera control
+			vikingRoom->Update(deltaTime);
+			vikingRoom->Draw(context);
 
 			device->EndRecording(context);
 		}
