@@ -26,6 +26,9 @@ namespace Graphics
 
 		enum class DepthFormatType { D32, D32S8, D24S8 };
 		DepthFormatType depthFormatType = DepthFormatType::D32;
+		Texture::TilingType depthTilingType = Texture::TilingType::OPTIMAL;
+
+		TextureID depthTextureID;
 
 		SwapChainDetails swapChainDetails;
 

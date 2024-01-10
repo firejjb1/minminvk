@@ -22,7 +22,9 @@ namespace Graphics
 
 	struct TextureID
 	{
-		u32 id = 0;
+		u32 id = 0; // texture image
+		u32 memoryID = 0; // texture memory
+		u32 viewID = 0; // texture image view
 		u32 samplerID = 0;
 	};
 	struct Texture
@@ -68,6 +70,8 @@ namespace Graphics
 		u32 depth = 1;
 
 		Texture(String filename);
+
+		Texture(){}
 	};
 
 }

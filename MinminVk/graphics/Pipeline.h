@@ -40,6 +40,8 @@ namespace Graphics
 		Texture::LayoutType initialLayout = Texture::LayoutType::UNDEFINED;
 		Texture::LayoutType finalLayout = Texture::LayoutType::PRESENT_SRC;
 
+		bool writeToDepth = true;
+
 		struct SubPass
 		{
 			u32 colorAttachmentIndex = 0;
@@ -155,6 +157,14 @@ namespace Graphics
 		BlendFactorType blendSrcFactorType;
 		BlendFactorType blendDestFactorType;
 		BlendOpType blendOpType;
+
+		bool depthTestEnable = true;
+		bool depthWriteEnable = true;
+		enum class DepthCompareOpType { LESS, GREATER };
+		DepthCompareOpType depthCompareOp = DepthCompareOpType::LESS;
+
+		// not supported
+		bool stencilTestEnable = false;
 
 		SharedPtr<VertexDesc> vertexDesc;
 		SharedPtr<BasicUniformBuffer> uniformDesc;
