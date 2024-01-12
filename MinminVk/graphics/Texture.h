@@ -16,6 +16,7 @@ namespace Graphics
 		AddressModeType addressModeV = AddressModeType::CLAMP_TO_BORDER;
 		AddressModeType addressModeW = AddressModeType::CLAMP_TO_BORDER;
 		u32 maxAnisotropy = 16;
+		u32 maxLOD = 16;
 		Sampler();
 	};
 
@@ -52,7 +53,7 @@ namespace Graphics
 			UNDEFINED = 128
 		};
 
-		UsageType usageType = EnumBitwiseOr(UsageType::TRANSFER_DST, UsageType::SAMPLED);
+		UsageType usageType = EnumBitwiseOr(EnumBitwiseOr(UsageType::TRANSFER_DST, UsageType::SAMPLED), UsageType::TRANSFER_SRC);
 
 		enum class TilingType
 		{
@@ -64,11 +65,13 @@ namespace Graphics
 
 		TextureID textureID;
 
+		bool autoMipChain = false;
+
 		u32 mipLevels = 1;
 
 		u32 depth = 1;
 
-		Texture(String filename);
+		Texture(String filename, bool autoMipChain = false);
 
 		Texture(){}
 	};
