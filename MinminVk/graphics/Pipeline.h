@@ -10,6 +10,7 @@ namespace Graphics
 	struct Pipeline;
 	struct VertexDesc;
 	struct BasicUniformBuffer;
+	struct Presentation;
 
 	struct RenderPassID { u32 id = 0; RenderPass* pointer; };
 	struct PipeLineID { u32 id = 0; Pipeline* pointer; };
@@ -32,7 +33,7 @@ namespace Graphics
 		bool isFrameBufferCreated = false;
 
 		Texture::FormatType formatType = Texture::FormatType::BGRA_SRGB;
-		u32 numSamples = 1;
+		u32 numSamples = 4;
 		enum class AttachmentOpType { CLEAR, STORE, DONTCARE };
 		AttachmentOpType loadOp = AttachmentOpType::CLEAR;
 		AttachmentOpType storeOp = AttachmentOpType::STORE;
@@ -40,9 +41,17 @@ namespace Graphics
 		AttachmentOpType stencilStoreOp = AttachmentOpType::DONTCARE;
 
 		Texture::LayoutType initialLayout = Texture::LayoutType::UNDEFINED;
-		Texture::LayoutType finalLayout = Texture::LayoutType::PRESENT_SRC;
+		Texture::LayoutType finalLayout = Texture::LayoutType::COLOR_ATTACHMENT;
 
 		bool writeToDepth = true;
+		u32 numSamplesDepth = 4;
+
+		struct ColorAttachment
+		{
+			TextureID textureID;
+		};
+
+		ColorAttachment colorAttachment;
 
 		struct SubPass
 		{
@@ -66,14 +75,14 @@ namespace Graphics
 
 		Vector<FrameBuffer> frameBuffers;
 
-		RenderPass(SharedPtr<Pipeline> pso) : pso{pso} 
+		RenderPass(SharedPtr<Pipeline> pso, SharedPtr<Presentation> presentation) : pso{pso} 
 		{
-			Init();
+			Init(presentation);
 			pso->Init(renderPassID);
 
 		}
 
-		void Init();
+		void Init(SharedPtr<Presentation> presentation);
 	};
 
 
@@ -170,6 +179,9 @@ namespace Graphics
 
 		SharedPtr<VertexDesc> vertexDesc;
 		SharedPtr<BasicUniformBuffer> uniformDesc;
+
+		// auto reduced if device doesn't support
+		u32 msaaSamples = 8;
 
 		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShader, SharedPtr<VertexDesc> vertexDesc, SharedPtr<BasicUniformBuffer> uniformDesc)
 			: vertexShader{ vertexShader }, fragmentShader{ fragmentShader }, vertexDesc{ vertexDesc }, uniformDesc{ uniformDesc } {}

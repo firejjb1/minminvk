@@ -42,6 +42,7 @@ namespace VulkanImpl
 	VkQueue graphicsQueue;
 	VkSurfaceKHR surface;
 	VkQueue presentQueue;
+	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 	VkSwapchainKHR swapChain;
 	Vector<VkImage> swapChainImages;
 	Vector<VkImageView> swapChainImageViews;
@@ -128,7 +129,8 @@ namespace VulkanImpl
 		throw std::runtime_error("failed to find suitable memory type!");
 	}
 
-	void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, u32 mipLevels = 1) {
+	void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, 
+		VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, u32 mipLevels = 1, VkSampleCountFlagBits numSamples = VK_SAMPLE_COUNT_1_BIT) {
 		VkImageCreateInfo imageInfo{};
 		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -141,7 +143,7 @@ namespace VulkanImpl
 		imageInfo.tiling = tiling;
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageInfo.usage = usage;
-		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageInfo.samples = numSamples;
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 		if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
@@ -169,6 +171,22 @@ namespace VulkanImpl
 		glfwCreateWindowSurface(instance, window, nullptr, &surface);
 	}
 
+
+	VkSampleCountFlagBits GetMaxUsableSampleCount() {
+		VkPhysicalDeviceProperties physicalDeviceProperties;
+		vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
+
+		VkSampleCountFlags counts = physicalDeviceProperties.limits.framebufferColorSampleCounts & physicalDeviceProperties.limits.framebufferDepthSampleCounts;
+		if (counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
+		if (counts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
+		if (counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
+		if (counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
+		if (counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
+		if (counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
+
+		return VK_SAMPLE_COUNT_1_BIT;
+	}
+
 	VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, u32 mipLevels = 1) {
 		VkImageViewCreateInfo viewInfo{};
 		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -189,7 +207,24 @@ namespace VulkanImpl
 		return imageView;
 	}
 
-	void CreateDepthResources(Graphics::Presentation* presentation)
+	VkSampleCountFlagBits MapToSampleCount(u32 count)
+	{
+		if (count >= 64)
+			return VK_SAMPLE_COUNT_64_BIT;
+		if (count >= 32)
+			return VK_SAMPLE_COUNT_32_BIT;
+		if (count >= 16)
+			return VK_SAMPLE_COUNT_16_BIT;
+		if (count >= 8)
+			return VK_SAMPLE_COUNT_8_BIT;
+		if (count >= 4)
+			return VK_SAMPLE_COUNT_4_BIT;
+		if (count >= 2)
+			return VK_SAMPLE_COUNT_2_BIT;
+		return VK_SAMPLE_COUNT_1_BIT;
+	}
+
+	void CreateDepthResources(Graphics::Presentation* presentation, Graphics::RenderPass* renderPass = nullptr)
 	{		
 		Vector<VkFormat> candidates;
 		if (presentation->depthFormatType == Graphics::Presentation::DepthFormatType::D32)
@@ -216,17 +251,32 @@ namespace VulkanImpl
 				depthFormatChosen = format;
 			}
 		}
-		VkImage &depthImage = textureImages.emplace_back();
-		VkDeviceMemory& depthImageMemory = textureImageMemories.emplace_back();
-		VkImageView& depthImageView = textureImageViews.emplace_back();
-		presentation->depthTextureID.id = textureImages.size() - 1;
-		presentation->depthTextureID.memoryID = textureImageMemories.size() - 1;
-		presentation->depthTextureID.viewID = textureImageViews.size() - 1;
+		if (presentation->depthTextureID.id != 0)
+		{
+			// depth resources already exist
+			VkImage& depthImage = textureImages[presentation->depthTextureID.id];
+			VkDeviceMemory& depthImageMemory = textureImageMemories[presentation->depthTextureID.memoryID];
+			VkImageView& depthImageView = textureImageViews[presentation->depthTextureID.viewID];
+			vkDestroyImage(VulkanImpl::device, depthImage, nullptr);
+			vkFreeMemory(VulkanImpl::device, depthImageMemory, nullptr);
+			vkDestroyImageView(device, depthImageView, nullptr);
+			CreateImage(swapChainExtent.width, swapChainExtent.height, depthFormatChosen, tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				depthImage, depthImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass == nullptr ? 64 : renderPass->numSamplesDepth)));
+			depthImageView = CreateImageView(depthImage, depthFormatChosen, VK_IMAGE_ASPECT_DEPTH_BIT);
+		}
+		else
+		{
+			VkImage& depthImage = textureImages.emplace_back();
+			VkDeviceMemory& depthImageMemory = textureImageMemories.emplace_back();
+			VkImageView& depthImageView = textureImageViews.emplace_back();
+			presentation->depthTextureID.id = textureImages.size() - 1;
+			presentation->depthTextureID.memoryID = textureImageMemories.size() - 1;
+			presentation->depthTextureID.viewID = textureImageViews.size() - 1;
 
-		CreateImage(swapChainExtent.width, swapChainExtent.height, depthFormatChosen, tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-		depthImageView = CreateImageView(depthImage, depthFormatChosen, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-
+			CreateImage(swapChainExtent.width, swapChainExtent.height, depthFormatChosen, tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+				depthImage, depthImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass == nullptr ? 64 : renderPass->numSamplesDepth)));
+			depthImageView = CreateImageView(depthImage, depthFormatChosen, VK_IMAGE_ASPECT_DEPTH_BIT);
+		}
 	}
 
 	Vector<const char*> GetRequiredExtensions() {
@@ -532,6 +582,7 @@ namespace VulkanImpl
 		for (const auto& device : devices) {
 			if (isDeviceSuitable(device)) {
 				physicalDevice = device;
+				msaaSamples = GetMaxUsableSampleCount();
 				break;
 			}
 		}
@@ -1009,7 +1060,7 @@ namespace VulkanImpl
 		VkPipelineMultisampleStateCreateInfo multisampling{};
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		multisampling.sampleShadingEnable = VK_FALSE;
-		multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		multisampling.rasterizationSamples = Min(MapToSampleCount(renderPassID.pointer->numSamples), msaaSamples);
 		multisampling.minSampleShading = 1.0f; // Optional
 		multisampling.pSampleMask = nullptr; // Optional
 		multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
@@ -1096,22 +1147,6 @@ namespace VulkanImpl
 		return Graphics::PipeLineID{ (u32)pipelineLayouts.size() - 1, pipeline };
 	}
 
-	VkSampleCountFlagBits MapToVulkanCountFlag(u32 count)
-	{
-		if (count <= 1)
-			return VK_SAMPLE_COUNT_1_BIT;
-		if (count <= 2)
-			return VK_SAMPLE_COUNT_2_BIT;
-		if (count <= 4)
-			return VK_SAMPLE_COUNT_4_BIT;
-		if (count <= 8);
-			return VK_SAMPLE_COUNT_8_BIT;
-		if (count <= 16)
-			return VK_SAMPLE_COUNT_16_BIT;
-		if (count <= 32)
-			return VK_SAMPLE_COUNT_32_BIT;
-		return VK_SAMPLE_COUNT_64_BIT;
-	}
 	VkAttachmentLoadOp MapToVulkanLoadOp(Graphics::RenderPass::AttachmentOpType opType)
 	{
 		if (opType == Graphics::RenderPass::AttachmentOpType::CLEAR)
@@ -1165,67 +1200,76 @@ namespace VulkanImpl
 
 	Graphics::RenderPassID CreateRenderPass(Graphics::RenderPass* renderPass)
 	{
+		Vector<VkAttachmentDescription> attachments;
+
 		VkAttachmentDescription colorAttachment{};
 		colorAttachment.format = MapToVulkanFormat(renderPass->formatType);
-		colorAttachment.samples = MapToVulkanCountFlag(renderPass->numSamples);
+		colorAttachment.samples = MapToSampleCount(renderPass->numSamples);
 		colorAttachment.loadOp = MapToVulkanLoadOp(renderPass->loadOp);
 		colorAttachment.storeOp = MapToVulkanStoreOp(renderPass->storeOp);
 		colorAttachment.stencilLoadOp = MapToVulkanLoadOp(renderPass->stencilLoadOp);
 		colorAttachment.stencilStoreOp = MapToVulkanStoreOp(renderPass->stencilStoreOp);
 		colorAttachment.initialLayout = MapToVulkanImageLayout(renderPass->initialLayout);
 		colorAttachment.finalLayout = MapToVulkanImageLayout(renderPass->finalLayout);
-		
+		attachments.push_back(colorAttachment);
+
 		VkAttachmentReference colorAttachmentRef{};
 		colorAttachmentRef.attachment = 0;
 		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		VkAttachmentDescription depthAttachment{};
+		depthAttachment.format = depthFormatChosen;
+		depthAttachment.samples = MapToSampleCount(renderPass->numSamplesDepth);
+		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		VkAttachmentReference depthAttachmentRef{};
+		depthAttachmentRef.attachment = 1;
+		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		attachments.push_back(depthAttachment);
+
+		VkAttachmentDescription colorAttachmentResolve{};
+		colorAttachmentResolve.format = swapChainImageFormat;
+		colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+		colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		attachments.push_back(colorAttachmentResolve);
+
+		VkAttachmentReference colorAttachmentResolveRef{};
+		colorAttachmentResolveRef.attachment = 2;
+		colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
 
 		VkSubpassDescription subpass{};
 		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpass.colorAttachmentCount = 1;
 		subpass.pColorAttachments = &colorAttachmentRef;
-		VkRenderPassCreateInfo renderPassInfo{};
-		Vector<VkAttachmentDescription> attachments;
-		attachments.push_back(colorAttachment);
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.subpassCount = 1;
-		renderPassInfo.pSubpasses = &subpass;
-
+		subpass.pDepthStencilAttachment = &depthAttachmentRef;
+		subpass.pResolveAttachments = &colorAttachmentResolveRef;
 
 		VkSubpassDependency dependency{};
 		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 		dependency.dstSubpass = 0;
-
-		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 		dependency.srcAccessMask = 0;
+		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-		renderPassInfo.dependencyCount = 1;
-		renderPassInfo.pDependencies = &dependency;
-
-		if (renderPass->writeToDepth)
-		{
-			VkAttachmentDescription depthAttachment{};
-			depthAttachment.format = depthFormatChosen;
-			depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-			depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-			VkAttachmentReference depthAttachmentRef{};
-			depthAttachmentRef.attachment = 1;
-			depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-			subpass.pDepthStencilAttachment = &depthAttachmentRef;
-			attachments.push_back(depthAttachment);
-			dependency.srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-			dependency.dstStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-			dependency.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		}
+		VkRenderPassCreateInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.subpassCount = 1;
+		renderPassInfo.pSubpasses = &subpass;
 		renderPassInfo.pAttachments = attachments.data();
 		renderPassInfo.attachmentCount = attachments.size();
+		renderPassInfo.dependencyCount = 1;
+		renderPassInfo.pDependencies = &dependency;
 
 		auto& renderPassVK = renderPasses.emplace_back();
 		if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPassVK) != VK_SUCCESS) {
@@ -1237,6 +1281,34 @@ namespace VulkanImpl
 		return id;
 	}
 
+	void CreateColorResources(Graphics::RenderPass* renderPass) {
+		VkFormat colorFormat = swapChainImageFormat;
+		if (renderPass->colorAttachment.textureID.id != 0)
+		{
+			auto& colorImage = textureImages[renderPass->colorAttachment.textureID.id];
+			auto& colorImageMemory = textureImageMemories[renderPass->colorAttachment.textureID.memoryID];
+			auto& colorImageView = textureImageViews[renderPass->colorAttachment.textureID.viewID];
+			vkDestroyImage(VulkanImpl::device, colorImage, nullptr);
+			vkFreeMemory(VulkanImpl::device, colorImageMemory, nullptr);
+			vkDestroyImageView(device, colorImageView, nullptr);
+			CreateImage(swapChainExtent.width, swapChainExtent.height, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				colorImage, colorImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass->numSamples)));
+			colorImageView = CreateImageView(colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+		}
+		else
+		{
+			auto& colorImage = textureImages.emplace_back();
+			auto& colorImageMemory = textureImageMemories.emplace_back();
+			auto& colorImageView = textureImageViews.emplace_back();
+			renderPass->colorAttachment.textureID.id = textureImages.size() - 1;
+			renderPass->colorAttachment.textureID.memoryID = textureImageMemories.size() - 1;
+			renderPass->colorAttachment.textureID.viewID = textureImageViews.size() - 1;
+			CreateImage(swapChainExtent.width, swapChainExtent.height, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				colorImage, colorImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass->numSamples)));
+			colorImageView = CreateImageView(colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+		}
+	
+	}
 	
 	void CreateFramebuffers(SharedPtr<Graphics::RenderPass> renderPass, SharedPtr<Graphics::Presentation> presentation)
 	{
@@ -1246,10 +1318,10 @@ namespace VulkanImpl
 			for (size_t i = 0; i < swapChainImageViews.size(); i++) {
 
 				Vector<VkImageView> attachments;
-				attachments.push_back(swapChainImageViews[i]);
+				attachments.push_back(textureImageViews[renderPass->colorAttachment.textureID.viewID]);
 				if (renderPass->writeToDepth)
 					attachments.push_back(textureImageViews[presentation->depthTextureID.viewID]);
-
+				attachments.push_back(swapChainImageViews[i]);
 				VkFramebufferCreateInfo framebufferInfo{};
 				framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 				auto& renderPassVK = renderPasses[renderPass->renderPassID.id];
@@ -1437,7 +1509,8 @@ namespace VulkanImpl
 
 		CreateSwapChain(context.presentation->swapChainDetails, windowVK);
 		CreateSwapchainImageViews();
-		CreateDepthResources(context.presentation.get());
+		CreateColorResources(context.renderPass.get());
+		CreateDepthResources(context.presentation.get(), context.renderPass.get());
 		CreateFramebuffers(context.renderPass, context.presentation);
 	}
 
@@ -1936,7 +2009,6 @@ namespace Graphics
 	{
 		VulkanImpl::CreateSwapChain(this->swapChainDetails, this->window);
 		VulkanImpl::CreateSwapchainImageViews();
-		VulkanImpl::CreateDepthResources(this);
 
 	}
 
@@ -1963,8 +2035,11 @@ namespace Graphics
 	}
 
 	// RenderPass
-	void RenderPass::Init()
+	void RenderPass::Init(SharedPtr<Graphics::Presentation> presentation)
 	{
+		VulkanImpl::CreateColorResources(this);
+		VulkanImpl::CreateDepthResources(presentation.get(), this);
+
 		renderPassID = VulkanImpl::CreateRenderPass(this);
 	}
 

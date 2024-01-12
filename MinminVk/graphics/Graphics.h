@@ -45,7 +45,7 @@ namespace Graphics
 				MakeShared<BasicUniformBuffer>()
 			);
 
-			forwardPass = MakeShared<RenderPass>(forwardPipeline);
+			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
 
 			quad = MakeShared<Quad>(forwardPipeline->uniformDesc, texture);
 
