@@ -291,7 +291,7 @@ namespace VulkanImpl
 		}
 
 		// renderdoc doesn't support
-		// extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+		extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
 
 		if (enableValidationLayers) {
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
@@ -388,7 +388,7 @@ namespace VulkanImpl
 		auto extensions = GetRequiredExtensions();
 
 		// renderdoc doesn't support
-		// createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+		createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
 		createInfo.enabledExtensionCount = (u32)extensions.size();
 		createInfo.ppEnabledExtensionNames = extensions.data();

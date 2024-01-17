@@ -53,7 +53,7 @@ namespace Graphics
 
 		BasicVertex() {};
 
-		BasicVertex(Vector<Vertex> &vertices) : vertices{ vertices } {}
+		BasicVertex(Vector<Vertex> vertices) : vertices{ vertices } {}
 
 		VertexBinding GetVertexBinding() override
 		{
