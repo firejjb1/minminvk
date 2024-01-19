@@ -4,3 +4,4 @@ imgui.ini
 CMakeSettings.json
 out/
 .vscode/
+**/.DS_STORE

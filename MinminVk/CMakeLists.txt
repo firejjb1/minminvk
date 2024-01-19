@@ -108,6 +108,7 @@ set(HEADER_FILES
 	"util/Type.h"
 	"util/IO.h"
 	"util/Math.h"
+	"graphics/Buffer.h"
 	"graphics/Device.h"
 	"graphics/Graphics.h"
 	"graphics/Pipeline.h"

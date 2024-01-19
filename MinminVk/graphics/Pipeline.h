@@ -7,12 +7,14 @@
 namespace Graphics
 {
 	struct RenderPass;
+	struct ComputePass;
 	struct Pipeline;
 	struct VertexDesc;
 	struct BasicUniformBuffer;
 	struct Presentation;
 
 	struct RenderPassID { u32 id = 0; RenderPass* pointer; };
+	struct ComputePassID { u32 id = 0; ComputePass* pointer; };
 	struct PipeLineID { u32 id = 0; Pipeline* pointer; };
 
 	struct Pipeline
@@ -83,6 +85,12 @@ namespace Graphics
 		}
 
 		void Init(SharedPtr<Presentation> presentation);
+	};
+
+	struct ComputePass
+	{
+		ComputePassID computePassID;
+		SharedPtr<Pipeline> pso;
 	};
 
 
@@ -187,5 +195,12 @@ namespace Graphics
 			: vertexShader{ vertexShader }, fragmentShader{ fragmentShader }, vertexDesc{ vertexDesc }, uniformDesc{ uniformDesc } {}
 
 		void Init(RenderPassID) override;
+	};
+
+	struct ComputePipeline : public Pipeline
+	{
+		SharedPtr<Shader> computeShader;
+		vec3 workGroupSz;
+		vec3 invocationSz;
 	};
 }
