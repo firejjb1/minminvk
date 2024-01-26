@@ -46,7 +46,8 @@ namespace Graphics
 			);
 
 			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
-
+			// particleBuffer = MakeShared<ParticleBuffer>(Vector<Particle>(...));
+			// particlePass = MakeShared<ComputePass>(particleShader, particleBuffer, particleBuffer, workGroupSz);
 			quad = MakeShared<Quad>(forwardPipeline->uniformDesc, texture);
 
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
@@ -79,6 +80,9 @@ namespace Graphics
 			vikingRoom->Update(deltaTime);
 			vikingRoom->Draw(context);
 
+			// particlePass->Dispatch()
+			// particlePass->Draw()
+			
 			device->EndRecording(context);
 		}
 
