@@ -12,12 +12,23 @@ namespace Graphics
     struct Buffer
     {
         enum class BufferType { STRUCTURED, UNIFORM };
+        enum class BufferUsageType
+        {
+            BUFFER_VERTEX = 1,
+            BUFFER_TRANSFER_DST = 2,
+            BUFFER_STORAGE = 4,
+            BUFFER_TRANSFER_SRC = 8,
+            BUFFER_INDEX = 16,
+            BUFFER_UNIFORM = 32
+        };
         enum class AccessType { READONLY, WRITE };
         u32 layoutID = 0;
         u32 bufferID = 0;
         virtual BufferBinding GetBinding() = 0;
         virtual BufferType GetBufferType() = 0;
         virtual AccessType GetAccessType() = 0;
+        virtual u32 GetBufferSize() = 0;
+        virtual BufferUsageType GetUsageType() = 0;
         private:
         BufferType bufferType;
         AccessType accessType;
@@ -44,6 +55,15 @@ namespace Graphics
         }
 
         BufferType GetBufferType() override { return Buffer::BufferType::UNIFORM; }
+        AccessType GetAccessType() override 
+        {
+            return AccessType::READONLY;
+        }
+        u32 GetBufferSize() override { return sizeof(TransformUniform); }
+        BufferUsageType GetUsageType() override {
+            return Buffer::BufferUsageType::BUFFER_UNIFORM;
+        }
+
     };
 
     struct ParticleStructuredBuffer : Buffer
@@ -69,6 +89,19 @@ namespace Graphics
         {
             return AccessType::READONLY;
         }
+        u32 GetBufferSize() override { return sizeof(bufferData); }
 
+        void Init();
+
+        BufferUsageType GetUsageType() override {
+            return EnumBitwiseOr(EnumBitwiseOr(Buffer::BufferUsageType::BUFFER_VERTEX,
+                Buffer::BufferUsageType::BUFFER_STORAGE), Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
+        }
+
+        ParticleStructuredBuffer(Vector<Particle> &particles)
+            : bufferData { particles }
+        {
+            Init();
+        }
     };
 }

@@ -71,6 +71,8 @@ namespace VulkanImpl
 	Vector<VkSampler> textureSamplers;
 	VkFormat depthFormatChosen;
 	VkImageView depthImageView;
+	Vector<VkBuffer> shaderStorageBuffers;
+	Vector<VkDeviceMemory> shaderStorageBufferMemories;
 
 	u32 MAX_FRAMES_IN_FLIGHT = 2;
 	Vector<VkSemaphore> imageAvailableSemaphores;
@@ -906,6 +908,36 @@ namespace VulkanImpl
 			CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffer, uniformBufferMemory);
 			vkMapMemory(device, uniformBufferMemory, 0, bufferSize, 0, &uniformBufferMapped);
 		}
+	}
+
+	VkBufferUsageFlags MapToVulkanBUfferUsageFlags(Graphics::Buffer::BufferUsageType bufferUsageType)
+	{
+		VkBufferUsageFlags flags = 0;
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_VERTEX))
+			flags = flags == 0 ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : (flags | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_STORAGE))
+			flags = flags == 0 ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : (flags | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_TRANSFER_DST))
+			flags = flags == 0 ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : (flags | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_TRANSFER_SRC))
+			flags = flags == 0 ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : (flags | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_INDEX))
+			flags = flags == 0 ? VK_BUFFER_USAGE_INDEX_BUFFER_BIT : (flags | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_UNIFORM))
+			flags = flags == 0 ? VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : (flags | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		return flags;
+		
+	}
+
+	void CreateStorageBuffer(u32 bufferSize, Graphics::Buffer::BufferUsageType bufferUsageType)
+	{
+		auto & shaderStorageBuffer = shaderStorageBuffers.emplace_back();
+		auto & shaderStorageBufferMemory = shaderStorageBufferMemories.emplace_back();
+		CreateBuffer(bufferSize, 
+			MapToVulkanBUfferUsageFlags(bufferUsageType), 
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+			shaderStorageBuffer, 
+			shaderStorageBufferMemory);
 	}
 
 	Graphics::PipeLineID CreateGraphicsPipeline(SharedPtr<Graphics::Shader> vertexShader, SharedPtr<Graphics::Shader> fragShader, Graphics::GraphicsPipeline* pipeline, Graphics::RenderPassID renderPassID)
@@ -1968,6 +2000,11 @@ namespace Graphics
 			vkDestroyImageView(VulkanImpl::device, textureView, nullptr);
 		for (auto& sampler : VulkanImpl::textureSamplers)
 			vkDestroySampler(VulkanImpl::device, sampler, nullptr);
+		for (auto& buffer : VulkanImpl::shaderStorageBuffers)
+			vkDestroyBuffer(VulkanImpl::device, buffer, nullptr);
+		for (auto& memory : VulkanImpl::shaderStorageBufferMemories)
+			vkFreeMemory(VulkanImpl::device, memory, nullptr);
+
 
 		for (size_t i = 0; i < VulkanImpl::uniformBuffers.size(); i++) {
 			vkDestroyBuffer(VulkanImpl::device, VulkanImpl::uniformBuffers[i], nullptr);
@@ -2101,5 +2138,10 @@ namespace Graphics
 	Sampler::Sampler()
 	{
 		VulkanImpl::CreateTextureSampler(*this, maxLOD);
+	}
+
+	void ParticleStructuredBuffer::Init()
+	{
+		VulkanImpl::CreateStorageBuffer(bufferData.size() * sizeof(Particle), GetUsageType());
 	}
 }

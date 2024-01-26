@@ -20,6 +20,7 @@ namespace Graphics
 	SharedPtr<RenderPass> forwardPass;
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
+	SharedPtr<ParticleStructuredBuffer> particleBuffer;
 	
 	void InitGraphics(void * window)
 	{
@@ -46,8 +47,17 @@ namespace Graphics
 			);
 
 			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
-			// particleBuffer = MakeShared<ParticleBuffer>(Vector<Particle>(...));
-			// particlePass = MakeShared<ComputePass>(particleShader, particleBuffer, particleBuffer, workGroupSz);
+
+			// Initialize particles
+			Vector<ParticleStructuredBuffer::Particle> particles{};
+			auto & particle = particles.emplace_back();
+			particle.position = vec2(0.5f, 0.5f);
+			particle.velocity = vec2(0.f, 0.1f);
+			particle.color = vec4(1.f, 0.f, 0.f, 1.0f);
+			particleBuffer = MakeShared<ParticleStructuredBuffer>(particles);
+			// particlePass = MakeShared<ComputePass>(particleShader, workGroupSz);
+			// particlePass->AddBuffer(particleBuffer, binding, WRITE);
+    
 			quad = MakeShared<Quad>(forwardPipeline->uniformDesc, texture);
 
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
@@ -82,7 +92,7 @@ namespace Graphics
 
 			// particlePass->Dispatch()
 			// particlePass->Draw()
-			
+
 			device->EndRecording(context);
 		}
 
