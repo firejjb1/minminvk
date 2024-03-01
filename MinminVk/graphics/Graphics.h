@@ -20,7 +20,7 @@ namespace Graphics
 	SharedPtr<RenderPass> forwardPass;
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
-	SharedPtr<ParticleStructuredBuffer> particleBuffer;
+	SharedPtr<StructuredBuffer> particleBuffer;
 	
 	void InitGraphics(void * window)
 	{
@@ -49,14 +49,25 @@ namespace Graphics
 			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
 
 			// Initialize particles
-			Vector<ParticleStructuredBuffer::Particle> particles{};
-			auto & particle = particles.emplace_back();
-			particle.position = vec2(0.5f, 0.5f);
-			particle.velocity = vec2(0.f, 0.1f);
-			particle.color = vec4(1.f, 0.f, 0.f, 1.0f);
-			particleBuffer = MakeShared<ParticleStructuredBuffer>(particles);
-			// particlePass = MakeShared<ComputePass>(particleShader, workGroupSz);
-			// particlePass->AddBuffer(particleBuffer, binding, WRITE);
+			struct Particle {
+				vec2 position;
+				vec2 velocity;
+				vec4 color;
+			};
+
+			{
+				// 2f position, 2f velocity, 3f color
+				Vector<f32> particles{ 0.5f, 0.5f , 0.f, 0.1f, 1.f, 0.f, 0.f, 1.f};
+				BufferBinding particleBufferBinding;
+				particleBufferBinding.binding = 0;
+				particleBufferBinding.shaderStageType = BufferBinding::ShaderStageType::COMPUTE;
+				Vector<Buffer::BufferUsageType> particleBufferUsage;
+				particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_VERTEX);
+				particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_STORAGE);
+				particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
+
+				particleBuffer = MakeShared<StructuredBuffer>(particles, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
+			}
     
 			quad = MakeShared<Quad>(forwardPipeline->uniformDesc, texture);
 

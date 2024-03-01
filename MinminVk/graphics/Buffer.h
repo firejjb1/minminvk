@@ -14,6 +14,7 @@ namespace Graphics
         enum class BufferType { STRUCTURED, UNIFORM };
         enum class BufferUsageType
         {
+            NONE = 0,
             BUFFER_VERTEX = 1,
             BUFFER_TRANSFER_DST = 2,
             BUFFER_STORAGE = 4,
@@ -66,42 +67,42 @@ namespace Graphics
 
     };
 
-    struct ParticleStructuredBuffer : Buffer
+    struct StructuredBuffer : Buffer
     {
-        struct Particle {
-            vec2 position;
-            vec2 velocity;
-            vec4 color;
-        };
+        BufferBinding binding;
 
-        Vector<Particle> bufferData;
+        Vector<f32> bufferData;
 
-        BufferBinding GetBinding() override 
+        AccessType accessType;
+
+        Vector<BufferUsageType> usageTypes;
+
+        StructuredBuffer(Vector<f32> &data, BufferBinding &binding, AccessType accessType, Vector<BufferUsageType> usageTypes)
+            : bufferData{ data }, binding{ binding }, accessType{ accessType }, usageTypes{ usageTypes } {}
+
+        BufferBinding GetBinding() override
         {
-             BufferBinding binding;
-             binding.binding = 0;
-             binding.shaderStageType = BufferBinding::ShaderStageType::COMPUTE;
-             return binding;
+            return binding;
         }
-
         BufferType GetBufferType() override { return Buffer::BufferType::STRUCTURED; }
-        AccessType GetAccessType() override 
-        {
-            return AccessType::READONLY;
-        }
+
+        AccessType GetAccessType() override { return accessType; }
+
         u32 GetBufferSize() override { return sizeof(bufferData); }
 
         void Init();
 
         BufferUsageType GetUsageType() override {
-            return EnumBitwiseOr(EnumBitwiseOr(Buffer::BufferUsageType::BUFFER_VERTEX,
-                Buffer::BufferUsageType::BUFFER_STORAGE), Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
-        }
-
-        ParticleStructuredBuffer(Vector<Particle> &particles)
-            : bufferData { particles }
-        {
-            Init();
+            BufferUsageType usage = BufferUsageType::NONE;
+            if (usageTypes.size() > 0)
+            {
+                usage = usageTypes[0];
+                for (int i = 1; i < usageTypes.size(); ++i)
+                {
+                    usage = EnumBitwiseOr(usage, usageTypes[i]);
+                }
+            }
+            return usage;
         }
     };
 }

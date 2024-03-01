@@ -2140,8 +2140,8 @@ namespace Graphics
 		VulkanImpl::CreateTextureSampler(*this, maxLOD);
 	}
 
-	void ParticleStructuredBuffer::Init()
+	void StructuredBuffer::Init()
 	{
-		VulkanImpl::CreateStorageBuffer(bufferData.size() * sizeof(Particle), GetUsageType());
+		VulkanImpl::CreateStorageBuffer(bufferData.size(), GetUsageType());
 	}
 }
