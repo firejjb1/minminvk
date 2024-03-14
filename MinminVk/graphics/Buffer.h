@@ -1,14 +1,10 @@
+#pragma once
+
 #include <util/Type.h>
+#include <graphics/Resource.h>
 
 namespace Graphics
 {
-    struct BufferBinding
-    {
-        u32 binding;
-        enum class ShaderStageType { VERTEX, FRAGMENT, COMPUTE, ALL_GRAPHICS };
-        ShaderStageType shaderStageType;
-    };
-
     struct Buffer
     {
         enum class BufferType { STRUCTURED, UNIFORM };
@@ -25,11 +21,11 @@ namespace Graphics
         enum class AccessType { READONLY, WRITE };
         u32 layoutID = 0;
         u32 bufferID = 0;
-        virtual BufferBinding GetBinding() = 0;
-        virtual BufferType GetBufferType() = 0;
-        virtual AccessType GetAccessType() = 0;
-        virtual u32 GetBufferSize() = 0;
-        virtual BufferUsageType GetUsageType() = 0;
+        virtual const ResourceBinding GetBinding() const = 0;
+        virtual const BufferType GetBufferType() const = 0;
+        virtual const AccessType GetAccessType() const = 0;
+        virtual const u32 GetBufferSize() const = 0;
+        virtual const BufferUsageType GetUsageType() const = 0;
         private:
         BufferType bufferType;
         AccessType accessType;
@@ -47,21 +43,21 @@ namespace Graphics
 
         TransformUniform transformUniform;
 
-        BufferBinding GetBinding() override
+        const ResourceBinding GetBinding() const override
         {
-            BufferBinding uboBinding;
+            ResourceBinding uboBinding;
             uboBinding.binding = 0;
-            uboBinding.shaderStageType = BufferBinding::ShaderStageType::VERTEX;
+            uboBinding.shaderStageType = ResourceBinding::ShaderStageType::VERTEX;
             return uboBinding;
         }
 
-        BufferType GetBufferType() override { return Buffer::BufferType::UNIFORM; }
-        AccessType GetAccessType() override 
+        const BufferType GetBufferType() const override { return Buffer::BufferType::UNIFORM; }
+        const AccessType GetAccessType() const override 
         {
             return AccessType::READONLY;
         }
-        u32 GetBufferSize() override { return sizeof(TransformUniform); }
-        BufferUsageType GetUsageType() override {
+        const u32 GetBufferSize() const override { return sizeof(TransformUniform); }
+        const BufferUsageType GetUsageType() const override {
             return Buffer::BufferUsageType::BUFFER_UNIFORM;
         }
 
@@ -69,7 +65,7 @@ namespace Graphics
 
     struct StructuredBuffer : Buffer
     {
-        BufferBinding binding;
+        ResourceBinding binding;
 
         Vector<f32> bufferData;
 
@@ -77,22 +73,31 @@ namespace Graphics
 
         Vector<BufferUsageType> usageTypes;
 
-        StructuredBuffer(Vector<f32> &data, BufferBinding &binding, AccessType accessType, Vector<BufferUsageType> usageTypes)
-            : bufferData{ data }, binding{ binding }, accessType{ accessType }, usageTypes{ usageTypes } {}
+        StructuredBuffer(Vector<f32> &data, ResourceBinding &binding, AccessType accessType, Vector<BufferUsageType> usageTypes)
+            : bufferData{ data }, binding{ binding }, accessType{ accessType }, usageTypes{ usageTypes } 
+        {
+            Init();
+        }
 
-        BufferBinding GetBinding() override
+        StructuredBuffer(SharedPtr<StructuredBuffer> existingBuffer, ResourceBinding& particleWriteBinding)
+        {
+            binding = particleWriteBinding;
+            usageTypes = existingBuffer->usageTypes;
+        }
+
+        const ResourceBinding GetBinding() const override
         {
             return binding;
         }
-        BufferType GetBufferType() override { return Buffer::BufferType::STRUCTURED; }
+        const BufferType GetBufferType() const override { return Buffer::BufferType::STRUCTURED; }
 
-        AccessType GetAccessType() override { return accessType; }
+        const AccessType GetAccessType() const override { return accessType; }
 
-        u32 GetBufferSize() override { return sizeof(bufferData); }
+        const u32 GetBufferSize() const override { return sizeof(bufferData); }
 
         void Init();
 
-        BufferUsageType GetUsageType() override {
+        const BufferUsageType GetUsageType() const override {
             BufferUsageType usage = BufferUsageType::NONE;
             if (usageTypes.size() > 0)
             {

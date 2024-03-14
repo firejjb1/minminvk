@@ -5,6 +5,7 @@
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
+#define PARTICLE_COMP_SHADER "particles.spv"
 #define STATUE_IMAGE "statue.jpg"
 #define WALL_IMAGE "blue_floor_tiles_01_diff_1k.jpg"
 #define BLUE_IMAGE "blue.jpeg"
@@ -21,6 +22,7 @@ namespace Graphics
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
 	SharedPtr<StructuredBuffer> particleBuffer;
+	SharedPtr<ComputePipeline> computePipeline;
 	
 	void InitGraphics(void * window)
 	{
@@ -36,6 +38,8 @@ namespace Graphics
 
 		Sampler linearClampSampler;
 		Texture texture(concat_str(IMAGES_DIR, VIKING_IMAGE));
+		texture.binding.binding = 1;
+		texture.binding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
 		
 		// forward pass
 		{
@@ -43,36 +47,75 @@ namespace Graphics
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
 				MakeShared<BasicVertex>(),
-				MakeShared<BasicUniformBuffer>()
+				MakeShared<BasicUniformBuffer>(),
+				Vector<Texture>{texture},
+				Vector<SharedPtr<Buffer>>{}
 			);
 
 			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
-
-			// Initialize particles
-			struct Particle {
-				vec2 position;
-				vec2 velocity;
-				vec4 color;
-			};
-
-			{
-				// 2f position, 2f velocity, 3f color
-				Vector<f32> particles{ 0.5f, 0.5f , 0.f, 0.1f, 1.f, 0.f, 0.f, 1.f};
-				BufferBinding particleBufferBinding;
-				particleBufferBinding.binding = 0;
-				particleBufferBinding.shaderStageType = BufferBinding::ShaderStageType::COMPUTE;
-				Vector<Buffer::BufferUsageType> particleBufferUsage;
-				particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_VERTEX);
-				particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_STORAGE);
-				particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
-
-				particleBuffer = MakeShared<StructuredBuffer>(particles, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
-			}
     
 			quad = MakeShared<Quad>(forwardPipeline->uniformDesc, texture);
 
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
 
+		}
+
+		// Compute Pass
+		{
+			struct ParticlesUniformBuffer : Buffer
+			{
+				struct Uniform
+				{
+					alignas(16) float deltaTime;;
+				};
+
+				Uniform uniform;
+
+				const ResourceBinding GetBinding() const override
+				{
+					ResourceBinding uboBinding;
+					uboBinding.binding = 0;
+					uboBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+					return uboBinding;
+				}
+
+				const BufferType GetBufferType() const override { return Buffer::BufferType::UNIFORM; }
+				const AccessType GetAccessType() const override 
+				{
+					return AccessType::READONLY;
+				}
+				const u32 GetBufferSize() const override { return sizeof(uniform); }
+				const BufferUsageType GetUsageType() const override {
+					return Buffer::BufferUsageType::BUFFER_UNIFORM;
+				}
+
+			};
+			struct Particle {
+				vec2 position;
+				vec2 velocity;
+				vec4 color;
+			};
+			// 2f position, 2f velocity, 3f color
+			Vector<f32> particles{ 0.5f, 0.5f , 0.f, 0.1f, 1.f, 0.f, 0.f, 1.f};
+			ResourceBinding particleBufferBinding;
+			particleBufferBinding.binding = 1;
+			particleBufferBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+			Vector<Buffer::BufferUsageType> particleBufferUsage;
+			particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_VERTEX);
+			particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_STORAGE);
+			particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
+
+			particleBuffer = MakeShared<StructuredBuffer>(particles, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
+
+			// same buffer, write descriptor
+			ResourceBinding particleWriteBinding;
+			particleWriteBinding.binding = 2;
+			particleWriteBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+
+			Vector<SharedPtr<Buffer>> computeBuffers {MakeShared<ParticlesUniformBuffer>(), particleBuffer, MakeShared<StructuredBuffer>(particleBuffer, particleWriteBinding)};
+			Vector<Texture> computeTextures {};
+			computePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
+				 vec3{8,8,8}, vec3{256,1,1}, computeBuffers, computeTextures);
 		}
 
 	}

@@ -940,6 +940,42 @@ namespace VulkanImpl
 			shaderStorageBufferMemory);
 	}
 
+	Graphics::PipeLineID CreateComputePipeline(SharedPtr<Graphics::Shader> computeShader, Graphics::ComputePipeline* pipeline, int layoutID)
+	{
+		VkShaderModule computeShaderModule = createShaderModule(computeShader->shaderCode);
+
+        VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
+        computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        computeShaderStageInfo.module = computeShaderModule;
+        computeShaderStageInfo.pName = "main";
+
+		auto& computePipelineLayout = pipelineLayouts.emplace_back();
+
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+		auto computeDescriptorSetLayout = descriptorSetLayouts[layoutID];
+        pipelineLayoutInfo.pSetLayouts = &computeDescriptorSetLayout;
+
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute pipeline layout!");
+        }
+
+        VkComputePipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipelineInfo.layout = computePipelineLayout;
+        pipelineInfo.stage = computeShaderStageInfo;
+		VkPipeline &computePipeline = pipelines.emplace_back();
+
+        if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute pipeline!");
+        }
+
+        vkDestroyShaderModule(device, computeShaderModule, nullptr);
+		return Graphics::PipeLineID{ (u32)pipelineLayouts.size() - 1, pipeline };
+	}
+
 	Graphics::PipeLineID CreateGraphicsPipeline(SharedPtr<Graphics::Shader> vertexShader, SharedPtr<Graphics::Shader> fragShader, Graphics::GraphicsPipeline* pipeline, Graphics::RenderPassID renderPassID)
 	{
 		VkShaderModule vertShaderModule = createShaderModule(vertexShader->shaderCode);
@@ -1548,38 +1584,44 @@ namespace VulkanImpl
 		CreateFramebuffers(context.renderPass, context.presentation);
 	}
 
-	void CreateDescriptorSetLayout(Graphics::Buffer& uniform, u32 numTextures = 1)
+	int CreateDescriptorSetLayout(const Vector<SharedPtr<Graphics::Buffer>>& buffers, const Vector<Graphics::Texture>& textures)
 	{
-		const auto& uniformBinding = uniform.GetBinding();
-		VkDescriptorSetLayoutBinding uboLayoutBinding{};
-		uboLayoutBinding.binding = uniformBinding.binding;
-		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		// TODO array of descriptor could be used for bones animation
-		uboLayoutBinding.descriptorCount = 1;
-
-		uboLayoutBinding.stageFlags = 0;
-		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::BufferBinding::ShaderStageType::VERTEX ? VK_SHADER_STAGE_VERTEX_BIT : 0;
-		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::BufferBinding::ShaderStageType::FRAGMENT ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
-		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::BufferBinding::ShaderStageType::ALL_GRAPHICS ? VK_SHADER_STAGE_ALL_GRAPHICS : 0;
-		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::BufferBinding::ShaderStageType::COMPUTE ? VK_SHADER_STAGE_COMPUTE_BIT : 0;
-
-		Vector<VkDescriptorSetLayoutBinding> bindings{ uboLayoutBinding };
-
-		for (u32 i = 0; i < numTextures; ++i)
+		Vector<VkDescriptorSetLayoutBinding> bindings;
+		// buffers
+		for (const auto &buffer: buffers)
+		{
+			const auto& bufferBinding = buffer->GetBinding();
+			VkDescriptorSetLayoutBinding bufferLayoutBinding{};
+			bufferLayoutBinding.binding = bufferBinding.binding;
+			bufferLayoutBinding.descriptorType = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			bufferLayoutBinding.descriptorCount = 1;
+			bufferLayoutBinding.stageFlags = 0;
+			bufferLayoutBinding.stageFlags |= bufferBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::VERTEX ? VK_SHADER_STAGE_VERTEX_BIT : 0;
+			bufferLayoutBinding.stageFlags |= bufferBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::FRAGMENT ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
+			bufferLayoutBinding.stageFlags |= bufferBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::ALL_GRAPHICS ? VK_SHADER_STAGE_ALL_GRAPHICS : 0;
+			bufferLayoutBinding.stageFlags |= bufferBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::COMPUTE ? VK_SHADER_STAGE_COMPUTE_BIT : 0;
+			bindings.push_back(bufferLayoutBinding);
+		}
+		// textures
+		for (u32 i = 0; i < textures.size(); ++i)
+		for (const auto &texture : textures)
 		{
 			VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-			samplerLayoutBinding.binding = bindings.size();
+			const auto &textureBinding = texture.binding;
+			samplerLayoutBinding.binding = textureBinding.binding;
 			samplerLayoutBinding.descriptorCount = 1;
 			samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			samplerLayoutBinding.pImmutableSamplers = nullptr;
-			samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			samplerLayoutBinding.stageFlags = 0;
+			samplerLayoutBinding.stageFlags |= textureBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::VERTEX ? VK_SHADER_STAGE_VERTEX_BIT : 0;
+			samplerLayoutBinding.stageFlags |= textureBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::FRAGMENT ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
+			samplerLayoutBinding.stageFlags |= textureBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::ALL_GRAPHICS ? VK_SHADER_STAGE_ALL_GRAPHICS : 0;
+			samplerLayoutBinding.stageFlags |= textureBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::COMPUTE ? VK_SHADER_STAGE_COMPUTE_BIT : 0;
 			bindings.push_back(samplerLayoutBinding);
 		}
 
-		uboLayoutBinding.pImmutableSamplers = nullptr; // TODO
-
 		auto& descriptorSetLayout = descriptorSetLayouts.emplace_back();
-		uniform.layoutID = descriptorSetLayouts.size() - 1;
+		int layoutID = descriptorSetLayouts.size() - 1;
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1588,6 +1630,7 @@ namespace VulkanImpl
 
 		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
 			throw std::runtime_error("failed to create descriptor set layout!");
+		return layoutID;
 	}
 	
 	void CreateUniformDescriptorPool()
@@ -2063,7 +2106,12 @@ namespace Graphics
 	// Pipeline
 	void GraphicsPipeline::Init(Graphics::RenderPassID renderPassID)
 	{
-		VulkanImpl::CreateDescriptorSetLayout(*this->uniformDesc, 1);
+		//VulkanImpl::CreateDescriptorSetLayout(*this->uniformDesc, 1); // TODO put texture descriptors info into the pipeline
+		Vector<SharedPtr<Graphics::Buffer>> allBuffers { this->uniformDesc };
+		for (auto buffer : this->buffers)
+			allBuffers.push_back(buffer);
+		int layoutID = VulkanImpl::CreateDescriptorSetLayout(allBuffers, this->textures);
+		this->uniformDesc->layoutID = layoutID;
 		VulkanImpl::CreateBasicUniformBuffer(*this->uniformDesc);
 
 		pipelineID = VulkanImpl::CreateGraphicsPipeline(vertexShader, fragmentShader, this, renderPassID);
@@ -2071,6 +2119,12 @@ namespace Graphics
 		VulkanImpl::CreateUniformDescriptorPool();
 		VulkanImpl::CreateUniformDescriptorSets(*this->uniformDesc);
 
+	}
+
+	void ComputePipeline::Init()
+	{
+		int layoutID = VulkanImpl::CreateDescriptorSetLayout(this->buffers, this->textures);
+		pipelineID = VulkanImpl::CreateComputePipeline(computeShader, this, layoutID);
 	}
 
 	// RenderPass

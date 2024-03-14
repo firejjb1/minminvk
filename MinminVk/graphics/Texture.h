@@ -1,4 +1,5 @@
 #pragma once
+#include <graphics/Resource.h>
 
 namespace Graphics
 {
@@ -31,6 +32,7 @@ namespace Graphics
 	{
 		enum class FormatType { RGBA8_UNORM, RGBA8_SRGB, BGRA_SRGB, R10G10B10A2_UNORM_PACK32, COUNT };
 		FormatType formatType = FormatType::RGBA8_SRGB;
+		ResourceBinding binding;
 
 		enum class LayoutType { 
 			COLOR_ATTACHMENT, 
@@ -50,7 +52,8 @@ namespace Graphics
 			READ_ONLY = 16,
 			SAMPLED = 32,
 			DEPTH_ATTACHMENT = 64,
-			UNDEFINED = 128
+			STORAGE = 128,
+			UNDEFINED = 256
 		};
 
 		UsageType usageType = EnumBitwiseOr(EnumBitwiseOr(UsageType::TRANSFER_DST, UsageType::SAMPLED), UsageType::TRANSFER_SRC);

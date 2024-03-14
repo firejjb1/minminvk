@@ -117,6 +117,7 @@ set(HEADER_FILES
 	"graphics/Texture.h"
 	"graphics/Geometry.h"
 	"graphics/Import.h"
+	"graphics/Resource.h"
 )
 
 IF(WIN32)
