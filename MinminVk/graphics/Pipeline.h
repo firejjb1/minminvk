@@ -17,11 +17,13 @@ namespace Graphics
 	struct RenderPassID { u32 id = 0; RenderPass* pointer; };
 	struct ComputePassID { u32 id = 0; ComputePass* pointer; };
 	struct PipeLineID { u32 id = 0; Pipeline* pointer; };
+	struct DescriptorPoolID { u32 id = 0; };
 
 	struct Pipeline
 	{
 		// assigned by order they are created, starting with 1
 		PipeLineID pipelineID;
+		DescriptorPoolID descriptorPoolID;
 
 	};
 
