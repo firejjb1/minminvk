@@ -1477,7 +1477,6 @@ namespace VulkanImpl
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
 		// vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[geometry.basicUniform->layoutID], 0, 1, &uniformDescriptorSets[geometry.basicUniform->bufferID], 0, nullptr);
-		printf("%d\n", descriptorSetsID);
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[geometry.basicUniform->layoutID], 0, 1, &(descriptorSetsPerPool[descriptorPoolID.id][descriptorSetsID]), 0, nullptr);
 
 		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(geometry.GetIndicesData().size()), 1, 0, 0, 0);
@@ -1708,12 +1707,13 @@ namespace VulkanImpl
 		{
 			Vector<VkWriteDescriptorSet> descriptorWrites;
 
+			Vector<VkDescriptorBufferInfo> bufferInfos;
 			if (buffers.size() > 0)
 			{
 				// TODO
-				for(size_t bufferIndex = 0; i < buffers.size(); ++i)
+				for(size_t bufferIndex = 0; bufferIndex < buffers.size(); ++bufferIndex)
 				{
-					VkDescriptorBufferInfo bufferInfo{};
+					auto& bufferInfo = bufferInfos.emplace_back();
 					const auto &buffer = buffers[bufferIndex];
 					bufferInfo.buffer = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? uniformBuffers[buffer->bufferID] : shaderStorageBuffers[buffer->bufferID];
 					bufferInfo.offset = 0;
@@ -1730,11 +1730,11 @@ namespace VulkanImpl
 					descriptorWrite.pTexelBufferView = nullptr; // Optional
 				}
 			}
+			Vector<VkDescriptorImageInfo> imageInfos;
 
 			if (textureIDs.size() > 0)
 			{
 				// TODO
-				Vector<VkDescriptorImageInfo> imageInfos;
 				for (auto& textureID : textureIDs)
 				{
 					VkDescriptorImageInfo& imageInfo = imageInfos.emplace_back();
@@ -1756,7 +1756,6 @@ namespace VulkanImpl
 					texDescriptorWrite.pImageInfo = &imageInfo;
 				}
 			}
-			printf("buffers %d, textures %d\n", buffers.size(), textureIDs.size());
 			vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
 		}

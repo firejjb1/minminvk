@@ -117,7 +117,6 @@ namespace Graphics
 			computePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
 				 vec3{8,8,8}, vec3{256,1,1}, computeBuffers, computeTextures);
 		}
-					assert(false);
 
 
 	}
