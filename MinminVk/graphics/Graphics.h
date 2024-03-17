@@ -54,9 +54,9 @@ namespace Graphics
 
 			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
 
-			quad = MakeShared<Quad>(forwardPipeline->uniformDesc, texture);
+			quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
 
-			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
+			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
 
 		}
 
@@ -117,6 +117,8 @@ namespace Graphics
 			computePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
 				 vec3{8,8,8}, vec3{256,1,1}, computeBuffers, computeTextures);
 		}
+					assert(false);
+
 
 	}
 

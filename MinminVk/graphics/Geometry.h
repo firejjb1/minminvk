@@ -127,7 +127,7 @@ namespace Graphics
 	public:
 
 
-		Quad(SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture);
+		Quad(int descriptorPool, SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture);
 
 		BasicVertex& GetVertexData() override { return vertexDesc; }
 		Vector<u16>& GetIndicesData() override { return indices; }
@@ -142,7 +142,7 @@ namespace Graphics
 	struct OBJMesh : public Geometry
 	{
 	public:
-		OBJMesh(SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture, String filename);
+		OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture, String filename);
 		void Update(f32 deltaTime) override
 		{
 			//modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, 0, 1));
