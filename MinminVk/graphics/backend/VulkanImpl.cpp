@@ -63,9 +63,7 @@ namespace VulkanImpl
 	Vector<VkBuffer> uniformBuffers;
 	Vector<VkDeviceMemory> uniformBufferMemories;
 	Vector<void*> uniformBuffersMapped;
-	//VkDescriptorPool descriptorPool;
 	Vector<VkDescriptorPool> descriptorPools;
-	//Vector<VkDescriptorSet> uniformDescriptorSets;
 	Vector<Vector<VkDescriptorSet>> descriptorSetsPerPool;
 	Vector<VkImage> textureImages;
 	Vector<VkDeviceMemory> textureImageMemories;
@@ -1476,7 +1474,6 @@ namespace VulkanImpl
 
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
-		// vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[geometry.basicUniform->layoutID], 0, 1, &uniformDescriptorSets[geometry.basicUniform->bufferID], 0, nullptr);
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[geometry.basicUniform->layoutID], 0, 1, &(descriptorSetsPerPool[descriptorPoolID.id][descriptorSetsID]), 0, nullptr);
 
 		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(geometry.GetIndicesData().size()), 1, 0, 0, 0);
@@ -1675,29 +1672,6 @@ namespace VulkanImpl
 		}
 		return descriptorPools.size() - 1;
 	}
-	
-	// void CreateUniformDescriptorPool()
-	// {
-	// 	Vector<VkDescriptorPoolSize> poolSizes{};
-	// 	poolSizes.resize(2);
-
-	// 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	// 	// assuming as many uniform descriptor sets as uniform buffers
-	// 	poolSizes[0].descriptorCount = uniformBuffers.size();
-	// 	// texture pool
-	// 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	// 	poolSizes[1].descriptorCount = uniformBuffers.size();
-
-	// 	VkDescriptorPoolCreateInfo poolInfo{};
-	// 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	// 	poolInfo.poolSizeCount = poolSizes.size();
-	// 	poolInfo.pPoolSizes = poolSizes.data();
-	// 	poolInfo.maxSets = uniformBuffers.size();
-
-	// 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-	// 		throw std::runtime_error("failed to create descriptor pool!");
-	// 	}
-	// }
 
 	void UpdateDescriptorSets(int descriptorPoolID, Vector<SharedPtr<Graphics::Buffer>> buffers = {}, Vector<Graphics::TextureID> textureIDs = {})
 	{
@@ -1761,79 +1735,6 @@ namespace VulkanImpl
 		}
 
 	}
-
-	// void UpdateDescriptorSets(Vector<Graphics::TextureID> textureIDs = {})
-	// {
-	// 	u32 setsSize = uniformBuffers.size();
-
-	// 	for (size_t i = 0; i < setsSize; i++)
-	// 	{
-	// 		Vector<VkWriteDescriptorSet>  descriptorWrites;
-
-	// 		VkDescriptorBufferInfo bufferInfo{};
-	// 		bufferInfo.buffer = uniformBuffers[i];
-
-	// 		bufferInfo.offset = 0;
-	// 		bufferInfo.range = sizeof(Graphics::BasicUniformBuffer);
-	// 		auto& descriptorWrite = descriptorWrites.emplace_back();
-	// 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	// 		descriptorWrite.dstSet = uniformDescriptorSets[i];
-	// 		descriptorWrite.dstBinding = 0;
-	// 		descriptorWrite.dstArrayElement = 0;
-	// 		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	// 		descriptorWrite.descriptorCount = 1;
-	// 		descriptorWrite.pBufferInfo = &bufferInfo;
-	// 		descriptorWrite.pImageInfo = nullptr; // Optional
-	// 		descriptorWrite.pTexelBufferView = nullptr; // Optional
-
-	// 		Vector<VkDescriptorImageInfo> imageInfos;
-	// 		if (textureIDs.size() > 0)
-	// 		{
-	// 			for (auto& textureID : textureIDs)
-	// 			{
-	// 				VkDescriptorImageInfo& imageInfo = imageInfos.emplace_back();
-	// 				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	// 				imageInfo.imageView = textureImageViews[textureID.viewID];
-	// 				imageInfo.sampler = textureSamplers[textureID.samplerID];
-	// 			}
-	// 		}
-		
-	// 		u32 imageIndex = 0;
-	// 		for (auto& imageInfo : imageInfos)
-	// 		{
-	// 			auto& texDescriptorWrite = descriptorWrites.emplace_back();
-	// 			texDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	// 			texDescriptorWrite.dstSet = uniformDescriptorSets[i];
-	// 			texDescriptorWrite.dstBinding = 1 + imageIndex;
-	// 			imageIndex++;
-	// 			texDescriptorWrite.dstArrayElement = 0;
-	// 			texDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	// 			texDescriptorWrite.descriptorCount = 1;
-	// 			texDescriptorWrite.pImageInfo = &imageInfo;
-	// 		}
-	// 		vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
-
-	// 	}
-	// }
-
-	// void CreateUniformDescriptorSets(Graphics::BasicUniformBuffer& uniform)
-	// {
-	// 	// assuming as many uniform descriptor sets as uniform buffers
-	// 	u32 setsSize = uniformBuffers.size();
-	// 	Vector<VkDescriptorSetLayout> layouts(setsSize, descriptorSetLayouts[uniform.layoutID]);
-	// 	VkDescriptorSetAllocateInfo allocInfo{};
-	// 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	// 	allocInfo.descriptorPool = descriptorPool;
-	// 	allocInfo.descriptorSetCount = setsSize;
-	// 	allocInfo.pSetLayouts = layouts.data();
-
-	// 	uniformDescriptorSets.resize(setsSize);
-	// 	if (vkAllocateDescriptorSets(device, &allocInfo, uniformDescriptorSets.data()) != VK_SUCCESS) {
-	// 		throw std::runtime_error("failed to allocate descriptor sets!");
-	// 	}
-	// 	UpdateDescriptorSets();
-		
-	// }
 
 	void CreateDescriptorSets(int layoutID, int descriptorCount, int descriptorPoolID, Vector<SharedPtr<Graphics::Buffer>> allBuffers = {}, Vector<Graphics::Texture> allTextures = {})
 	{
@@ -2004,7 +1905,6 @@ namespace VulkanImpl
 
 		TransitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
 		CopyBufferToImage(stagingBuffer, textureImage, static_cast<u32>(width), static_cast<u32>(height));
-		//TransitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels);
 
 		vkDestroyBuffer(device, stagingBuffer, nullptr);
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -2240,7 +2140,6 @@ namespace Graphics
 	// Pipeline
 	void GraphicsPipeline::Init(Graphics::RenderPassID renderPassID)
 	{
-		//VulkanImpl::CreateDescriptorSetLayout(*this->uniformDesc, 1); // TODO put texture descriptors info into the pipeline
 		Vector<SharedPtr<Graphics::Buffer>> allBuffers { this->uniformDesc };
 		for (auto buffer : this->buffers)
 			allBuffers.push_back(buffer);
@@ -2250,10 +2149,8 @@ namespace Graphics
 
 		pipelineID = VulkanImpl::CreateGraphicsPipeline(vertexShader, fragmentShader, this, renderPassID);
 
-		// VulkanImpl::CreateUniformDescriptorPool();
 		int poolID = VulkanImpl::CreateDescriptorPool(VulkanImpl::MAX_FRAMES_IN_FLIGHT, VulkanImpl::MAX_FRAMES_IN_FLIGHT, 0);
 		this->descriptorPoolID.id = poolID;
-		// VulkanImpl::CreateUniformDescriptorSets(*this->uniformDesc);
 		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, allBuffers);
 
 	}
