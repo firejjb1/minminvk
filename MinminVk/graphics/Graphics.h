@@ -22,6 +22,7 @@ namespace Graphics
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
 	SharedPtr<StructuredBuffer> particleBuffer;
+	SharedPtr<StructuredBuffer> particleBufferPrev;
 	SharedPtr<ComputePipeline> computePipeline;
 	
 	void InitGraphics(void * window)
@@ -66,7 +67,7 @@ namespace Graphics
 			{
 				struct Uniform
 				{
-					alignas(16) float deltaTime;;
+					float deltaTime;;
 				};
 
 				Uniform uniform;
@@ -104,15 +105,15 @@ namespace Graphics
 			particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_VERTEX);
 			particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_STORAGE);
 			particleBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
-
-			particleBuffer = MakeShared<StructuredBuffer>(particles, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
-
 			// same buffer, write descriptor
 			ResourceBinding particleWriteBinding;
 			particleWriteBinding.binding = 2;
 			particleWriteBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
 
-			Vector<SharedPtr<Buffer>> computeBuffers {MakeShared<ParticlesUniformBuffer>(), particleBuffer, MakeShared<StructuredBuffer>(particleBuffer, particleWriteBinding)};
+			particleBufferPrev = MakeShared<StructuredBuffer>(particles, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
+			particleBuffer = MakeShared<StructuredBuffer>(particles, particleWriteBinding, Buffer::AccessType::READONLY, particleBufferUsage);
+
+			Vector<SharedPtr<Buffer>> computeBuffers {MakeShared<ParticlesUniformBuffer>(), particleBufferPrev, particleBuffer};
 			Vector<Texture> computeTextures {};
 			computePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
 				 vec3{8,8,8}, vec3{256,1,1}, computeBuffers, computeTextures);

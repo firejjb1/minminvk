@@ -79,12 +79,6 @@ namespace Graphics
             Init();
         }
 
-        StructuredBuffer(SharedPtr<StructuredBuffer> existingBuffer, ResourceBinding& particleWriteBinding)
-        {
-            binding = particleWriteBinding;
-            usageTypes = existingBuffer->usageTypes;
-        }
-
         const ResourceBinding GetBinding() const override
         {
             return binding;

@@ -1664,7 +1664,7 @@ namespace VulkanImpl
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		poolInfo.poolSizeCount = poolSizes.size();
 		poolInfo.pPoolSizes = poolSizes.data();
-		poolInfo.maxSets = std::max(numStorageBuffers, std::max(numUniforms, numTextures));
+		poolInfo.maxSets = poolSizes.size();
 
 		auto & descriptorPool = descriptorPools.emplace_back();
 		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
@@ -2161,7 +2161,10 @@ namespace Graphics
 		pipelineID = VulkanImpl::CreateComputePipeline(computeShader, this, layoutID);
 
 		// create descriptor pool
+		int poolID = VulkanImpl::CreateDescriptorPool(VulkanImpl::MAX_FRAMES_IN_FLIGHT, 0, VulkanImpl::MAX_FRAMES_IN_FLIGHT * 2);
+		this->descriptorPoolID.id = poolID;
 		// create descriptor sets
+		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, this->buffers, this->textures);
 	}
 
 	// RenderPass
