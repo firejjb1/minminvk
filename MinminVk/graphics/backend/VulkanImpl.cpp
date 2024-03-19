@@ -895,18 +895,17 @@ namespace VulkanImpl
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
 	}
 
-	void CreateBasicUniformBuffer(Graphics::BasicUniformBuffer& uniformDesc)
+	void CreateUniformBuffer(Graphics::Buffer& buffer, int numBuffer)
 	{
-		VkDeviceSize bufferSize = sizeof(Graphics::BasicUniformBuffer);
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			auto& uniformBuffer = uniformBuffers.emplace_back();
 			auto& uniformBufferMemory = uniformBufferMemories.emplace_back();
 			auto& uniformBufferMapped = uniformBuffersMapped.emplace_back();
 			assert(uniformBuffers.size() == uniformBufferMemories.size() && uniformBuffers.size() == uniformBuffersMapped.size());
-			uniformDesc.bufferID = uniformBuffers.size() - 1;
-			CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffer, uniformBufferMemory);
-			vkMapMemory(device, uniformBufferMemory, 0, bufferSize, 0, &uniformBufferMapped);
+			buffer.extendedBufferIDs.push_back(uniformBuffers.size() - 1);
+			CreateBuffer(buffer.GetBufferSize(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffer, uniformBufferMemory);
+			vkMapMemory(device, uniformBufferMemory, 0, buffer.GetBufferSize(), 0, &uniformBufferMapped);
 		}
 	}
 
@@ -935,7 +934,7 @@ namespace VulkanImpl
 		{
 			auto & shaderStorageBuffer = shaderStorageBuffers.emplace_back();
 			auto & shaderStorageBufferMemory = shaderStorageBufferMemories.emplace_back();
-			buffer->bufferID = shaderStorageBuffers.size() - 1;
+			buffer->extendedBufferIDs.push_back(shaderStorageBuffers.size() - 1);
 			CreateBuffer(bufferSize, 
 				MapToVulkanBUfferUsageFlags(bufferUsageType), 
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
@@ -1459,7 +1458,7 @@ namespace VulkanImpl
 		return commandLists;
 	}
 
-	void Draw(Graphics::CommandList commandList, Graphics::Geometry& geometry, Graphics::PipeLineID pipelineID, Graphics::DescriptorPoolID descriptorPoolID, int descriptorSetsID)
+	void Draw(Graphics::CommandList commandList, Graphics::Geometry& geometry, Graphics::PipeLineID pipelineID, Graphics::DescriptorPoolID descriptorPoolID, int swapID)
 	{
 		auto& graphicsPipeline = pipelines[pipelineID.id];
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
@@ -1470,11 +1469,11 @@ namespace VulkanImpl
 		VkDeviceSize offsets[] = { 0 };
 
 		geometry.basicUniform->transformUniform.model = geometry.modelMatrix;
-		memcpy(uniformBuffersMapped[geometry.basicUniform->bufferID], &geometry.basicUniform->transformUniform, sizeof(Graphics::BasicUniformBuffer::TransformUniform));
+		memcpy(uniformBuffersMapped[geometry.basicUniform->extendedBufferIDs[swapID]], &geometry.basicUniform->transformUniform, sizeof(Graphics::BasicUniformBuffer::TransformUniform));
 
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[geometry.basicUniform->layoutID], 0, 1, &(descriptorSetsPerPool[descriptorPoolID.id][descriptorSetsID]), 0, nullptr);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[geometry.basicUniform->layoutID], 0, 1, &(descriptorSetsPerPool[descriptorPoolID.id][swapID]), 0, nullptr);
 
 		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(geometry.GetIndicesData().size()), 1, 0, 0, 0);
 	}
@@ -1685,14 +1684,19 @@ namespace VulkanImpl
 			if (buffers.size() > 0)
 			{
 				// TODO
-				for(size_t bufferIndex = 0; bufferIndex < buffers.size(); ++bufferIndex)
+				for (size_t bufferIndex = 0; bufferIndex < buffers.size(); ++bufferIndex)
 				{
 					auto& bufferInfo = bufferInfos.emplace_back();
-					const auto &buffer = buffers[bufferIndex];
-					bufferInfo.buffer = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? uniformBuffers[buffer->bufferID] : shaderStorageBuffers[buffer->bufferID];
+					const auto& buffer = buffers[bufferIndex];
+					bufferInfo.buffer = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? uniformBuffers[buffer->extendedBufferIDs[i]] : shaderStorageBuffers[buffer->extendedBufferIDs[i]];
 					bufferInfo.offset = 0;
 					bufferInfo.range = buffer->GetBufferSize();
+				}
+				u32 bufferIndex = 0;
+				for (auto& bufferInfo : bufferInfos)
+				{
 					auto &descriptorWrite = descriptorWrites.emplace_back();
+					const auto& buffer = buffers[bufferIndex];
 					descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 					descriptorWrite.dstSet = descriptorSets[i];
 					descriptorWrite.dstBinding = bufferIndex;
@@ -1702,10 +1706,10 @@ namespace VulkanImpl
 					descriptorWrite.pBufferInfo = &bufferInfo;
 					descriptorWrite.pImageInfo = nullptr; // Optional
 					descriptorWrite.pTexelBufferView = nullptr; // Optional
+					bufferIndex++;
 				}
 			}
 			Vector<VkDescriptorImageInfo> imageInfos;
-
 			if (textureIDs.size() > 0)
 			{
 				// TODO
@@ -2137,6 +2141,11 @@ namespace Graphics
 
 	}
 
+	void UniformBuffer::Init()
+	{
+		VulkanImpl::CreateUniformBuffer(*this, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
+	}
+
 	// Pipeline
 	void GraphicsPipeline::Init(Graphics::RenderPassID renderPassID)
 	{
@@ -2145,8 +2154,6 @@ namespace Graphics
 			allBuffers.push_back(buffer);
 		int layoutID = VulkanImpl::CreateDescriptorSetLayout(allBuffers, this->textures);
 		this->uniformDesc->layoutID = layoutID;
-		VulkanImpl::CreateBasicUniformBuffer(*this->uniformDesc);
-
 		pipelineID = VulkanImpl::CreateGraphicsPipeline(vertexShader, fragmentShader, this, renderPassID);
 
 		int poolID = VulkanImpl::CreateDescriptorPool(VulkanImpl::MAX_FRAMES_IN_FLIGHT, VulkanImpl::MAX_FRAMES_IN_FLIGHT, 0);
@@ -2242,6 +2249,6 @@ namespace Graphics
 
 	void StructuredBuffer::Init()
 	{
-		VulkanImpl::CreateStorageBuffer(bufferData.size(), GetUsageType(), this);
+		VulkanImpl::CreateStorageBuffer(sizeof(bufferData), GetUsageType(), this);
 	}
 }

@@ -20,7 +20,8 @@ namespace Graphics
         };
         enum class AccessType { READONLY, WRITE };
         u32 layoutID = 0;
-        u32 bufferID = 0;
+        // sometimes a buffer is needed for each frame in flight. don't want to declare multiple buffers for each, managed by backend
+        Vector<u32> extendedBufferIDs;
         virtual const ResourceBinding GetBinding() const = 0;
         virtual const BufferType GetBufferType() const = 0;
         virtual const AccessType GetAccessType() const = 0;
@@ -31,8 +32,13 @@ namespace Graphics
         AccessType accessType;
     };
 
+    struct UniformBuffer : Buffer
+    {
+        virtual void Init();
 
-    struct BasicUniformBuffer : Buffer
+    };
+
+    struct BasicUniformBuffer : UniformBuffer
     {
         struct TransformUniform
         {
@@ -60,6 +66,8 @@ namespace Graphics
         const BufferUsageType GetUsageType() const override {
             return Buffer::BufferUsageType::BUFFER_UNIFORM;
         }
+
+        BasicUniformBuffer() { Init(); }
 
     };
 

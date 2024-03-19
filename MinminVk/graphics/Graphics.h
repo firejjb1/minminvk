@@ -44,11 +44,12 @@ namespace Graphics
 		
 		// forward pass
 		{
+			auto uniformBuffer = MakeShared<BasicUniformBuffer>();
 			forwardPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
 				MakeShared<BasicVertex>(),
-				MakeShared<BasicUniformBuffer>(),
+				uniformBuffer,
 				Vector<Texture>{texture},
 				Vector<SharedPtr<Buffer>>{}
 			);
@@ -63,7 +64,7 @@ namespace Graphics
 
 		// Compute Pass
 		{
-			struct ParticlesUniformBuffer : Buffer
+			struct ParticlesUniformBuffer : UniformBuffer
 			{
 				struct Uniform
 				{
@@ -89,6 +90,8 @@ namespace Graphics
 				const BufferUsageType GetUsageType() const override {
 					return Buffer::BufferUsageType::BUFFER_UNIFORM;
 				}
+
+				ParticlesUniformBuffer() { Init(); }
 
 			};
 			struct Particle {
