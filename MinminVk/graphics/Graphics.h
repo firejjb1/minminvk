@@ -119,7 +119,7 @@ namespace Graphics
 			Vector<SharedPtr<Buffer>> computeBuffers {MakeShared<ParticlesUniformBuffer>(), particleBufferPrev, particleBuffer};
 			Vector<Texture> computeTextures {};
 			computePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
-				 vec3{8,8,8}, vec3{256,1,1}, computeBuffers, computeTextures);
+				 vec3{particles.size() / 8,1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
 		}
 
 
@@ -149,8 +149,7 @@ namespace Graphics
 			vikingRoom->Update(deltaTime);
 			vikingRoom->Draw(context);
 
-			// particlePass->Dispatch()
-			// particlePass->Draw()
+			computePipeline->Dispatch(context);
 
 			device->EndRecording(context);
 		}

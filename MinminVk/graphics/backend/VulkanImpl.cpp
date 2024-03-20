@@ -1478,6 +1478,41 @@ namespace VulkanImpl
 		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(geometry.GetIndicesData().size()), 1, 0, 0, 0);
 	}
 
+	void Dispatch(Graphics::CommandList commandList, int pipelineID, int pipelineLayoudID, int descriptorPoolID, int swapID, vec3 threadSz, vec3 invocationSz)
+	{
+		auto& computePipeline = VulkanImpl::pipelines[pipelineID];
+		VkCommandBuffer commandBuffer = VulkanImpl::commandBuffers[commandList.commandListID];
+		VkCommandBufferBeginInfo beginInfo{};
+		auto& computePipelineLayout = pipelineLayouts[pipelineLayoudID];
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error("failed to begin recording compute command buffer!");
+        }
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSetsPerPool[descriptorPoolID][swapID], 0, nullptr);
+
+        vkCmdDispatch(commandBuffer, threadSz[0] / invocationSz[0], threadSz[1] / invocationSz[1], threadSz[2] / invocationSz[2]);
+
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("failed to record compute command buffer!");
+        }
+		
+		VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+   		submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer;
+        // submitInfo.signalSemaphoreCount = 1;
+        // submitInfo.pSignalSemaphores = &computeFinishedSemaphores[currentFrame];
+
+		if (vkQueueSubmit(computeQueue, 1, &submitInfo, nullptr) != VK_SUCCESS) {
+			throw std::runtime_error("failed to submit compute command buffer!");
+		};
+	}
+
 	void RecordCommandBuffer(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID) 
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
@@ -2165,6 +2200,7 @@ namespace Graphics
 	void ComputePipeline::Init()
 	{
 		int layoutID = VulkanImpl::CreateDescriptorSetLayout(this->buffers, this->textures);
+		this->layoutID = layoutID;
 		pipelineID = VulkanImpl::CreateComputePipeline(computeShader, this, layoutID);
 
 		// create descriptor pool
@@ -2172,6 +2208,13 @@ namespace Graphics
 		this->descriptorPoolID.id = poolID;
 		// create descriptor sets
 		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, this->buffers, this->textures);
+	}
+
+	void ComputePipeline::Dispatch(RenderContext & context)
+	{
+		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto& commandList = context.device->GetCommandList(swapID);
+		VulkanImpl::Dispatch(commandList, this->pipelineID.id, this->layoutID, this->descriptorPoolID.id, swapID, this->threadSz, this->invocationSz);
 	}
 
 	// RenderPass

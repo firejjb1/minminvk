@@ -13,6 +13,7 @@ namespace Graphics
 	struct VertexDesc;
 	struct BasicUniformBuffer;
 	struct Presentation;
+	struct RenderContext;
 
 	struct RenderPassID { u32 id = 0; RenderPass* pointer; };
 	struct ComputePassID { u32 id = 0; ComputePass* pointer; };
@@ -197,29 +198,29 @@ namespace Graphics
 	struct ComputePipeline : public Pipeline
 	{
 		SharedPtr<Shader> computeShader;
-		vec3 workGroupSz;
+		vec3 threadSz;
 		vec3 invocationSz;
+		int layoutID;
 
 		Vector<SharedPtr<Buffer>> buffers;
 		Vector<Texture> textures;
 
-		ComputePipeline(SharedPtr<Shader> computeShader, vec3 workGroupSz, vec3 invocationSz, Vector<SharedPtr<Buffer>> &buffers, Vector<Texture> &textures)
-			: computeShader{computeShader}, workGroupSz{workGroupSz}, invocationSz{invocationSz}, buffers{buffers}, textures{textures}
+		ComputePipeline(SharedPtr<Shader> computeShader, vec3 threadSz, vec3 invocationSz, Vector<SharedPtr<Buffer>> &buffers, Vector<Texture> &textures)
+			: computeShader{computeShader}, threadSz{threadSz}, invocationSz{invocationSz}, buffers{buffers}, textures{textures}
 		{
 			Init();
 		}
 
 		void Init();
+
+		void Dispatch(RenderContext & context);
 	};
 
-	struct ComputePass
-	{
-		ComputePassID computePassID;
-		SharedPtr<ComputePipeline> pso;
+	// struct ComputePass
+	// {
+	// 	ComputePassID computePassID;
+	// 	SharedPtr<ComputePipeline> pso;
 
-		// ComputePass(SharedPtr<ComputePipeline> computePipeline, SharedPtr<Texture> outputTexture, SharedPtr<Buffer> outputBuffer,
-		// 	Vector<SharedPtr<Buffer>> &inputBuffers,
-		// 	Vector<SharedPtr<Texture>> &inputTextures);
-	};
+	// };
 
 }
