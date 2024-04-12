@@ -13,6 +13,7 @@
 #include <string>
 #include <limits>
 #include <algorithm>
+#include <map>
 
 #define concat_str(first, second) first second
 
@@ -49,6 +50,9 @@ auto MakeShared(Args&&... args) -> decltype(std::make_shared<T>(std::forward<Arg
 
 template<class T>
 using Vector = std::vector<T>; 
+
+template<class K, class V >
+using Map = std::map<K, V>;
 
 template<class T>
 using Set = std::set<T>;

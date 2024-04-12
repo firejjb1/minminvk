@@ -14,6 +14,43 @@
 
 namespace Graphics
 {
+	struct ParticlesUniformBuffer : UniformBuffer
+	{
+		struct Uniform
+		{
+			float deltaTime;;
+		};
+
+		Uniform uniform;
+
+		const ResourceBinding GetBinding() const override
+		{
+			ResourceBinding uboBinding;
+			uboBinding.binding = 0;
+			uboBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+			return uboBinding;
+		}
+
+		void* GetData() override
+		{
+			return (void*)&uniform;
+		}
+
+		const BufferType GetBufferType() const override { return Buffer::BufferType::UNIFORM; }
+		const AccessType GetAccessType() const override
+		{
+			return AccessType::READONLY;
+		}
+		const u32 GetBufferSize() const override { return sizeof(uniform); }
+		const BufferUsageType GetUsageType() const override {
+			return Buffer::BufferUsageType::BUFFER_UNIFORM;
+		}
+
+		ParticlesUniformBuffer() { Init(); }
+
+	};
+
+
 	SharedPtr<Device> device;
 	RenderContext context;
 	SharedPtr<Presentation> presentation;
@@ -23,7 +60,9 @@ namespace Graphics
 	SharedPtr<OBJMesh> vikingRoom;
 	SharedPtr<StructuredBuffer> particleBuffer;
 	SharedPtr<StructuredBuffer> particleBufferPrev;
+	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
 	SharedPtr<ComputePipeline> computePipeline;
+	
 	
 	void InitGraphics(void * window)
 	{
@@ -64,41 +103,6 @@ namespace Graphics
 
 		// Compute Pass
 		{
-			struct ParticlesUniformBuffer : UniformBuffer
-			{
-				struct Uniform
-				{
-					float deltaTime;;
-				};
-
-				Uniform uniform;
-
-				const ResourceBinding GetBinding() const override
-				{
-					ResourceBinding uboBinding;
-					uboBinding.binding = 0;
-					uboBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
-					return uboBinding;
-				}
-
-				void* GetData() override
-				{
-					return (void*)&uniform;
-				}
-
-				const BufferType GetBufferType() const override { return Buffer::BufferType::UNIFORM; }
-				const AccessType GetAccessType() const override 
-				{
-					return AccessType::READONLY;
-				}
-				const u32 GetBufferSize() const override { return sizeof(uniform); }
-				const BufferUsageType GetUsageType() const override {
-					return Buffer::BufferUsageType::BUFFER_UNIFORM;
-				}
-
-				ParticlesUniformBuffer() { Init(); }
-
-			};
 			struct Particle {
 				vec2 position;
 				vec2 velocity;
@@ -120,11 +124,14 @@ namespace Graphics
 
 			particleBufferPrev = MakeShared<StructuredBuffer>(particles, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
 			particleBuffer = MakeShared<StructuredBuffer>(particles, particleWriteBinding, Buffer::AccessType::READONLY, particleBufferUsage);
-
-			Vector<SharedPtr<Buffer>> computeBuffers {MakeShared<ParticlesUniformBuffer>(), particleBufferPrev, particleBuffer};
+			particleUniformBuffer = MakeShared<ParticlesUniformBuffer>();
+			Vector<SharedPtr<Buffer>> computeBuffers { particleUniformBuffer, particleBufferPrev, particleBuffer};
 			Vector<Texture> computeTextures {};
 			computePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
 				 vec3{particles.size() / 8,1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
+
+			// sync
+			forwardPipeline->Wait(computePipeline->pipelineID);
 		}
 
 
@@ -133,6 +140,13 @@ namespace Graphics
 	void MainRender(const u32 frameID, const f32 deltaTime)
 	{
 		context.frameID = frameID;
+
+		// compute pass
+		{
+			particleUniformBuffer->uniform.deltaTime = deltaTime;
+			particleUniformBuffer->UpdateUniformBuffer(frameID);
+			computePipeline->Dispatch(context);
+		}
 
 		// forward pass
 		{
@@ -153,8 +167,6 @@ namespace Graphics
 			// TODO camera control
 			vikingRoom->Update(deltaTime);
 			vikingRoom->Draw(context);
-
-			//computePipeline->Dispatch(context);
 
 			device->EndRecording(context);
 		}

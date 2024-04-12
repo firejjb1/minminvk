@@ -26,8 +26,10 @@ namespace Graphics
 	struct Device
 	{
 		Vector<CommandList> commandLists;
+		Vector<CommandList> computeCommandLists;
 
 		CommandList& GetCommandList(u32 index) { return commandLists[index]; }
+		CommandList& GetComputeCommandList(u32 index) { return computeCommandLists[index]; }
 		
 		void Init();
 		bool BeginRecording(RenderContext&);

@@ -134,6 +134,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
  	.
  )
 
+IF(APPLE)
+	target_compile_definitions(${PROJECT_NAME} PUBLIC APPLE)
+ENDIF(APPLE)
+
 target_compile_definitions(${PROJECT_NAME} PUBLIC SHADERS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/")
 target_compile_definitions(${PROJECT_NAME} PUBLIC IMAGES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/images/")
 target_compile_definitions(${PROJECT_NAME} PUBLIC OBJ_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/obj/")

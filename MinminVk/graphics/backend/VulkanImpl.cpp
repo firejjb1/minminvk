@@ -56,6 +56,7 @@ namespace VulkanImpl
 	Vector<VkFramebuffer> swapChainFramebuffers;
 	VkCommandPool commandPool;
 	Vector<VkCommandBuffer> commandBuffers;
+	Vector<VkCommandBuffer> computeCommandBuffers;
 	Vector<VkBuffer> vertexBuffers;
 	Vector<VkDeviceMemory> vertexBufferMemories;
 	Vector<VkBuffer> indexBuffers;
@@ -77,6 +78,7 @@ namespace VulkanImpl
 	u32 MAX_FRAMES_IN_FLIGHT = 2;
 	Vector<VkSemaphore> imageAvailableSemaphores;
 	Vector<VkSemaphore> imageFinishedSemaphores;
+	Map<int, Vector<VkSemaphore>> pipelineWaitSemaphore;
 	Vector<Vector<VkFence>> pipelineInFlightFences;
 
 
@@ -294,8 +296,9 @@ namespace VulkanImpl
 		}
 
 		// renderdoc doesn't support
+#ifdef APPLE
 		extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-
+#endif
 		if (enableValidationLayers) {
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 		}
@@ -391,8 +394,9 @@ namespace VulkanImpl
 		auto extensions = GetRequiredExtensions();
 
 		// renderdoc doesn't support
+#ifdef APPLE
 		createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-
+#endif
 		createInfo.enabledExtensionCount = (u32)extensions.size();
 		createInfo.ppEnabledExtensionNames = extensions.data();
 
@@ -933,19 +937,32 @@ namespace VulkanImpl
 		
 	}
 
-	void CreateStorageBuffer(u32 bufferSize, Graphics::Buffer::BufferUsageType bufferUsageType, Graphics::Buffer* buffer, bool forAllFramesInFlight = true)
+	void CreateStorageBuffer(u32 bufferSize, Graphics::Buffer::BufferUsageType bufferUsageType, Graphics::StructuredBuffer* buffer, bool forAllFramesInFlight = true)
 	{
+		// Create a staging buffer used to upload data to the gpu
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+		CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+		void* data;
+		vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+		memcpy(data, buffer->bufferData.data(), (size_t)bufferSize);
+		vkUnmapMemory(device, stagingBufferMemory);
 		for (int i = 0; i < (forAllFramesInFlight ? MAX_FRAMES_IN_FLIGHT : 1); ++i)
 		{
 			auto & shaderStorageBuffer = shaderStorageBuffers.emplace_back();
 			auto & shaderStorageBufferMemory = shaderStorageBufferMemories.emplace_back();
+			
 			buffer->extendedBufferIDs.push_back(shaderStorageBuffers.size() - 1);
 			CreateBuffer(bufferSize, 
 				MapToVulkanBUfferUsageFlags(bufferUsageType), 
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
 				shaderStorageBuffer, 
 				shaderStorageBufferMemory);
+			CopyBuffer(stagingBuffer, shaderStorageBuffer, bufferSize);
 		}
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
 	}
 
 	Graphics::PipeLineID CreateComputePipeline(SharedPtr<Graphics::Shader> computeShader, Graphics::ComputePipeline* pipeline, int layoutID)
@@ -1394,6 +1411,7 @@ namespace VulkanImpl
 	{
 		if (renderPass->shouldFramebuffersMatchSwapchain)
 		{
+			// TODO able to create non-swapchain frame buffers
 			swapChainFramebuffers.resize(swapChainImageViews.size());
 			for (size_t i = 0; i < swapChainImageViews.size(); i++) {
 
@@ -1465,6 +1483,30 @@ namespace VulkanImpl
 		return commandLists;
 	}
 
+	Vector<Graphics::CommandList> CreateComputeCommandBuffers()
+	{
+		computeCommandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
+		VkCommandBufferAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.commandPool = commandPool;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandBufferCount = (u32)computeCommandBuffers.size();
+
+		if (vkAllocateCommandBuffers(device, &allocInfo, computeCommandBuffers.data()) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate command buffers!");
+		}
+
+		Vector<Graphics::CommandList> commandLists;
+		for (u32 i = 0; i < computeCommandBuffers.size(); ++i)
+		{
+			auto& cmdList = commandLists.emplace_back();
+			cmdList.commandListID = i;
+			cmdList.isSecondary = false;
+		}
+		return commandLists;
+	}
+
 	void Draw(Graphics::CommandList commandList, Graphics::Geometry& geometry, Graphics::PipeLineID pipelineID, Graphics::DescriptorPoolID descriptorPoolID, int swapID)
 	{
 		auto& graphicsPipeline = pipelines[pipelineID.id];
@@ -1488,7 +1530,7 @@ namespace VulkanImpl
 	void Dispatch(Graphics::CommandList commandList, int pipelineID, int pipelineLayoudID, int descriptorPoolID, int swapID, vec3 threadSz, vec3 invocationSz)
 	{
 		auto& computePipeline = VulkanImpl::pipelines[pipelineID];
-		VkCommandBuffer commandBuffer = VulkanImpl::commandBuffers[commandList.commandListID];
+		VkCommandBuffer commandBuffer = VulkanImpl::computeCommandBuffers[commandList.commandListID];
 		VkCommandBufferBeginInfo beginInfo{};
 
 		vkWaitForFences(device, 1, &pipelineInFlightFences[pipelineID][swapID], VK_TRUE, UINT64_MAX);
@@ -1506,7 +1548,7 @@ namespace VulkanImpl
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSetsPerPool[descriptorPoolID][swapID], 0, nullptr);
 
-        vkCmdDispatch(commandBuffer, threadSz[0] / invocationSz[0], threadSz[1] / invocationSz[1], threadSz[2] / invocationSz[2]);
+        vkCmdDispatch(commandBuffer, Max(threadSz[0] / invocationSz[0], 1.f), Max(threadSz[1] / invocationSz[1], 1.f), Max(threadSz[2] / invocationSz[2], 1.f));
 
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record compute command buffer!");
@@ -1517,8 +1559,10 @@ namespace VulkanImpl
 
    		submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffer;
-        // submitInfo.signalSemaphoreCount = 1;
-        // submitInfo.pSignalSemaphores = &computeFinishedSemaphores[currentFrame];
+
+		VkSemaphore toSignal{ VulkanImpl::pipelineWaitSemaphore[pipelineID][swapID] };
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = &toSignal;
 
 		if (vkQueueSubmit(computeQueue, 1, &submitInfo, pipelineInFlightFences[pipelineID][swapID]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to submit compute command buffer!");
@@ -1596,6 +1640,22 @@ namespace VulkanImpl
 				throw std::runtime_error("failed to create synchronization objects for a frame!");
 			}
 		}
+	}
+
+	void CreatePipelineSemaphore(int pipelineID, int numSemaphores)
+	{
+		Vector<VkSemaphore> semaphores;
+		semaphores.resize(numSemaphores);
+		VkSemaphoreCreateInfo semaphoreInfo{};
+		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+		for (size_t i = 0; i < numSemaphores; i++) {
+			if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphores[i]) != VK_SUCCESS) {
+				throw std::runtime_error("failed to create synchronization objects for a frame!");
+			}
+		}
+		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		pipelineWaitSemaphore[pipelineID] = semaphores;
 	}
 
 	void CreateFenceObjects(int pipelineID, int numFences)
@@ -2030,6 +2090,7 @@ namespace Graphics
 		VulkanImpl::CreateLogicalDevice();
 		VulkanImpl::CreateCommandPool();
 		commandLists = VulkanImpl::CreateCommandBuffers();
+		computeCommandLists = VulkanImpl::CreateComputeCommandBuffers();
 
 		// TODO should be here?
 		VulkanImpl::CreateSyncObjects();
@@ -2079,17 +2140,27 @@ namespace Graphics
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-		VkSemaphore waitSemaphores[] = { VulkanImpl::imageAvailableSemaphores[swapID]};
-		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = waitSemaphores;
-		submitInfo.pWaitDstStageMask = waitStages;
+		//VkSemaphore waitSemaphores[] = { VulkanImpl::imageAvailableSemaphores[swapID]};
+		Vector<VkSemaphore> waitSemaphores;
+		//VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		Vector<VkPipelineStageFlags> waitStages;
+		for (auto& pipelineToWait : context.renderPass->pso->pipelinesToWait)
+		{
+			waitSemaphores.push_back(VulkanImpl::pipelineWaitSemaphore[pipelineToWait.id][swapID]);
+			waitStages.push_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+		}
+		waitStages.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		waitSemaphores.push_back(VulkanImpl::imageAvailableSemaphores[swapID]);
+		submitInfo.waitSemaphoreCount = waitSemaphores.size();
+		submitInfo.pWaitSemaphores = waitSemaphores.data();
+		submitInfo.pWaitDstStageMask = waitStages.data();
 
 		submitInfo.commandBufferCount = 1;
 
 		submitInfo.pCommandBuffers = &commandBuffer;
 
 		VkSemaphore signalSemaphores[] = { VulkanImpl::imageFinishedSemaphores[swapID]};
+	
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -2125,6 +2196,13 @@ namespace Graphics
 			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageFinishedSemaphores[i], nullptr);
 			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageAvailableSemaphores[i], nullptr);
 			
+		}
+
+		for (auto& entry : VulkanImpl::pipelineWaitSemaphore)
+		{
+			for (size_t i = 0; i < VulkanImpl::MAX_FRAMES_IN_FLIGHT; i++) {
+				vkDestroySemaphore(VulkanImpl::device, entry.second[i], nullptr);
+			}
 		}
 
 		for (auto& inFlightFences : VulkanImpl::pipelineInFlightFences)
@@ -2216,6 +2294,13 @@ namespace Graphics
 	}
 
 	// Pipeline
+	void Pipeline::Wait(PipeLineID pipelineID)
+	{
+		pipelinesToWait.push_back(pipelineID);
+		VulkanImpl::CreatePipelineSemaphore(pipelineID.id, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
+	}
+
+
 	void GraphicsPipeline::Init(Graphics::RenderPassID renderPassID)
 	{
 		Vector<SharedPtr<Graphics::Buffer>> allBuffers { this->uniformDesc };
@@ -2251,13 +2336,13 @@ namespace Graphics
 	void ComputePipeline::Dispatch(RenderContext & context)
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
-		auto& commandList = context.device->GetCommandList(swapID);
+		auto& commandList = context.device->GetComputeCommandList(swapID);
 		VulkanImpl::Dispatch(commandList, this->pipelineID.id, this->layoutID, this->descriptorPoolID.id, swapID, this->threadSz, this->invocationSz);
 	}
 
-	void UniformBuffer::UpdateUniformBuffer(int swapID)
+	void UniformBuffer::UpdateUniformBuffer(int frameID)
 	{
-		VulkanImpl::UpdateUniformBuffer(GetData(), GetBufferSize(), *this, swapID);
+		VulkanImpl::UpdateUniformBuffer(GetData(), GetBufferSize(), *this, frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT);
 	}
 
 	// RenderPass
