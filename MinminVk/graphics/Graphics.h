@@ -81,6 +81,11 @@ namespace Graphics
 					return uboBinding;
 				}
 
+				void* GetData() override
+				{
+					return (void*)&uniform;
+				}
+
 				const BufferType GetBufferType() const override { return Buffer::BufferType::UNIFORM; }
 				const AccessType GetAccessType() const override 
 				{
@@ -149,7 +154,7 @@ namespace Graphics
 			vikingRoom->Update(deltaTime);
 			vikingRoom->Draw(context);
 
-			computePipeline->Dispatch(context);
+			//computePipeline->Dispatch(context);
 
 			device->EndRecording(context);
 		}

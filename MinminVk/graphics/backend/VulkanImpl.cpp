@@ -77,7 +77,7 @@ namespace VulkanImpl
 	u32 MAX_FRAMES_IN_FLIGHT = 2;
 	Vector<VkSemaphore> imageAvailableSemaphores;
 	Vector<VkSemaphore> imageFinishedSemaphores;
-	Vector<VkFence> inFlightFences;
+	Vector<Vector<VkFence>> pipelineInFlightFences;
 
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -909,6 +909,11 @@ namespace VulkanImpl
 		}
 	}
 
+	void UpdateUniformBuffer(void* bufferData, size_t bufferSize, Graphics::Buffer& buffer, int swapID)
+	{
+		memcpy(uniformBuffersMapped[buffer.extendedBufferIDs[swapID]], bufferData, bufferSize);
+	}
+
 	VkBufferUsageFlags MapToVulkanBUfferUsageFlags(Graphics::Buffer::BufferUsageType bufferUsageType)
 	{
 		VkBufferUsageFlags flags = 0;
@@ -1271,6 +1276,8 @@ namespace VulkanImpl
 			return VK_IMAGE_TILING_OPTIMAL;
 	}
 
+
+
 	Graphics::RenderPassID CreateRenderPass(Graphics::RenderPass* renderPass)
 	{
 		Vector<VkAttachmentDescription> attachments;
@@ -1469,7 +1476,7 @@ namespace VulkanImpl
 		VkDeviceSize offsets[] = { 0 };
 
 		geometry.basicUniform->transformUniform.model = geometry.modelMatrix;
-		memcpy(uniformBuffersMapped[geometry.basicUniform->extendedBufferIDs[swapID]], &geometry.basicUniform->transformUniform, sizeof(Graphics::BasicUniformBuffer::TransformUniform));
+		UpdateUniformBuffer(geometry.basicUniform->GetData(), geometry.basicUniform->GetBufferSize(), *geometry.basicUniform, swapID);
 
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
@@ -1483,6 +1490,11 @@ namespace VulkanImpl
 		auto& computePipeline = VulkanImpl::pipelines[pipelineID];
 		VkCommandBuffer commandBuffer = VulkanImpl::commandBuffers[commandList.commandListID];
 		VkCommandBufferBeginInfo beginInfo{};
+
+		vkWaitForFences(device, 1, &pipelineInFlightFences[pipelineID][swapID], VK_TRUE, UINT64_MAX);
+
+		vkResetFences(device, 1, &pipelineInFlightFences[pipelineID][swapID]);
+
 		auto& computePipelineLayout = pipelineLayouts[pipelineLayoudID];
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
@@ -1508,7 +1520,7 @@ namespace VulkanImpl
         // submitInfo.signalSemaphoreCount = 1;
         // submitInfo.pSignalSemaphores = &computeFinishedSemaphores[currentFrame];
 
-		if (vkQueueSubmit(computeQueue, 1, &submitInfo, nullptr) != VK_SUCCESS) {
+		if (vkQueueSubmit(computeQueue, 1, &submitInfo, pipelineInFlightFences[pipelineID][swapID]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to submit compute command buffer!");
 		};
 	}
@@ -1575,20 +1587,35 @@ namespace VulkanImpl
 	{
 		imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 		imageFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-		inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
 		VkSemaphoreCreateInfo semaphoreInfo{};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		VkFenceCreateInfo fenceInfo{};
-		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-				vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageFinishedSemaphores[i]) != VK_SUCCESS ||
-				vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-
+				vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageFinishedSemaphores[i]) != VK_SUCCESS) {
 				throw std::runtime_error("failed to create synchronization objects for a frame!");
 			}
 		}
+	}
+
+	void CreateFenceObjects(int pipelineID, int numFences)
+	{
+		assert(pipelineInFlightFences.size() == pipelineID);
+
+		Vector<VkFence> newFences;
+		VkFenceCreateInfo fenceInfo{};
+		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+		for (size_t i = 0; i < numFences; ++i)
+		{
+			auto& newFence = newFences.emplace_back();
+			if (vkCreateFence(device, &fenceInfo, nullptr, &newFence) != VK_SUCCESS)
+			{
+				throw std::runtime_error("failed to create fence objects for a pipeline!");
+			}
+		}
+		pipelineInFlightFences.push_back(newFences);
+
 	}
 
 	void CleanupSwapChain() 
@@ -2020,7 +2047,8 @@ namespace Graphics
 		}
 		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		// wait for previous frame to finish
-		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::inFlightFences[swapID], VK_TRUE, UINT64_MAX);
+		auto pipelineID = context.renderPass->pso->pipelineID.id;
+		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[pipelineID][swapID], VK_TRUE, UINT64_MAX);
 		// acquire an image from the swap chain
 		u32 imageIndex;
 		VkResult result = vkAcquireNextImageKHR(VulkanImpl::device, VulkanImpl::swapChain, UINT64_MAX, VulkanImpl::imageAvailableSemaphores[swapID], VK_NULL_HANDLE, &imageIndex);
@@ -2032,7 +2060,7 @@ namespace Graphics
 			throw std::runtime_error("failed to acquire swap chain image!");
 		}
 		// Only reset the fence if we are submitting work
-		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::inFlightFences[swapID]);
+		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[pipelineID][swapID]);
 		// record a command buffer which draws the scene onto the image
 		auto &commandList = GetCommandList(swapID);
 		commandList.imageIndex = imageIndex;
@@ -2065,7 +2093,7 @@ namespace Graphics
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
-		if (vkQueueSubmit(VulkanImpl::graphicsQueue, 1, &submitInfo, VulkanImpl::inFlightFences[swapID]) != VK_SUCCESS) {
+		if (vkQueueSubmit(VulkanImpl::graphicsQueue, 1, &submitInfo, VulkanImpl::pipelineInFlightFences[context.renderPass->pso->pipelineID.id][swapID]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to submit draw command buffer!");
 		}
 
@@ -2096,7 +2124,13 @@ namespace Graphics
 		for (size_t i = 0; i < VulkanImpl::MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageFinishedSemaphores[i], nullptr);
 			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageAvailableSemaphores[i], nullptr);
-			vkDestroyFence(VulkanImpl::device, VulkanImpl::inFlightFences[i], nullptr);
+			
+		}
+
+		for (auto& inFlightFences : VulkanImpl::pipelineInFlightFences)
+		{
+			for (auto & inFlightFence : inFlightFences)
+				vkDestroyFence(VulkanImpl::device, inFlightFence, nullptr);
 		}
 
 		for (auto& buffer : VulkanImpl::vertexBuffers)
@@ -2195,6 +2229,8 @@ namespace Graphics
 		this->descriptorPoolID.id = poolID;
 		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, allBuffers);
 
+		VulkanImpl::CreateFenceObjects(pipelineID.id, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
+
 	}
 
 	void ComputePipeline::Init()
@@ -2208,6 +2244,8 @@ namespace Graphics
 		this->descriptorPoolID.id = poolID;
 		// create descriptor sets
 		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, this->buffers, this->textures);
+
+		VulkanImpl::CreateFenceObjects(pipelineID.id, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
 	}
 
 	void ComputePipeline::Dispatch(RenderContext & context)
@@ -2215,6 +2253,11 @@ namespace Graphics
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);
 		VulkanImpl::Dispatch(commandList, this->pipelineID.id, this->layoutID, this->descriptorPoolID.id, swapID, this->threadSz, this->invocationSz);
+	}
+
+	void UniformBuffer::UpdateUniformBuffer(int swapID)
+	{
+		VulkanImpl::UpdateUniformBuffer(GetData(), GetBufferSize(), *this, swapID);
 	}
 
 	// RenderPass

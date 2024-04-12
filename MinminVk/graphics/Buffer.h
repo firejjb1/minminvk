@@ -35,6 +35,8 @@ namespace Graphics
     struct UniformBuffer : Buffer
     {
         virtual void Init();
+        virtual void* GetData() = 0;
+        void UpdateUniformBuffer(int swapID);
 
     };
 
@@ -48,6 +50,11 @@ namespace Graphics
         };
 
         TransformUniform transformUniform;
+
+        void* GetData() override
+        {
+            return (void*)&transformUniform;
+        }
 
         const ResourceBinding GetBinding() const override
         {
