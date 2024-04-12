@@ -2333,6 +2333,16 @@ namespace Graphics
 		VulkanImpl::CreateFenceObjects(pipelineID.id, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
 	}
 
+	void ComputePipeline::UpdateResources(Vector<SharedPtr<Buffer>>& buffers, Vector<Texture>& textures)
+	{
+		Vector<Graphics::TextureID> textureIDs;
+		for (auto& texture : textures)
+		{
+			textureIDs.push_back(texture.textureID);
+		}
+		VulkanImpl::UpdateDescriptorSets(this->descriptorPoolID.id, buffers, textureIDs);
+	}
+
 	void ComputePipeline::Dispatch(RenderContext & context)
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
@@ -2420,6 +2430,8 @@ namespace Graphics
 
 	void StructuredBuffer::Init()
 	{
-		VulkanImpl::CreateStorageBuffer(sizeof(bufferData), GetUsageType(), this);
+		if (extendedBufferIDs.size() == 0)
+			VulkanImpl::CreateStorageBuffer(sizeof(bufferData), GetUsageType(), this);
+
 	}
 }

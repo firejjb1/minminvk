@@ -216,6 +216,8 @@ namespace Graphics
 		void Init();
 
 		void Dispatch(RenderContext & context);
+
+		void UpdateResources(Vector<SharedPtr<Buffer>> &buffers, Vector<Texture> &textures);
 	};
 
 	// struct ComputePass

@@ -94,6 +94,13 @@ namespace Graphics
             Init();
         }
 
+        // initialize using existing buffers. from extendedBufferIDS
+        StructuredBuffer(Vector<u32>& extendedBufferIDs, ResourceBinding& binding, AccessType accessType, Vector<BufferUsageType> usageTypes)
+            : binding{ binding }, accessType{ accessType }, usageTypes{ usageTypes }
+        {
+            this->extendedBufferIDs = extendedBufferIDs;
+        }
+
         const ResourceBinding GetBinding() const override
         {
             return binding;

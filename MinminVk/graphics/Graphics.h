@@ -62,7 +62,8 @@ namespace Graphics
 	SharedPtr<StructuredBuffer> particleBufferPrev;
 	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
 	SharedPtr<ComputePipeline> computePipeline;
-	
+	Vector<SharedPtr<Buffer>> computeBuffers;
+	Vector<Texture> computeTextures{};
 	
 	void InitGraphics(void * window)
 	{
@@ -122,11 +123,15 @@ namespace Graphics
 			particleWriteBinding.binding = 2;
 			particleWriteBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
 
-			particleBufferPrev = MakeShared<StructuredBuffer>(particles, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
+			// particleBufferPrev = MakeShared<StructuredBuffer>(particles, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
 			particleBuffer = MakeShared<StructuredBuffer>(particles, particleWriteBinding, Buffer::AccessType::READONLY, particleBufferUsage);
+			Vector<u32> extendedBufferIDs;
+			auto numParticleBuffers = particleBuffer->extendedBufferIDs.size();
+			for (int i = 0; i < numParticleBuffers; i++)
+				extendedBufferIDs.push_back(particleBuffer->extendedBufferIDs[(i - 1) % numParticleBuffers]);
+			particleBufferPrev = MakeShared<StructuredBuffer>(extendedBufferIDs, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
 			particleUniformBuffer = MakeShared<ParticlesUniformBuffer>();
-			Vector<SharedPtr<Buffer>> computeBuffers { particleUniformBuffer, particleBufferPrev, particleBuffer};
-			Vector<Texture> computeTextures {};
+			computeBuffers.insert(computeBuffers.end(), { particleUniformBuffer, particleBufferPrev, particleBuffer });
 			computePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
 				 vec3{particles.size() / 8,1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
 
@@ -145,6 +150,10 @@ namespace Graphics
 		{
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
 			particleUniformBuffer->UpdateUniformBuffer(frameID);
+			//auto& newInputBuffer = computeBuffers[2];
+			//computeBuffers[2] = computeBuffers[1];
+			//computeBuffers[1] = newInputBuffer;
+			//computePipeline->UpdateResources(computeBuffers, computeTextures);
 			computePipeline->Dispatch(context);
 		}
 
