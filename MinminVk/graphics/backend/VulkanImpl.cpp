@@ -56,6 +56,7 @@ namespace VulkanImpl
 	Vector<VkFramebuffer> swapChainFramebuffers;
 	VkCommandPool commandPool;
 	Vector<VkCommandBuffer> commandBuffers;
+	Vector<VkCommandBuffer> computeCommandBuffers;
 	Vector<VkBuffer> vertexBuffers;
 	Vector<VkDeviceMemory> vertexBufferMemories;
 	Vector<VkBuffer> indexBuffers;
@@ -63,19 +64,22 @@ namespace VulkanImpl
 	Vector<VkBuffer> uniformBuffers;
 	Vector<VkDeviceMemory> uniformBufferMemories;
 	Vector<void*> uniformBuffersMapped;
-	VkDescriptorPool descriptorPool;
-	Vector<VkDescriptorSet> uniformDescriptorSets;
+	Vector<VkDescriptorPool> descriptorPools;
+	Vector<Vector<VkDescriptorSet>> descriptorSetsPerPool;
 	Vector<VkImage> textureImages;
 	Vector<VkDeviceMemory> textureImageMemories;
 	Vector<VkImageView> textureImageViews;
 	Vector<VkSampler> textureSamplers;
 	VkFormat depthFormatChosen;
 	VkImageView depthImageView;
+	Vector<VkBuffer> shaderStorageBuffers;
+	Vector<VkDeviceMemory> shaderStorageBufferMemories;
 
 	u32 MAX_FRAMES_IN_FLIGHT = 2;
 	Vector<VkSemaphore> imageAvailableSemaphores;
 	Vector<VkSemaphore> imageFinishedSemaphores;
-	Vector<VkFence> inFlightFences;
+	Map<int, Vector<VkSemaphore>> pipelineWaitSemaphore;
+	Vector<Vector<VkFence>> pipelineInFlightFences;
 
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -292,8 +296,9 @@ namespace VulkanImpl
 		}
 
 		// renderdoc doesn't support
+#ifdef APPLE
 		extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-
+#endif
 		if (enableValidationLayers) {
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 		}
@@ -389,8 +394,9 @@ namespace VulkanImpl
 		auto extensions = GetRequiredExtensions();
 
 		// renderdoc doesn't support
+#ifdef APPLE
 		createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-
+#endif
 		createInfo.enabledExtensionCount = (u32)extensions.size();
 		createInfo.ppEnabledExtensionNames = extensions.data();
 
@@ -893,19 +899,106 @@ namespace VulkanImpl
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
 	}
 
-	void CreateBasicUniformBuffer(Graphics::BasicUniformBuffer& uniformDesc)
+	void CreateUniformBuffer(Graphics::Buffer& buffer, int numBuffer)
 	{
-		VkDeviceSize bufferSize = sizeof(Graphics::BasicUniformBuffer);
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			auto& uniformBuffer = uniformBuffers.emplace_back();
 			auto& uniformBufferMemory = uniformBufferMemories.emplace_back();
 			auto& uniformBufferMapped = uniformBuffersMapped.emplace_back();
 			assert(uniformBuffers.size() == uniformBufferMemories.size() && uniformBuffers.size() == uniformBuffersMapped.size());
-			uniformDesc.bufferID = uniformBuffers.size() - 1;
-			CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffer, uniformBufferMemory);
-			vkMapMemory(device, uniformBufferMemory, 0, bufferSize, 0, &uniformBufferMapped);
+			buffer.extendedBufferIDs.push_back(uniformBuffers.size() - 1);
+			CreateBuffer(buffer.GetBufferSize(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffer, uniformBufferMemory);
+			vkMapMemory(device, uniformBufferMemory, 0, buffer.GetBufferSize(), 0, &uniformBufferMapped);
 		}
+	}
+
+	void UpdateUniformBuffer(void* bufferData, size_t bufferSize, Graphics::Buffer& buffer, int swapID)
+	{
+		memcpy(uniformBuffersMapped[buffer.extendedBufferIDs[swapID]], bufferData, bufferSize);
+	}
+
+	VkBufferUsageFlags MapToVulkanBUfferUsageFlags(Graphics::Buffer::BufferUsageType bufferUsageType)
+	{
+		VkBufferUsageFlags flags = 0;
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_VERTEX))
+			flags = flags == 0 ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : (flags | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_STORAGE))
+			flags = flags == 0 ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : (flags | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_TRANSFER_DST))
+			flags = flags == 0 ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : (flags | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_TRANSFER_SRC))
+			flags = flags == 0 ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : (flags | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_INDEX))
+			flags = flags == 0 ? VK_BUFFER_USAGE_INDEX_BUFFER_BIT : (flags | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+		if (EnumBitwiseAnd(bufferUsageType, Graphics::Buffer::BufferUsageType::BUFFER_UNIFORM))
+			flags = flags == 0 ? VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : (flags | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		return flags;
+		
+	}
+
+	void CreateStorageBuffer(u32 bufferSize, Graphics::Buffer::BufferUsageType bufferUsageType, Graphics::StructuredBuffer* buffer, bool forAllFramesInFlight = true)
+	{
+		// Create a staging buffer used to upload data to the gpu
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+		CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+		void* data;
+		vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+		memcpy(data, buffer->bufferData.data(), (size_t)bufferSize);
+		vkUnmapMemory(device, stagingBufferMemory);
+		for (int i = 0; i < (forAllFramesInFlight ? MAX_FRAMES_IN_FLIGHT : 1); ++i)
+		{
+			auto & shaderStorageBuffer = shaderStorageBuffers.emplace_back();
+			auto & shaderStorageBufferMemory = shaderStorageBufferMemories.emplace_back();
+			
+			buffer->extendedBufferIDs.push_back(shaderStorageBuffers.size() - 1);
+			CreateBuffer(bufferSize, 
+				MapToVulkanBUfferUsageFlags(bufferUsageType), 
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+				shaderStorageBuffer, 
+				shaderStorageBufferMemory);
+			CopyBuffer(stagingBuffer, shaderStorageBuffer, bufferSize);
+		}
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
+	}
+
+	Graphics::PipeLineID CreateComputePipeline(SharedPtr<Graphics::Shader> computeShader, Graphics::ComputePipeline* pipeline, int layoutID)
+	{
+		VkShaderModule computeShaderModule = createShaderModule(computeShader->shaderCode);
+
+        VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
+        computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        computeShaderStageInfo.module = computeShaderModule;
+        computeShaderStageInfo.pName = "main";
+
+		auto& computePipelineLayout = pipelineLayouts.emplace_back();
+
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+		auto computeDescriptorSetLayout = descriptorSetLayouts[layoutID];
+        pipelineLayoutInfo.pSetLayouts = &computeDescriptorSetLayout;
+
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute pipeline layout!");
+        }
+
+        VkComputePipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipelineInfo.layout = computePipelineLayout;
+        pipelineInfo.stage = computeShaderStageInfo;
+		VkPipeline &computePipeline = pipelines.emplace_back();
+
+        if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute pipeline!");
+        }
+
+        vkDestroyShaderModule(device, computeShaderModule, nullptr);
+		return Graphics::PipeLineID{ (u32)pipelineLayouts.size() - 1, pipeline };
 	}
 
 	Graphics::PipeLineID CreateGraphicsPipeline(SharedPtr<Graphics::Shader> vertexShader, SharedPtr<Graphics::Shader> fragShader, Graphics::GraphicsPipeline* pipeline, Graphics::RenderPassID renderPassID)
@@ -1037,7 +1130,11 @@ namespace VulkanImpl
 			rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
 		}
 		if (rasterStates.find(Graphics::GraphicsPipeline::RasterState::RASTER_POLYGON_MODE_POINT) != rasterStates.cend())
+		{
+			rasterizer.lineWidth = pipeline->lineWidth;
 			rasterizer.polygonMode = VK_POLYGON_MODE_POINT;
+		}
+		
 
 		rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
 		if (rasterStates.find(Graphics::GraphicsPipeline::RasterState::RASTER_CULL_MODE_BOTH) != rasterStates.cend())
@@ -1200,6 +1297,8 @@ namespace VulkanImpl
 			return VK_IMAGE_TILING_OPTIMAL;
 	}
 
+
+
 	Graphics::RenderPassID CreateRenderPass(Graphics::RenderPass* renderPass)
 	{
 		Vector<VkAttachmentDescription> attachments;
@@ -1316,6 +1415,7 @@ namespace VulkanImpl
 	{
 		if (renderPass->shouldFramebuffersMatchSwapchain)
 		{
+			// TODO able to create non-swapchain frame buffers
 			swapChainFramebuffers.resize(swapChainImageViews.size());
 			for (size_t i = 0; i < swapChainImageViews.size(); i++) {
 
@@ -1387,7 +1487,31 @@ namespace VulkanImpl
 		return commandLists;
 	}
 
-	void Draw(Graphics::CommandList commandList, Graphics::Geometry& geometry, Graphics::PipeLineID pipelineID)
+	Vector<Graphics::CommandList> CreateComputeCommandBuffers()
+	{
+		computeCommandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
+		VkCommandBufferAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.commandPool = commandPool;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandBufferCount = (u32)computeCommandBuffers.size();
+
+		if (vkAllocateCommandBuffers(device, &allocInfo, computeCommandBuffers.data()) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate command buffers!");
+		}
+
+		Vector<Graphics::CommandList> commandLists;
+		for (u32 i = 0; i < computeCommandBuffers.size(); ++i)
+		{
+			auto& cmdList = commandLists.emplace_back();
+			cmdList.commandListID = i;
+			cmdList.isSecondary = false;
+		}
+		return commandLists;
+	}
+
+	void Draw(Graphics::CommandList commandList, Graphics::Geometry& geometry, Graphics::PipeLineID pipelineID, Graphics::DescriptorPoolID descriptorPoolID, int swapID)
 	{
 		auto& graphicsPipeline = pipelines[pipelineID.id];
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
@@ -1398,16 +1522,58 @@ namespace VulkanImpl
 		VkDeviceSize offsets[] = { 0 };
 
 		geometry.basicUniform->transformUniform.model = geometry.modelMatrix;
-		memcpy(uniformBuffersMapped[geometry.basicUniform->bufferID], &geometry.basicUniform->transformUniform, sizeof(Graphics::BasicUniformBuffer::TransformUniform));
+		UpdateUniformBuffer(geometry.basicUniform->GetData(), geometry.basicUniform->GetBufferSize(), *geometry.basicUniform, swapID);
 
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[geometry.basicUniform->layoutID], 0, 1, &uniformDescriptorSets[geometry.basicUniform->bufferID], 0, nullptr);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[geometry.basicUniform->layoutID], 0, 1, &(descriptorSetsPerPool[descriptorPoolID.id][swapID]), 0, nullptr);
 
 		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(geometry.GetIndicesData().size()), 1, 0, 0, 0);
 	}
 
-	void RecordCommandBuffer(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID) 
+	void Dispatch(Graphics::CommandList commandList, int pipelineID, int pipelineLayoudID, int descriptorPoolID, int swapID, vec3 threadSz, vec3 invocationSz)
+	{
+		auto& computePipeline = VulkanImpl::pipelines[pipelineID];
+		VkCommandBuffer commandBuffer = VulkanImpl::computeCommandBuffers[commandList.commandListID];
+		VkCommandBufferBeginInfo beginInfo{};
+
+		vkWaitForFences(device, 1, &pipelineInFlightFences[pipelineID][swapID], VK_TRUE, UINT64_MAX);
+
+		vkResetFences(device, 1, &pipelineInFlightFences[pipelineID][swapID]);
+
+		auto& computePipelineLayout = pipelineLayouts[pipelineLayoudID];
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error("failed to begin recording compute command buffer!");
+        }
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSetsPerPool[descriptorPoolID][swapID], 0, nullptr);
+
+        vkCmdDispatch(commandBuffer, Max(threadSz[0] / invocationSz[0], 1.f), Max(threadSz[1] / invocationSz[1], 1.f), Max(threadSz[2] / invocationSz[2], 1.f));
+
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("failed to record compute command buffer!");
+        }
+		
+		VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+   		submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer;
+
+		VkSemaphore toSignal{ VulkanImpl::pipelineWaitSemaphore[pipelineID][swapID] };
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = &toSignal;
+
+		if (vkQueueSubmit(computeQueue, 1, &submitInfo, pipelineInFlightFences[pipelineID][swapID]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to submit compute command buffer!");
+		};
+	}
+
+	void RecordCommandBuffer(Graphics::CommandList commandList) 
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 		vkResetCommandBuffer(commandBuffer, 0);
@@ -1420,7 +1586,11 @@ namespace VulkanImpl
 		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
 			throw std::runtime_error("failed to begin recording command buffer!");
 		}
+	}
 
+	void BeginRenderPass(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID)
+	{
+		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		auto& renderPass = renderPasses[renderPassID.id];
@@ -1438,27 +1608,40 @@ namespace VulkanImpl
 		renderPassInfo.pClearValues = clearValues.data();
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-			auto& graphicsPipeline = pipelines[pipelineID.id];
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-			VkViewport viewport{};
-			viewport.x = 0.0f;
-			viewport.y = 0.0f;
-			viewport.width = static_cast<float>(swapChainExtent.width);
-			viewport.height = static_cast<float>(swapChainExtent.height);
-			viewport.minDepth = 0.0f;
-			viewport.maxDepth = 1.0f;
-			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+		auto& graphicsPipeline = pipelines[pipelineID.id];
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		VkViewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = static_cast<float>(swapChainExtent.width);
+		viewport.height = static_cast<float>(swapChainExtent.height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-			VkRect2D scissor{};
-			scissor.offset = { 0, 0 };
-			scissor.extent = swapChainExtent;
-			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+		VkRect2D scissor{};
+		scissor.offset = { 0, 0 };
+		scissor.extent = swapChainExtent;
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+	}
+
+	void EndRenderPass(Graphics::CommandList commandList)
+	{
+		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
+		vkCmdEndRenderPass(commandBuffer);
+	}
+
+	void DrawBuffer(Graphics::CommandList commandList, Graphics::Buffer& buffer, u32 bufferSize, u32 swapID)
+	{
+		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &shaderStorageBuffers[buffer.extendedBufferIDs[swapID]], offsets);
+		vkCmdDraw(commandBuffer, bufferSize, 1, 0, 0);
 	}
 
 	void EndRecordCommandbuffer(Graphics::CommandList commandList)
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
-		vkCmdEndRenderPass(commandBuffer);
 
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
 			throw std::runtime_error("failed to record command buffer!");
@@ -1469,20 +1652,51 @@ namespace VulkanImpl
 	{
 		imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 		imageFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-		inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
 		VkSemaphoreCreateInfo semaphoreInfo{};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		VkFenceCreateInfo fenceInfo{};
-		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-				vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageFinishedSemaphores[i]) != VK_SUCCESS ||
-				vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-
+				vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageFinishedSemaphores[i]) != VK_SUCCESS) {
 				throw std::runtime_error("failed to create synchronization objects for a frame!");
 			}
 		}
+	}
+
+	void CreatePipelineSemaphore(int pipelineID, int numSemaphores)
+	{
+		Vector<VkSemaphore> semaphores;
+		semaphores.resize(numSemaphores);
+		VkSemaphoreCreateInfo semaphoreInfo{};
+		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+		for (size_t i = 0; i < numSemaphores; i++) {
+			if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphores[i]) != VK_SUCCESS) {
+				throw std::runtime_error("failed to create synchronization objects for a frame!");
+			}
+		}
+		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		pipelineWaitSemaphore[pipelineID] = semaphores;
+	}
+
+	void CreateFenceObjects(int pipelineID, int numFences)
+	{
+		assert(pipelineInFlightFences.size() == pipelineID);
+
+		Vector<VkFence> newFences;
+		VkFenceCreateInfo fenceInfo{};
+		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+		for (size_t i = 0; i < numFences; ++i)
+		{
+			auto& newFence = newFences.emplace_back();
+			if (vkCreateFence(device, &fenceInfo, nullptr, &newFence) != VK_SUCCESS)
+			{
+				throw std::runtime_error("failed to create fence objects for a pipeline!");
+			}
+		}
+		pipelineInFlightFences.push_back(newFences);
+
 	}
 
 	void CleanupSwapChain() 
@@ -1516,38 +1730,44 @@ namespace VulkanImpl
 		CreateFramebuffers(context.renderPass, context.presentation);
 	}
 
-	void CreateDescriptorSetLayout(Graphics::Buffer& uniform, u32 numTextures = 1)
+	int CreateDescriptorSetLayout(const Vector<SharedPtr<Graphics::Buffer>>& buffers, const Vector<Graphics::Texture>& textures)
 	{
-		const auto& uniformBinding = uniform.GetBinding();
-		VkDescriptorSetLayoutBinding uboLayoutBinding{};
-		uboLayoutBinding.binding = uniformBinding.binding;
-		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		// TODO array of descriptor could be used for bones animation
-		uboLayoutBinding.descriptorCount = 1;
-
-		uboLayoutBinding.stageFlags = 0;
-		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::BufferBinding::ShaderStageType::VERTEX ? VK_SHADER_STAGE_VERTEX_BIT : 0;
-		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::BufferBinding::ShaderStageType::FRAGMENT ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
-		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::BufferBinding::ShaderStageType::ALL_GRAPHICS ? VK_SHADER_STAGE_ALL_GRAPHICS : 0;
-		uboLayoutBinding.stageFlags |= uniformBinding.shaderStageType == Graphics::BufferBinding::ShaderStageType::COMPUTE ? VK_SHADER_STAGE_COMPUTE_BIT : 0;
-
-		Vector<VkDescriptorSetLayoutBinding> bindings{ uboLayoutBinding };
-
-		for (u32 i = 0; i < numTextures; ++i)
+		Vector<VkDescriptorSetLayoutBinding> bindings;
+		// buffers
+		for (const auto &buffer: buffers)
+		{
+			const auto& bufferBinding = buffer->GetBinding();
+			VkDescriptorSetLayoutBinding bufferLayoutBinding{};
+			bufferLayoutBinding.binding = bufferBinding.binding;
+			bufferLayoutBinding.descriptorType = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			bufferLayoutBinding.descriptorCount = 1;
+			bufferLayoutBinding.stageFlags = 0;
+			bufferLayoutBinding.stageFlags |= bufferBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::VERTEX ? VK_SHADER_STAGE_VERTEX_BIT : 0;
+			bufferLayoutBinding.stageFlags |= bufferBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::FRAGMENT ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
+			bufferLayoutBinding.stageFlags |= bufferBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::ALL_GRAPHICS ? VK_SHADER_STAGE_ALL_GRAPHICS : 0;
+			bufferLayoutBinding.stageFlags |= bufferBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::COMPUTE ? VK_SHADER_STAGE_COMPUTE_BIT : 0;
+			bindings.push_back(bufferLayoutBinding);
+		}
+		// textures
+		for (u32 i = 0; i < textures.size(); ++i)
+		for (const auto &texture : textures)
 		{
 			VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-			samplerLayoutBinding.binding = bindings.size();
+			const auto &textureBinding = texture.binding;
+			samplerLayoutBinding.binding = textureBinding.binding;
 			samplerLayoutBinding.descriptorCount = 1;
 			samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			samplerLayoutBinding.pImmutableSamplers = nullptr;
-			samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			samplerLayoutBinding.stageFlags = 0;
+			samplerLayoutBinding.stageFlags |= textureBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::VERTEX ? VK_SHADER_STAGE_VERTEX_BIT : 0;
+			samplerLayoutBinding.stageFlags |= textureBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::FRAGMENT ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
+			samplerLayoutBinding.stageFlags |= textureBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::ALL_GRAPHICS ? VK_SHADER_STAGE_ALL_GRAPHICS : 0;
+			samplerLayoutBinding.stageFlags |= textureBinding.shaderStageType == Graphics::ResourceBinding::ShaderStageType::COMPUTE ? VK_SHADER_STAGE_COMPUTE_BIT : 0;
 			bindings.push_back(samplerLayoutBinding);
 		}
 
-		uboLayoutBinding.pImmutableSamplers = nullptr; // TODO
-
 		auto& descriptorSetLayout = descriptorSetLayouts.emplace_back();
-		uniform.layoutID = descriptorSetLayouts.size() - 1;
+		int layoutID = descriptorSetLayouts.size() - 1;
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1556,47 +1776,86 @@ namespace VulkanImpl
 
 		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
 			throw std::runtime_error("failed to create descriptor set layout!");
+		return layoutID;
 	}
-	
-	void CreateUniformDescriptorPool()
+
+	int CreateDescriptorPool(u32 numUniforms = 0, u32 numTextures = 0, u32 numStorageBuffers = 0)
 	{
 		Vector<VkDescriptorPoolSize> poolSizes{};
-		poolSizes.resize(2);
 
-		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		// assuming as many uniform descriptor sets as uniform buffers
-		poolSizes[0].descriptorCount = uniformBuffers.size();
-		// texture pool
-		poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSizes[1].descriptorCount = uniformBuffers.size();
+		if (numUniforms > 0)
+		{
+			auto& poolSize = poolSizes.emplace_back();
+			poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			poolSize.descriptorCount = numUniforms;
+		}
+		if (numStorageBuffers > 0)
+		{
+			auto& poolSize = poolSizes.emplace_back();
+			poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			poolSize.descriptorCount = numStorageBuffers;
+		}
+		if (numTextures > 0)
+		{
+			auto& poolSize = poolSizes.emplace_back();
+			poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			poolSize.descriptorCount = numTextures;
+		}
 
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		poolInfo.poolSizeCount = poolSizes.size();
 		poolInfo.pPoolSizes = poolSizes.data();
-		poolInfo.maxSets = uniformBuffers.size();
+		poolInfo.maxSets = poolSizes.size();
 
+		auto & descriptorPool = descriptorPools.emplace_back();
 		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create descriptor pool!");
 		}
+		return descriptorPools.size() - 1;
 	}
 
-	void UpdateDescriptorSets(Vector<Graphics::TextureID> textureIDs = {})
+	void UpdateDescriptorSets(int descriptorPoolID, Vector<SharedPtr<Graphics::Buffer>> buffers = {}, Vector<Graphics::TextureID> textureIDs = {})
 	{
-		u32 setsSize = uniformBuffers.size();
-
+		auto& descriptorSets = descriptorSetsPerPool[descriptorPoolID];
+		u32 setsSize = descriptorSets.size();
 		for (size_t i = 0; i < setsSize; i++)
 		{
-			VkDescriptorBufferInfo bufferInfo{};
-			bufferInfo.buffer = uniformBuffers[i];
-			bufferInfo.offset = 0;
-			bufferInfo.range = sizeof(Graphics::BasicUniformBuffer);
+			Vector<VkWriteDescriptorSet> descriptorWrites;
 
-			Vector< VkDescriptorImageInfo> imageInfos;
+			Vector<VkDescriptorBufferInfo> bufferInfos;
+			if (buffers.size() > 0)
+			{
+				// TODO
+				for (size_t bufferIndex = 0; bufferIndex < buffers.size(); ++bufferIndex)
+				{
+					auto& bufferInfo = bufferInfos.emplace_back();
+					const auto& buffer = buffers[bufferIndex];
+					bufferInfo.buffer = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? uniformBuffers[buffer->extendedBufferIDs[i]] : shaderStorageBuffers[buffer->extendedBufferIDs[i]];
+					bufferInfo.offset = 0;
+					bufferInfo.range = buffer->GetBufferSize();
+				}
+				u32 bufferIndex = 0;
+				for (auto& bufferInfo : bufferInfos)
+				{
+					auto &descriptorWrite = descriptorWrites.emplace_back();
+					const auto& buffer = buffers[bufferIndex];
+					descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+					descriptorWrite.dstSet = descriptorSets[i];
+					descriptorWrite.dstBinding = bufferIndex;
+					descriptorWrite.dstArrayElement = 0;
+					descriptorWrite.descriptorType = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+					descriptorWrite.descriptorCount = 1;
+					descriptorWrite.pBufferInfo = &bufferInfo;
+					descriptorWrite.pImageInfo = nullptr; // Optional
+					descriptorWrite.pTexelBufferView = nullptr; // Optional
+					bufferIndex++;
+				}
+			}
+			Vector<VkDescriptorImageInfo> imageInfos;
 			if (textureIDs.size() > 0)
 			{
-
-
+				// TODO
 				for (auto& textureID : textureIDs)
 				{
 					VkDescriptorImageInfo& imageInfo = imageInfos.emplace_back();
@@ -1604,53 +1863,50 @@ namespace VulkanImpl
 					imageInfo.imageView = textureImageViews[textureID.viewID];
 					imageInfo.sampler = textureSamplers[textureID.samplerID];
 				}
-			}
-			Vector< VkWriteDescriptorSet>  descriptorWrites;
-			auto& descriptorWrite = descriptorWrites.emplace_back();
-			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrite.dstSet = uniformDescriptorSets[i];
-			descriptorWrite.dstBinding = 0;
-			descriptorWrite.dstArrayElement = 0;
-			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			descriptorWrite.descriptorCount = 1;
-			descriptorWrite.pBufferInfo = &bufferInfo;
-			descriptorWrite.pImageInfo = nullptr; // Optional
-			descriptorWrite.pTexelBufferView = nullptr; // Optional
-			u32 imageIndex = 0;
-			for (auto& imageInfo : imageInfos)
-			{
-				auto& texDescriptorWrite = descriptorWrites.emplace_back();
-				texDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				texDescriptorWrite.dstSet = uniformDescriptorSets[i];
-				texDescriptorWrite.dstBinding = 1 + imageIndex;
-				imageIndex++;
-				texDescriptorWrite.dstArrayElement = 0;
-				texDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-				texDescriptorWrite.descriptorCount = 1;
-				texDescriptorWrite.pImageInfo = &imageInfo;
+				u32 imageIndex = 0;
+				for (auto& imageInfo : imageInfos)
+				{
+					auto& texDescriptorWrite = descriptorWrites.emplace_back();
+					texDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+					texDescriptorWrite.dstSet = descriptorSets[i];
+					texDescriptorWrite.dstBinding = buffers.size() + imageIndex;
+					imageIndex++;
+					texDescriptorWrite.dstArrayElement = 0;
+					texDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+					texDescriptorWrite.descriptorCount = 1;
+					texDescriptorWrite.pImageInfo = &imageInfo;
+				}
 			}
 			vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
 		}
+
 	}
 
-	void CreateUniformDescriptorSets(Graphics::BasicUniformBuffer& uniform)
+	void CreateDescriptorSets(int layoutID, int descriptorCount, int descriptorPoolID, Vector<SharedPtr<Graphics::Buffer>> allBuffers = {}, Vector<Graphics::Texture> allTextures = {})
 	{
-		// assuming as many uniform descriptor sets as uniform buffers
-		u32 setsSize = uniformBuffers.size();
-		Vector<VkDescriptorSetLayout> layouts(setsSize, descriptorSetLayouts[uniform.layoutID]);
+		Vector<VkDescriptorSetLayout> layouts(descriptorCount, descriptorSetLayouts[layoutID]);
+
 		VkDescriptorSetAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = descriptorPool;
-		allocInfo.descriptorSetCount = setsSize;
+
+		allocInfo.descriptorPool = descriptorPools[descriptorPoolID];
+		allocInfo.descriptorSetCount = descriptorCount;
 		allocInfo.pSetLayouts = layouts.data();
 
-		uniformDescriptorSets.resize(setsSize);
-		if (vkAllocateDescriptorSets(device, &allocInfo, uniformDescriptorSets.data()) != VK_SUCCESS) {
+		auto &descriptorSets = descriptorSetsPerPool.emplace_back();
+		assert(descriptorSetsPerPool.size() == descriptorPools.size());
+		descriptorSets.resize(descriptorCount);
+		if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
 			throw std::runtime_error("failed to allocate descriptor sets!");
 		}
-		UpdateDescriptorSets();
-		
+		Vector<Graphics::TextureID> allTexturesIDs;
+		for (const auto &texture : allTextures)
+			allTexturesIDs.push_back(texture.textureID);
+
+		UpdateDescriptorSets(descriptorPoolID, allBuffers, allTexturesIDs);
+
+
 	}
 
 	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
@@ -1796,7 +2052,6 @@ namespace VulkanImpl
 
 		TransitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
 		CopyBufferToImage(stagingBuffer, textureImage, static_cast<u32>(width), static_cast<u32>(height));
-		//TransitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels);
 
 		vkDestroyBuffer(device, stagingBuffer, nullptr);
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -1856,6 +2111,7 @@ namespace Graphics
 		VulkanImpl::CreateLogicalDevice();
 		VulkanImpl::CreateCommandPool();
 		commandLists = VulkanImpl::CreateCommandBuffers();
+		computeCommandLists = VulkanImpl::CreateComputeCommandBuffers();
 
 		// TODO should be here?
 		VulkanImpl::CreateSyncObjects();
@@ -1873,7 +2129,8 @@ namespace Graphics
 		}
 		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		// wait for previous frame to finish
-		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::inFlightFences[swapID], VK_TRUE, UINT64_MAX);
+		auto pipelineID = context.renderPass->pso->pipelineID.id;
+		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[pipelineID][swapID], VK_TRUE, UINT64_MAX);
 		// acquire an image from the swap chain
 		u32 imageIndex;
 		VkResult result = vkAcquireNextImageKHR(VulkanImpl::device, VulkanImpl::swapChain, UINT64_MAX, VulkanImpl::imageAvailableSemaphores[swapID], VK_NULL_HANDLE, &imageIndex);
@@ -1885,12 +2142,31 @@ namespace Graphics
 			throw std::runtime_error("failed to acquire swap chain image!");
 		}
 		// Only reset the fence if we are submitting work
-		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::inFlightFences[swapID]);
+		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[pipelineID][swapID]);
 		// record a command buffer which draws the scene onto the image
 		auto &commandList = GetCommandList(swapID);
 		commandList.imageIndex = imageIndex;
-		VulkanImpl::RecordCommandBuffer(commandList, renderPass->renderPassID, renderPass->pso->pipelineID);
+		VulkanImpl::RecordCommandBuffer(commandList);
 		return true;
+	}
+
+	void Device::BeginRenderPass(Graphics::RenderContext& context)
+	{
+		SharedPtr<Graphics::RenderPass> renderPass = context.renderPass;
+		const u32 frameID = context.frameID;
+		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto pipelineID = context.renderPass->pso->pipelineID.id;
+		auto& commandList = GetCommandList(swapID);
+
+		VulkanImpl::BeginRenderPass(commandList, renderPass->renderPassID, renderPass->pso->pipelineID);
+	}
+
+	void Device::EndRenderPass(Graphics::RenderContext& context)
+	{
+		const u32 frameID = context.frameID;
+		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto& commandList = GetCommandList(swapID);
+		VulkanImpl::EndRenderPass(commandList);
 	}
 
 	void Graphics::Device::EndRecording(RenderContext& context)
@@ -1904,21 +2180,29 @@ namespace Graphics
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-		VkSemaphore waitSemaphores[] = { VulkanImpl::imageAvailableSemaphores[swapID]};
-		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = waitSemaphores;
-		submitInfo.pWaitDstStageMask = waitStages;
+		Vector<VkSemaphore> waitSemaphores;
+		Vector<VkPipelineStageFlags> waitStages;
+		for (auto& pipelineToWait : context.renderPass->pso->pipelinesToWait)
+		{
+			waitSemaphores.push_back(VulkanImpl::pipelineWaitSemaphore[pipelineToWait.id][swapID]);
+			waitStages.push_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+		}
+		waitStages.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		waitSemaphores.push_back(VulkanImpl::imageAvailableSemaphores[swapID]);
+		submitInfo.waitSemaphoreCount = waitSemaphores.size();
+		submitInfo.pWaitSemaphores = waitSemaphores.data();
+		submitInfo.pWaitDstStageMask = waitStages.data();
 
 		submitInfo.commandBufferCount = 1;
 
 		submitInfo.pCommandBuffers = &commandBuffer;
 
 		VkSemaphore signalSemaphores[] = { VulkanImpl::imageFinishedSemaphores[swapID]};
+	
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
-		if (vkQueueSubmit(VulkanImpl::graphicsQueue, 1, &submitInfo, VulkanImpl::inFlightFences[swapID]) != VK_SUCCESS) {
+		if (vkQueueSubmit(VulkanImpl::graphicsQueue, 1, &submitInfo, VulkanImpl::pipelineInFlightFences[context.renderPass->pso->pipelineID.id][swapID]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to submit draw command buffer!");
 		}
 
@@ -1940,16 +2224,26 @@ namespace Graphics
 		else if (result != VK_SUCCESS) {
 			throw std::runtime_error("failed to present swap chain image!");
 		}
-
 	}
 
 	void Device::CleanUp()
 	{
-
 		for (size_t i = 0; i < VulkanImpl::MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageFinishedSemaphores[i], nullptr);
-			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageAvailableSemaphores[i], nullptr);
-			vkDestroyFence(VulkanImpl::device, VulkanImpl::inFlightFences[i], nullptr);
+			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageAvailableSemaphores[i], nullptr);		
+		}
+
+		for (auto& entry : VulkanImpl::pipelineWaitSemaphore)
+		{
+			for (size_t i = 0; i < entry.second.size(); i++) {
+				vkDestroySemaphore(VulkanImpl::device, entry.second[i], nullptr);
+			}
+		}
+
+		for (auto& inFlightFences : VulkanImpl::pipelineInFlightFences)
+		{
+			for (auto & inFlightFence : inFlightFences)
+				vkDestroyFence(VulkanImpl::device, inFlightFence, nullptr);
 		}
 
 		for (auto& buffer : VulkanImpl::vertexBuffers)
@@ -1968,12 +2262,18 @@ namespace Graphics
 			vkDestroyImageView(VulkanImpl::device, textureView, nullptr);
 		for (auto& sampler : VulkanImpl::textureSamplers)
 			vkDestroySampler(VulkanImpl::device, sampler, nullptr);
+		for (auto& buffer : VulkanImpl::shaderStorageBuffers)
+			vkDestroyBuffer(VulkanImpl::device, buffer, nullptr);
+		for (auto& memory : VulkanImpl::shaderStorageBufferMemories)
+			vkFreeMemory(VulkanImpl::device, memory, nullptr);
+
 
 		for (size_t i = 0; i < VulkanImpl::uniformBuffers.size(); i++) {
 			vkDestroyBuffer(VulkanImpl::device, VulkanImpl::uniformBuffers[i], nullptr);
 			vkFreeMemory(VulkanImpl::device, VulkanImpl::uniformBufferMemories[i], nullptr);
 		}
-		vkDestroyDescriptorPool(VulkanImpl::device, VulkanImpl::descriptorPool, nullptr);
+		for (auto& pool : VulkanImpl::descriptorPools)
+			vkDestroyDescriptorPool(VulkanImpl::device, pool, nullptr);
 
 		for (auto& layout : VulkanImpl::descriptorSetLayouts)
 			vkDestroyDescriptorSetLayout(VulkanImpl::device, layout, nullptr);
@@ -2023,17 +2323,71 @@ namespace Graphics
 
 	}
 
+	void UniformBuffer::Init()
+	{
+		VulkanImpl::CreateUniformBuffer(*this, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
+	}
+
 	// Pipeline
+	void Pipeline::Wait(PipeLineID pipelineID)
+	{
+		pipelinesToWait.push_back(pipelineID);
+		VulkanImpl::CreatePipelineSemaphore(pipelineID.id, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
+	}
+
+
 	void GraphicsPipeline::Init(Graphics::RenderPassID renderPassID)
 	{
-		VulkanImpl::CreateDescriptorSetLayout(*this->uniformDesc, 1);
-		VulkanImpl::CreateBasicUniformBuffer(*this->uniformDesc);
-
+		Vector<SharedPtr<Graphics::Buffer>> allBuffers { this->uniformDesc };
+		for (auto buffer : this->buffers)
+			allBuffers.push_back(buffer);
+		int layoutID = VulkanImpl::CreateDescriptorSetLayout(allBuffers, this->textures);
+		this->uniformDesc->layoutID = layoutID;
 		pipelineID = VulkanImpl::CreateGraphicsPipeline(vertexShader, fragmentShader, this, renderPassID);
 
-		VulkanImpl::CreateUniformDescriptorPool();
-		VulkanImpl::CreateUniformDescriptorSets(*this->uniformDesc);
+		int poolID = VulkanImpl::CreateDescriptorPool(VulkanImpl::MAX_FRAMES_IN_FLIGHT, VulkanImpl::MAX_FRAMES_IN_FLIGHT, 0);
+		this->descriptorPoolID.id = poolID;
+		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, allBuffers);
 
+		VulkanImpl::CreateFenceObjects(pipelineID.id, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
+
+	}
+
+	void ComputePipeline::Init()
+	{
+		int layoutID = VulkanImpl::CreateDescriptorSetLayout(this->buffers, this->textures);
+		this->layoutID = layoutID;
+		pipelineID = VulkanImpl::CreateComputePipeline(computeShader, this, layoutID);
+
+		// create descriptor pool
+		int poolID = VulkanImpl::CreateDescriptorPool(VulkanImpl::MAX_FRAMES_IN_FLIGHT, 0, VulkanImpl::MAX_FRAMES_IN_FLIGHT * 2);
+		this->descriptorPoolID.id = poolID;
+		// create descriptor sets
+		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, this->buffers, this->textures);
+
+		VulkanImpl::CreateFenceObjects(pipelineID.id, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
+	}
+
+	void ComputePipeline::UpdateResources(Vector<SharedPtr<Buffer>>& buffers, Vector<Texture>& textures)
+	{
+		Vector<Graphics::TextureID> textureIDs;
+		for (auto& texture : textures)
+		{
+			textureIDs.push_back(texture.textureID);
+		}
+		VulkanImpl::UpdateDescriptorSets(this->descriptorPoolID.id, buffers, textureIDs);
+	}
+
+	void ComputePipeline::Dispatch(RenderContext & context)
+	{
+		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto& commandList = context.device->GetComputeCommandList(swapID);
+		VulkanImpl::Dispatch(commandList, this->pipelineID.id, this->layoutID, this->descriptorPoolID.id, swapID, this->threadSz, this->invocationSz);
+	}
+
+	void UniformBuffer::UpdateUniformBuffer(int frameID)
+	{
+		VulkanImpl::UpdateUniformBuffer(GetData(), GetBufferSize(), *this, frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT);
 	}
 
 	// RenderPass
@@ -2051,12 +2405,15 @@ namespace Graphics
 
 	}
 
-	Quad::Quad(SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture) 
+	Quad::Quad(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture) 
 		: Geometry( basicUniform, mainTexture ) 
 	{
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
+		// TODO replace with new function
 		VulkanImpl::UpdateDescriptorSets(
+			descriptorPoolID,
+			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
 			Vector<Graphics::TextureID>{
 				// add more textures in future
 				this->mainTexture.textureID
@@ -2064,16 +2421,19 @@ namespace Graphics
 		);
 	}
 
-	OBJMesh::OBJMesh(SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture, String filename)
+	OBJMesh::OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture, String filename)
 		: Geometry(basicUniform, mainTexture)
 	{
 		Import::LoadOBJ(vertexDesc, indices, filename);
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
+		// TODO replace with new function
 		VulkanImpl::UpdateDescriptorSets(
+			descriptorPoolID,
+			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
 			Vector<Graphics::TextureID>{
-			// add more textures in future
-			this->mainTexture.textureID
+				// add more textures in future
+				this->mainTexture.textureID
 		}
 		);
 	}
@@ -2082,7 +2442,7 @@ namespace Graphics
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);
-		VulkanImpl::Draw(commandList, *this, context.renderPass->pso->pipelineID);
+		VulkanImpl::Draw(commandList, *this, context.renderPass->pso->pipelineID, context.renderPass->pso->descriptorPoolID, swapID);
 	}
 
 	Texture::Texture(String filename, bool autoMipchain)
@@ -2102,4 +2462,19 @@ namespace Graphics
 	{
 		VulkanImpl::CreateTextureSampler(*this, maxLOD);
 	}
+
+	void StructuredBuffer::Init()
+	{
+		if (extendedBufferIDs.size() == 0)
+			VulkanImpl::CreateStorageBuffer(sizeof(bufferData), GetUsageType(), this);
+
+	}
+
+	void StructuredBuffer::DrawBuffer(RenderContext& context)
+	{
+		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto& commandList = context.device->GetCommandList(swapID);
+		VulkanImpl::DrawBuffer(commandList, *this, this->GetBufferSize(), swapID);
+	}
+
 }

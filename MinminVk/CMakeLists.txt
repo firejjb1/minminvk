@@ -117,6 +117,7 @@ set(HEADER_FILES
 	"graphics/Texture.h"
 	"graphics/Geometry.h"
 	"graphics/Import.h"
+	"graphics/Resource.h"
 )
 
 IF(WIN32)
@@ -132,6 +133,10 @@ add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES})
 target_include_directories(${PROJECT_NAME} PRIVATE
  	.
  )
+
+IF(APPLE)
+	target_compile_definitions(${PROJECT_NAME} PUBLIC APPLE)
+ENDIF(APPLE)
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC SHADERS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/")
 target_compile_definitions(${PROJECT_NAME} PUBLIC IMAGES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/images/")

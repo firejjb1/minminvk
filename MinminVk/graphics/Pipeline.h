@@ -2,6 +2,7 @@
 
 #include <graphics/Shader.h>
 #include <graphics/Texture.h>
+#include <graphics/Buffer.h>
 #include <graphics/Geometry.h>
 
 namespace Graphics
@@ -12,90 +13,26 @@ namespace Graphics
 	struct VertexDesc;
 	struct BasicUniformBuffer;
 	struct Presentation;
+	struct RenderContext;
 
 	struct RenderPassID { u32 id = 0; RenderPass* pointer; };
 	struct ComputePassID { u32 id = 0; ComputePass* pointer; };
 	struct PipeLineID { u32 id = 0; Pipeline* pointer; };
+	struct DescriptorPoolID { u32 id = 0; };
 
 	struct Pipeline
 	{
 		// assigned by order they are created, starting with 1
 		PipeLineID pipelineID;
-		RenderPassID parentRenderPassID;
+		DescriptorPoolID descriptorPoolID;
+		Vector<PipeLineID> pipelinesToWait;
 
-		virtual void Init(RenderPassID) = 0;
+		void Wait(PipeLineID pipelineID);
 	};
-
-
-	struct RenderPass
-	{
-		RenderPassID renderPassID;
-
-		SharedPtr<Pipeline> pso;
-		bool isFrameBufferCreated = false;
-
-		Texture::FormatType formatType = Texture::FormatType::BGRA_SRGB;
-		u32 numSamples = 4;
-		enum class AttachmentOpType { CLEAR, STORE, DONTCARE };
-		AttachmentOpType loadOp = AttachmentOpType::CLEAR;
-		AttachmentOpType storeOp = AttachmentOpType::STORE;
-		AttachmentOpType stencilLoadOp = AttachmentOpType::DONTCARE;
-		AttachmentOpType stencilStoreOp = AttachmentOpType::DONTCARE;
-
-		Texture::LayoutType initialLayout = Texture::LayoutType::UNDEFINED;
-		Texture::LayoutType finalLayout = Texture::LayoutType::COLOR_ATTACHMENT;
-
-		bool writeToDepth = true;
-		u32 numSamplesDepth = 4;
-
-		struct ColorAttachment
-		{
-			TextureID textureID;
-		};
-
-		ColorAttachment colorAttachment;
-
-		struct SubPass
-		{
-			u32 colorAttachmentIndex = 0;
-			enum class SubPassType { GRAPHICS };
-			SubPassType subPassType = SubPassType::GRAPHICS;
-
-			u32 colorAttachmentCount = 1;
-		};
-		SubPass subPass;
-
-		bool shouldFramebuffersMatchSwapchain = true;
-		struct FrameBuffer
-		{
-			Vector<TextureID> textureIDs{};
-			// 0 value should match swapchain
-			u32 width = 0;
-			u32 height = 0;
-			u32 numLayers = 1;
-		};
-
-		Vector<FrameBuffer> frameBuffers;
-
-		RenderPass(SharedPtr<Pipeline> pso, SharedPtr<Presentation> presentation) : pso{pso} 
-		{
-			Init(presentation);
-			pso->Init(renderPassID);
-
-		}
-
-		void Init(SharedPtr<Presentation> presentation);
-	};
-
-	struct ComputePass
-	{
-		ComputePassID computePassID;
-		SharedPtr<Pipeline> pso;
-	};
-
 
 	struct GraphicsPipeline : public Pipeline
 	{
+		RenderPassID parentRenderPassID;
 		// shaders, states, resources
 		SharedPtr<Shader> vertexShader;
 		SharedPtr<Shader> fragmentShader;
@@ -155,7 +92,7 @@ namespace Graphics
 		};
 
 		// optionals
-		i32 lineWidth;
+		i32 lineWidth = 1.f;
 		i32 depthBiasConstantFactor = 0.f;
 		i32 depthBiasClamp = 0.f;
 		i32 depthBiasSlopeFactor = 0.f;
@@ -191,16 +128,103 @@ namespace Graphics
 		// auto reduced if device doesn't support
 		u32 msaaSamples = 8;
 
-		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShader, SharedPtr<VertexDesc> vertexDesc, SharedPtr<BasicUniformBuffer> uniformDesc)
-			: vertexShader{ vertexShader }, fragmentShader{ fragmentShader }, vertexDesc{ vertexDesc }, uniformDesc{ uniformDesc } {}
+		Vector<Texture> textures;
+		Vector<SharedPtr<Buffer>> buffers;
 
-		void Init(RenderPassID) override;
+		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShader, SharedPtr<VertexDesc> vertexDesc, 
+			SharedPtr<BasicUniformBuffer> uniformDesc, Vector<Texture> textures, Vector<SharedPtr<Buffer>> buffers)
+			: vertexShader{ vertexShader }, fragmentShader{ fragmentShader }, vertexDesc{ vertexDesc }, uniformDesc{ uniformDesc }, textures{textures}, buffers{buffers} {}
+
+		void Init(RenderPassID);
+	};
+
+	struct RenderPass
+	{
+		RenderPassID renderPassID;
+
+		SharedPtr<GraphicsPipeline> pso;
+		bool isFrameBufferCreated = false;
+
+		Texture::FormatType formatType = Texture::FormatType::BGRA_SRGB;
+		u32 numSamples = 4;
+		enum class AttachmentOpType { CLEAR, STORE, DONTCARE };
+		AttachmentOpType loadOp = AttachmentOpType::CLEAR;
+		AttachmentOpType storeOp = AttachmentOpType::STORE;
+		AttachmentOpType stencilLoadOp = AttachmentOpType::DONTCARE;
+		AttachmentOpType stencilStoreOp = AttachmentOpType::DONTCARE;
+
+		Texture::LayoutType initialLayout = Texture::LayoutType::UNDEFINED;
+		Texture::LayoutType finalLayout = Texture::LayoutType::COLOR_ATTACHMENT;
+
+		bool writeToDepth = true;
+		u32 numSamplesDepth = 4;
+
+		struct ColorAttachment
+		{
+			TextureID textureID;
+		};
+
+		ColorAttachment colorAttachment;
+
+		struct SubPass
+		{
+			u32 colorAttachmentIndex = 0;
+			enum class SubPassType { GRAPHICS };
+			SubPassType subPassType = SubPassType::GRAPHICS;
+
+			u32 colorAttachmentCount = 1;
+		};
+		SubPass subPass;
+
+		bool shouldFramebuffersMatchSwapchain = true;
+		struct FrameBuffer
+		{
+			Vector<TextureID> textureIDs{};
+			// 0 value should match swapchain
+			u32 width = 0;
+			u32 height = 0;
+			u32 numLayers = 1;
+		};
+
+		Vector<FrameBuffer> frameBuffers;
+
+		RenderPass(SharedPtr<GraphicsPipeline> pso, SharedPtr<Presentation> presentation, AttachmentOpType loadOp = AttachmentOpType::CLEAR, AttachmentOpType storeOp = AttachmentOpType::STORE) : pso{pso}, loadOp{loadOp}, storeOp{storeOp}
+		{
+			Init(presentation);
+			pso->Init(renderPassID);
+		}
+
+		void Init(SharedPtr<Presentation> presentation);
 	};
 
 	struct ComputePipeline : public Pipeline
 	{
 		SharedPtr<Shader> computeShader;
-		vec3 workGroupSz;
+		vec3 threadSz;
 		vec3 invocationSz;
+		int layoutID;
+
+		Vector<SharedPtr<Buffer>> buffers;
+		Vector<Texture> textures;
+
+		ComputePipeline(SharedPtr<Shader> computeShader, vec3 threadSz, vec3 invocationSz, Vector<SharedPtr<Buffer>> &buffers, Vector<Texture> &textures)
+			: computeShader{computeShader}, threadSz{threadSz}, invocationSz{invocationSz}, buffers{buffers}, textures{textures}
+		{
+			Init();
+		}
+
+		void Init();
+
+		void Dispatch(RenderContext & context);
+
+		void UpdateResources(Vector<SharedPtr<Buffer>> &buffers, Vector<Texture> &textures);
 	};
+
+	// struct ComputePass
+	// {
+	// 	ComputePassID computePassID;
+	// 	SharedPtr<ComputePipeline> pso;
+
+	// };
+
 }
