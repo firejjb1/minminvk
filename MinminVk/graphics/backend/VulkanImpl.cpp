@@ -1573,7 +1573,7 @@ namespace VulkanImpl
 		};
 	}
 
-	void RecordCommandBuffer(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID) 
+	void RecordCommandBuffer(Graphics::CommandList commandList) 
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 		vkResetCommandBuffer(commandBuffer, 0);
@@ -1586,7 +1586,11 @@ namespace VulkanImpl
 		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
 			throw std::runtime_error("failed to begin recording command buffer!");
 		}
+	}
 
+	void BeginRenderPass(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID)
+	{
+		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		auto& renderPass = renderPasses[renderPassID.id];
@@ -1604,21 +1608,27 @@ namespace VulkanImpl
 		renderPassInfo.pClearValues = clearValues.data();
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-			auto& graphicsPipeline = pipelines[pipelineID.id];
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-			VkViewport viewport{};
-			viewport.x = 0.0f;
-			viewport.y = 0.0f;
-			viewport.width = static_cast<float>(swapChainExtent.width);
-			viewport.height = static_cast<float>(swapChainExtent.height);
-			viewport.minDepth = 0.0f;
-			viewport.maxDepth = 1.0f;
-			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+		auto& graphicsPipeline = pipelines[pipelineID.id];
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		VkViewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = static_cast<float>(swapChainExtent.width);
+		viewport.height = static_cast<float>(swapChainExtent.height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-			VkRect2D scissor{};
-			scissor.offset = { 0, 0 };
-			scissor.extent = swapChainExtent;
-			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+		VkRect2D scissor{};
+		scissor.offset = { 0, 0 };
+		scissor.extent = swapChainExtent;
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+	}
+
+	void EndRenderPass(Graphics::CommandList commandList)
+	{
+		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
+		vkCmdEndRenderPass(commandBuffer);
 	}
 
 	void DrawBuffer(Graphics::CommandList commandList, Graphics::Buffer& buffer, u32 bufferSize, u32 swapID)
@@ -1632,7 +1642,6 @@ namespace VulkanImpl
 	void EndRecordCommandbuffer(Graphics::CommandList commandList)
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
-		vkCmdEndRenderPass(commandBuffer);
 
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
 			throw std::runtime_error("failed to record command buffer!");
@@ -2137,8 +2146,27 @@ namespace Graphics
 		// record a command buffer which draws the scene onto the image
 		auto &commandList = GetCommandList(swapID);
 		commandList.imageIndex = imageIndex;
-		VulkanImpl::RecordCommandBuffer(commandList, renderPass->renderPassID, renderPass->pso->pipelineID);
+		VulkanImpl::RecordCommandBuffer(commandList);
 		return true;
+	}
+
+	void Device::BeginRenderPass(Graphics::RenderContext& context)
+	{
+		SharedPtr<Graphics::RenderPass> renderPass = context.renderPass;
+		const u32 frameID = context.frameID;
+		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto pipelineID = context.renderPass->pso->pipelineID.id;
+		auto& commandList = GetCommandList(swapID);
+
+		VulkanImpl::BeginRenderPass(commandList, renderPass->renderPassID, renderPass->pso->pipelineID);
+	}
+
+	void Device::EndRenderPass(Graphics::RenderContext& context)
+	{
+		const u32 frameID = context.frameID;
+		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto& commandList = GetCommandList(swapID);
+		VulkanImpl::EndRenderPass(commandList);
 	}
 
 	void Graphics::Device::EndRecording(RenderContext& context)
@@ -2196,21 +2224,18 @@ namespace Graphics
 		else if (result != VK_SUCCESS) {
 			throw std::runtime_error("failed to present swap chain image!");
 		}
-
 	}
 
 	void Device::CleanUp()
 	{
-
 		for (size_t i = 0; i < VulkanImpl::MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageFinishedSemaphores[i], nullptr);
-			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageAvailableSemaphores[i], nullptr);
-			
+			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageAvailableSemaphores[i], nullptr);		
 		}
 
 		for (auto& entry : VulkanImpl::pipelineWaitSemaphore)
 		{
-			for (size_t i = 0; i < VulkanImpl::MAX_FRAMES_IN_FLIGHT; i++) {
+			for (size_t i = 0; i < entry.second.size(); i++) {
 				vkDestroySemaphore(VulkanImpl::device, entry.second[i], nullptr);
 			}
 		}

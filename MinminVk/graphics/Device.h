@@ -35,6 +35,10 @@ namespace Graphics
 		bool BeginRecording(RenderContext&);
 
 		void EndRecording(RenderContext&);
+
+		void BeginRenderPass(Graphics::RenderContext& context);
+		void EndRenderPass(Graphics::RenderContext& context);
+
 		void CleanUp();
 	};
 

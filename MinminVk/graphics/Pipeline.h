@@ -188,7 +188,7 @@ namespace Graphics
 
 		Vector<FrameBuffer> frameBuffers;
 
-		RenderPass(SharedPtr<GraphicsPipeline> pso, SharedPtr<Presentation> presentation) : pso{pso} 
+		RenderPass(SharedPtr<GraphicsPipeline> pso, SharedPtr<Presentation> presentation, AttachmentOpType loadOp = AttachmentOpType::CLEAR, AttachmentOpType storeOp = AttachmentOpType::STORE) : pso{pso}, loadOp{loadOp}, storeOp{storeOp}
 		{
 			Init(presentation);
 			pso->Init(renderPassID);

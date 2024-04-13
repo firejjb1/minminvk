@@ -88,21 +88,21 @@ namespace Graphics
 		
 		// forward pass
 		{
-			//auto uniformBuffer = MakeShared<BasicUniformBuffer>();
-			//forwardPipeline = MakeShared<GraphicsPipeline>(
-			//	MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
-			//	MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
-			//	MakeShared<BasicVertex>(),
-			//	uniformBuffer,
-			//	Vector<Texture>{texture},
-			//	Vector<SharedPtr<Buffer>>{}
-			//);
+			auto uniformBuffer = MakeShared<BasicUniformBuffer>();
+			forwardPipeline = MakeShared<GraphicsPipeline>(
+				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
+				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
+				MakeShared<BasicVertex>(),
+				uniformBuffer,
+				Vector<Texture>{texture},
+				Vector<SharedPtr<Buffer>>{}
+			);
 
-			//forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
+			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
 
-			//quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
+			quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
 
-			//vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
+			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
 
 		}
 
@@ -115,7 +115,7 @@ namespace Graphics
 				vec4 color;
 			};
 			// 2f position, 2f velocity, 3f color
-			Vector<f32> particles{ 0.5f, 0.5f , 0.f, 0.1f, 1.f, 0.f, 0.f, 1.f};
+			Vector<f32> particles{ 0.5f, 0.5f , 0.3f, 0.3f, 1.f, 0.f, 0.f, 1.f};
 			ResourceBinding particleBufferBinding;
 			particleBufferBinding.binding = 1;
 			particleBufferBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
@@ -146,11 +146,13 @@ namespace Graphics
 			// TODO set the pipeline settings for particle rendering
 			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_POINT_LIST;
 			
-			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation);
-
+			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
+			
 			// sync
-			//forwardPipeline->Wait(particleComputePipeline->pipelineID);
-			particleRenderPipeline->Wait(particleComputePipeline->pipelineID);
+			forwardPipeline->Wait(particleComputePipeline->pipelineID);
+			// TODO need to implement inter graphics sync
+			//particleRenderPipeline->Wait(forwardPipeline->pipelineID);
+
 			
 		}
 	}
@@ -159,42 +161,52 @@ namespace Graphics
 	{
 		context.frameID = frameID;
 
-		// particle pass
+		// particle compute pass
 		{
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
 			particleUniformBuffer->UpdateUniformBuffer(frameID);
 			particleComputePipeline->Dispatch(context);
 
-			context.renderPass = forwardParticlePass;
+		
+		}
+
+		// forward passes
+		{
+			// pass 1
+			context.renderPass = forwardPass;
 			bool success = device->BeginRecording(context);
 			if (!success)
 				return;
 			
-			particleBuffer->DrawBuffer(context);
+			device->BeginRenderPass(context);
+			{
+				// view projection
+				{
+					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(2.0f, 2.0f, 2.f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f));
+					i32 width = presentation->swapChainDetails.width;
+					i32 height = presentation->swapChainDetails.height;
+					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.1f, 10.0f);
+					forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
+				}
+
+				vikingRoom->Update(deltaTime);
+				vikingRoom->Draw(context);
+			}
+			device->EndRenderPass(context);
+
+			// pass 2
+			context.renderPass = forwardParticlePass;
+			device->BeginRenderPass(context);
+
+				particleBuffer->DrawBuffer(context);
+
+			device->EndRenderPass(context);
+
+			// TODO hack, fence is per pipeline but should be per command buffer
+			context.renderPass = forwardPass;
+
 			device->EndRecording(context);
-		}
 
-		// forward pass
-		{
-			//context.renderPass = forwardPass;
-			//// view projection TODO abstract
-			//{
-			//	forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(2.0f, 2.0f, 2.f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f));
-			//	i32 width = presentation->swapChainDetails.width;
-			//	i32 height = presentation->swapChainDetails.height;
-			//	forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.1f, 10.0f);
-			//	forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
-			//}
-			//bool success = device->BeginRecording(context);
-			//if (!success)
-			//	return;
-
-			//// TODO draw multiple (dynamic uniform buffer, multiple descriptor sets)
-			//// TODO camera control
-			//vikingRoom->Update(deltaTime);
-			//vikingRoom->Draw(context);
-
-			//device->EndRecording(context);
 		}
 
 	}
