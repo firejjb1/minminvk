@@ -92,7 +92,7 @@ namespace Graphics
 		};
 
 		// optionals
-		i32 lineWidth;
+		i32 lineWidth = 1.f;
 		i32 depthBiasConstantFactor = 0.f;
 		i32 depthBiasClamp = 0.f;
 		i32 depthBiasSlopeFactor = 0.f;

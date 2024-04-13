@@ -51,10 +51,9 @@ namespace Graphics
 
 		Vector<Vertex> vertices;
 
-
 		BasicVertex() {};
 
-		BasicVertex(Vector<Vertex> vertices) : vertices{ vertices } {}
+		BasicVertex(Vector<Vertex> &vertices) : vertices{ vertices } {}
 
 		VertexBinding GetVertexBinding() override
 		{
@@ -73,7 +72,7 @@ namespace Graphics
 			posAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
 
 			VertexAttribute colorAttribute;
-			posAttribute.binding = 0;
+			colorAttribute.binding = 0;
 			colorAttribute.location = 1;
 			colorAttribute.offset = offsetof(Vertex, color);
 			colorAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
@@ -85,6 +84,45 @@ namespace Graphics
 			uvAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC2;
 
 			return Vector<VertexAttribute>{ posAttribute, colorAttribute, uvAttribute };
+		}
+	};
+
+	struct ParticleVertex : public VertexDesc
+	{
+		struct Particle
+		{
+			vec2 position;
+			vec4 color;
+		};
+		Vector<Particle> particles;
+
+		ParticleVertex() {}
+
+		ParticleVertex(Vector<Particle> &particles) : particles{particles} {}
+
+		VertexBinding GetVertexBinding() override
+		{
+			VertexBinding binding;
+			binding.stride = sizeof(Particle);
+			binding.binding = 0;
+			return binding;
+		}
+
+		Vector<VertexAttribute> GetVertexAttributes() override
+		{
+			VertexAttribute posAttribute;
+			posAttribute.binding = 0;
+			posAttribute.location = 0;
+			posAttribute.offset = offsetof(Particle, position);
+			posAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC2;
+
+			VertexAttribute colorAttribute;
+			colorAttribute.binding = 0;
+			colorAttribute.location = 1;
+			colorAttribute.offset = offsetof(Particle, color);
+			colorAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC4;
+
+			return Vector<VertexAttribute>{ posAttribute, colorAttribute };
 		}
 	};
 
@@ -107,7 +145,6 @@ namespace Graphics
 		virtual void Update(f32 deltaTime) {};
 
 		Geometry(SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture);
-
 	};
 
 	struct Quad : public Geometry

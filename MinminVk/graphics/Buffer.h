@@ -5,6 +5,8 @@
 
 namespace Graphics
 {
+    struct RenderContext;
+
     struct Buffer
     {
         enum class BufferType { STRUCTURED, UNIFORM };
@@ -125,5 +127,8 @@ namespace Graphics
             }
             return usage;
         }
+
+        // only if also a vertex buffer
+        void DrawBuffer(RenderContext& context);
     };
 }

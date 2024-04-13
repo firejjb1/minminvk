@@ -1130,7 +1130,11 @@ namespace VulkanImpl
 			rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
 		}
 		if (rasterStates.find(Graphics::GraphicsPipeline::RasterState::RASTER_POLYGON_MODE_POINT) != rasterStates.cend())
+		{
+			rasterizer.lineWidth = pipeline->lineWidth;
 			rasterizer.polygonMode = VK_POLYGON_MODE_POINT;
+		}
+		
 
 		rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
 		if (rasterStates.find(Graphics::GraphicsPipeline::RasterState::RASTER_CULL_MODE_BOTH) != rasterStates.cend())
@@ -1615,6 +1619,14 @@ namespace VulkanImpl
 			scissor.offset = { 0, 0 };
 			scissor.extent = swapChainExtent;
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+	}
+
+	void DrawBuffer(Graphics::CommandList commandList, Graphics::Buffer& buffer, u32 bufferSize, u32 swapID)
+	{
+		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &shaderStorageBuffers[buffer.extendedBufferIDs[swapID]], offsets);
+		vkCmdDraw(commandBuffer, bufferSize, 1, 0, 0);
 	}
 
 	void EndRecordCommandbuffer(Graphics::CommandList commandList)
@@ -2140,9 +2152,7 @@ namespace Graphics
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-		//VkSemaphore waitSemaphores[] = { VulkanImpl::imageAvailableSemaphores[swapID]};
 		Vector<VkSemaphore> waitSemaphores;
-		//VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 		Vector<VkPipelineStageFlags> waitStages;
 		for (auto& pipelineToWait : context.renderPass->pso->pipelinesToWait)
 		{
@@ -2434,4 +2444,12 @@ namespace Graphics
 			VulkanImpl::CreateStorageBuffer(sizeof(bufferData), GetUsageType(), this);
 
 	}
+
+	void StructuredBuffer::DrawBuffer(RenderContext& context)
+	{
+		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto& commandList = context.device->GetCommandList(swapID);
+		VulkanImpl::DrawBuffer(commandList, *this, this->GetBufferSize(), swapID);
+	}
+
 }

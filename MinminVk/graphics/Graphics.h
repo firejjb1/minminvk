@@ -6,6 +6,8 @@
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
+#define PARTICLE_VERT_SHADER "particlesvert.spv"
+#define PARTICLE_FRAG_SHADER "particlesfrag.spv"
 #define STATUE_IMAGE "statue.jpg"
 #define WALL_IMAGE "blue_floor_tiles_01_diff_1k.jpg"
 #define BLUE_IMAGE "blue.jpeg"
@@ -56,12 +58,14 @@ namespace Graphics
 	SharedPtr<Presentation> presentation;
 	SharedPtr<GraphicsPipeline> forwardPipeline;
 	SharedPtr<RenderPass> forwardPass;
+	SharedPtr<RenderPass> forwardParticlePass;
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
 	SharedPtr<StructuredBuffer> particleBuffer;
 	SharedPtr<StructuredBuffer> particleBufferPrev;
 	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
-	SharedPtr<ComputePipeline> computePipeline;
+	SharedPtr<ComputePipeline> particleComputePipeline;
+	SharedPtr<GraphicsPipeline> particleRenderPipeline;
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
 	
@@ -84,26 +88,27 @@ namespace Graphics
 		
 		// forward pass
 		{
-			auto uniformBuffer = MakeShared<BasicUniformBuffer>();
-			forwardPipeline = MakeShared<GraphicsPipeline>(
-				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
-				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
-				MakeShared<BasicVertex>(),
-				uniformBuffer,
-				Vector<Texture>{texture},
-				Vector<SharedPtr<Buffer>>{}
-			);
+			//auto uniformBuffer = MakeShared<BasicUniformBuffer>();
+			//forwardPipeline = MakeShared<GraphicsPipeline>(
+			//	MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
+			//	MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
+			//	MakeShared<BasicVertex>(),
+			//	uniformBuffer,
+			//	Vector<Texture>{texture},
+			//	Vector<SharedPtr<Buffer>>{}
+			//);
 
-			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
+			//forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
 
-			quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
+			//quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
 
-			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
+			//vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
 
 		}
 
 		// Compute Pass
 		{
+
 			struct Particle {
 				vec2 position;
 				vec2 velocity;
@@ -123,7 +128,6 @@ namespace Graphics
 			particleWriteBinding.binding = 2;
 			particleWriteBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
 
-			// particleBufferPrev = MakeShared<StructuredBuffer>(particles, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
 			particleBuffer = MakeShared<StructuredBuffer>(particles, particleWriteBinding, Buffer::AccessType::READONLY, particleBufferUsage);
 			Vector<u32> extendedBufferIDs;
 			auto numParticleBuffers = particleBuffer->extendedBufferIDs.size();
@@ -132,52 +136,65 @@ namespace Graphics
 			particleBufferPrev = MakeShared<StructuredBuffer>(extendedBufferIDs, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
 			particleUniformBuffer = MakeShared<ParticlesUniformBuffer>();
 			computeBuffers.insert(computeBuffers.end(), { particleUniformBuffer, particleBufferPrev, particleBuffer });
-			computePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
+			particleComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
 				 vec3{particles.size() / 8,1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
 
+			auto vertShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_VERT_SHADER), Shader::ShaderType::SHADER_VERTEX, "main");
+			auto fragShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main");
+			particleRenderPipeline = MakeShared<GraphicsPipeline>(vertShader, fragShader, MakeShared<ParticleVertex>(), MakeShared<BasicUniformBuffer>(), Vector<Texture>{},
+				Vector<SharedPtr<Buffer>>{});
+			// TODO set the pipeline settings for particle rendering
+			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_POINT_LIST;
+			
+			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation);
+
 			// sync
-			forwardPipeline->Wait(computePipeline->pipelineID);
+			//forwardPipeline->Wait(particleComputePipeline->pipelineID);
+			particleRenderPipeline->Wait(particleComputePipeline->pipelineID);
+			
 		}
-
-
 	}
 
 	void MainRender(const u32 frameID, const f32 deltaTime)
 	{
 		context.frameID = frameID;
 
-		// compute pass
+		// particle pass
 		{
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
 			particleUniformBuffer->UpdateUniformBuffer(frameID);
-			//auto& newInputBuffer = computeBuffers[2];
-			//computeBuffers[2] = computeBuffers[1];
-			//computeBuffers[1] = newInputBuffer;
-			//computePipeline->UpdateResources(computeBuffers, computeTextures);
-			computePipeline->Dispatch(context);
+			particleComputePipeline->Dispatch(context);
+
+			context.renderPass = forwardParticlePass;
+			bool success = device->BeginRecording(context);
+			if (!success)
+				return;
+			
+			particleBuffer->DrawBuffer(context);
+			device->EndRecording(context);
 		}
 
 		// forward pass
 		{
-			context.renderPass = forwardPass;
-			// view projection TODO abstract
-			{
-				forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(2.0f, 2.0f, 2.f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f));
-				i32 width = presentation->swapChainDetails.width;
-				i32 height = presentation->swapChainDetails.height;
-				forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.1f, 10.0f);
-				forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
-			}
-			bool success = device->BeginRecording(context);
-			if (!success)
-				return;
+			//context.renderPass = forwardPass;
+			//// view projection TODO abstract
+			//{
+			//	forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(2.0f, 2.0f, 2.f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f));
+			//	i32 width = presentation->swapChainDetails.width;
+			//	i32 height = presentation->swapChainDetails.height;
+			//	forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.1f, 10.0f);
+			//	forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
+			//}
+			//bool success = device->BeginRecording(context);
+			//if (!success)
+			//	return;
 
-			// TODO draw multiple (dynamic uniform buffer, multiple descriptor sets)
-			// TODO camera control
-			vikingRoom->Update(deltaTime);
-			vikingRoom->Draw(context);
+			//// TODO draw multiple (dynamic uniform buffer, multiple descriptor sets)
+			//// TODO camera control
+			//vikingRoom->Update(deltaTime);
+			//vikingRoom->Draw(context);
 
-			device->EndRecording(context);
+			//device->EndRecording(context);
 		}
 
 	}
