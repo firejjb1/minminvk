@@ -2130,6 +2130,7 @@ namespace Graphics
 		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		// wait for previous frame to finish
 		auto pipelineID = context.renderPass->pso->pipelineID.id;
+
 		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[pipelineID][swapID], VK_TRUE, UINT64_MAX);
 		// acquire an image from the swap chain
 		u32 imageIndex;
@@ -2182,6 +2183,7 @@ namespace Graphics
 
 		Vector<VkSemaphore> waitSemaphores;
 		Vector<VkPipelineStageFlags> waitStages;
+
 		for (auto& pipelineToWait : context.renderPass->pso->pipelinesToWait)
 		{
 			waitSemaphores.push_back(VulkanImpl::pipelineWaitSemaphore[pipelineToWait.id][swapID]);
@@ -2466,15 +2468,15 @@ namespace Graphics
 	void StructuredBuffer::Init()
 	{
 		if (extendedBufferIDs.size() == 0)
-			VulkanImpl::CreateStorageBuffer(sizeof(bufferData), GetUsageType(), this);
+			VulkanImpl::CreateStorageBuffer(GetBufferSize(), GetUsageType(), this);
 
 	}
 
-	void StructuredBuffer::DrawBuffer(RenderContext& context)
+	void StructuredBuffer::DrawBuffer(RenderContext& context, u32 numVertex)
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);
-		VulkanImpl::DrawBuffer(commandList, *this, this->GetBufferSize(), swapID);
+		VulkanImpl::DrawBuffer(commandList, *this, numVertex, swapID);
 	}
 
 }

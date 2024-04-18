@@ -52,6 +52,12 @@ namespace Graphics
 
 	};
 
+	struct Particle {
+		vec2 position;
+		vec2 velocity;
+		vec4 color;
+	};
+
 
 	SharedPtr<Device> device;
 	RenderContext context;
@@ -109,13 +115,12 @@ namespace Graphics
 		// Compute Pass
 		{
 
-			struct Particle {
-				vec2 position;
-				vec2 velocity;
-				vec4 color;
+
+			// 2f position, 2f velocity, 4f color
+			Vector<f32> particles{ 
+				0.5f, 0.5f , 0.3f, 0.3f, 1.f, 0.f, 0.f, 1.f, 
+				0.5f, 0.5f , -0.3f, -0.3f, 0.f, 1.f, 0.f, 1.f,	
 			};
-			// 2f position, 2f velocity, 3f color
-			Vector<f32> particles{ 0.5f, 0.5f , 0.3f, 0.3f, 1.f, 0.f, 0.f, 1.f};
 			ResourceBinding particleBufferBinding;
 			particleBufferBinding.binding = 1;
 			particleBufferBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
@@ -133,17 +138,17 @@ namespace Graphics
 			auto numParticleBuffers = particleBuffer->extendedBufferIDs.size();
 			for (int i = 0; i < numParticleBuffers; i++)
 				extendedBufferIDs.push_back(particleBuffer->extendedBufferIDs[(i - 1) % numParticleBuffers]);
-			particleBufferPrev = MakeShared<StructuredBuffer>(extendedBufferIDs, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
+			particleBufferPrev = MakeShared<StructuredBuffer>(particles, extendedBufferIDs, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
 			particleUniformBuffer = MakeShared<ParticlesUniformBuffer>();
 			computeBuffers.insert(computeBuffers.end(), { particleUniformBuffer, particleBufferPrev, particleBuffer });
 			particleComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
-				 vec3{particles.size() / 8,1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
+				 vec3{particles.size() / sizeof(Particle) / 8,1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
 
 			auto vertShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_VERT_SHADER), Shader::ShaderType::SHADER_VERTEX, "main");
 			auto fragShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main");
 			particleRenderPipeline = MakeShared<GraphicsPipeline>(vertShader, fragShader, MakeShared<ParticleVertex>(), MakeShared<BasicUniformBuffer>(), Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{});
-			// TODO set the pipeline settings for particle rendering
+
 			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_POINT_LIST;
 			
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
@@ -198,11 +203,11 @@ namespace Graphics
 			context.renderPass = forwardParticlePass;
 			device->BeginRenderPass(context);
 
-				particleBuffer->DrawBuffer(context);
+			particleBuffer->DrawBuffer(context, particleBuffer->GetBufferSize() / sizeof(Particle));
 
 			device->EndRenderPass(context);
 
-			// TODO hack, fence is per pipeline but should be per command buffer
+			// TODO hack, fence and semaphores are per pipeline but should be per command buffer
 			context.renderPass = forwardPass;
 
 			device->EndRecording(context);
@@ -215,7 +220,5 @@ namespace Graphics
 	{
 		presentation->CleanUp();
 		device->CleanUp();
-
-
 	}
 };

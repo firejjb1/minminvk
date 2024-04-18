@@ -97,8 +97,8 @@ namespace Graphics
         }
 
         // initialize using existing buffers. from extendedBufferIDS
-        StructuredBuffer(Vector<u32>& extendedBufferIDs, ResourceBinding& binding, AccessType accessType, Vector<BufferUsageType> usageTypes)
-            : binding{ binding }, accessType{ accessType }, usageTypes{ usageTypes }
+        StructuredBuffer(Vector<f32>& data, Vector<u32>& extendedBufferIDs, ResourceBinding& binding, AccessType accessType, Vector<BufferUsageType> usageTypes)
+            : bufferData{ data }, binding { binding }, accessType{ accessType }, usageTypes{ usageTypes }
         {
             this->extendedBufferIDs = extendedBufferIDs;
         }
@@ -111,7 +111,10 @@ namespace Graphics
 
         const AccessType GetAccessType() const override { return accessType; }
 
-        const u32 GetBufferSize() const override { return sizeof(bufferData); }
+        const u32 GetBufferSize() const override 
+        { 
+            return bufferData.size() * sizeof(f32); 
+        }
 
         void Init();
 
@@ -129,6 +132,6 @@ namespace Graphics
         }
 
         // only if also a vertex buffer
-        void DrawBuffer(RenderContext& context);
+        void DrawBuffer(RenderContext& context, u32 numVertex);
     };
 }

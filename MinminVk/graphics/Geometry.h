@@ -92,6 +92,7 @@ namespace Graphics
 		struct Particle
 		{
 			vec2 position;
+			vec2 velocity;
 			vec4 color;
 		};
 		Vector<Particle> particles;
