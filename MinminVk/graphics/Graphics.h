@@ -120,6 +120,8 @@ namespace Graphics
 			Vector<f32> particles{ 
 				0.5f, 0.5f , 0.3f, 0.3f, 1.f, 0.f, 0.f, 1.f, 
 				0.5f, 0.5f , -0.3f, -0.3f, 0.f, 1.f, 0.f, 1.f,	
+				-0.5f, -0.5f , -0.3f, 0.3f, 1.f, 0.f, 0.f, 1.f, 
+				-0.5f, -0.5f , 0.3f, -0.3f, 0.f, 1.f, 0.f, 1.f,	
 			};
 			ResourceBinding particleBufferBinding;
 			particleBufferBinding.binding = 1;
@@ -149,7 +151,7 @@ namespace Graphics
 			particleRenderPipeline = MakeShared<GraphicsPipeline>(vertShader, fragShader, MakeShared<ParticleVertex>(), MakeShared<BasicUniformBuffer>(), Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{});
 
-			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_POINT_LIST;
+			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_LINE_LIST;
 			
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 			
