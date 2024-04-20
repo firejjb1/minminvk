@@ -1631,11 +1631,15 @@ namespace VulkanImpl
 		vkCmdEndRenderPass(commandBuffer);
 	}
 
-	void DrawBuffer(Graphics::CommandList commandList, Graphics::Buffer& buffer, u32 bufferSize, u32 swapID)
+	void DrawBuffer(Graphics::CommandList commandList, Graphics::Buffer& buffer, u32 bufferSize, u32 swapID, Graphics::DescriptorPoolID &descriptorPoolID, SharedPtr<Graphics::BasicUniformBuffer> basicUniform)
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &shaderStorageBuffers[buffer.extendedBufferIDs[swapID]], offsets);
+		UpdateUniformBuffer(basicUniform->GetData(), basicUniform->GetBufferSize(), *basicUniform, swapID);
+
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[basicUniform->layoutID], 0, 1, &(descriptorSetsPerPool[descriptorPoolID.id][swapID]), 0, nullptr);
+
 		vkCmdDraw(commandBuffer, bufferSize, 1, 0, 0);
 	}
 
@@ -1833,7 +1837,7 @@ namespace VulkanImpl
 					const auto& buffer = buffers[bufferIndex];
 					bufferInfo.buffer = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? uniformBuffers[buffer->extendedBufferIDs[i]] : shaderStorageBuffers[buffer->extendedBufferIDs[i]];
 					bufferInfo.offset = 0;
-					bufferInfo.range = buffer->GetBufferSize();
+					bufferInfo.range = VK_WHOLE_SIZE/* buffer->GetBufferSize()*/;
 				}
 				u32 bufferIndex = 0;
 				for (auto& bufferInfo : bufferInfos)
@@ -1905,8 +1909,6 @@ namespace VulkanImpl
 			allTexturesIDs.push_back(texture.textureID);
 
 		UpdateDescriptorSets(descriptorPoolID, allBuffers, allTexturesIDs);
-
-
 	}
 
 	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
@@ -2476,7 +2478,7 @@ namespace Graphics
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);
-		VulkanImpl::DrawBuffer(commandList, *this, numVertex, swapID);
+		VulkanImpl::DrawBuffer(commandList, *this, numVertex, swapID, context.renderPass->pso->descriptorPoolID, context.renderPass->pso->uniformDesc);
 	}
 
 }

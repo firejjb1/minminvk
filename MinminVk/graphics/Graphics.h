@@ -52,13 +52,6 @@ namespace Graphics
 
 	};
 
-	struct Particle {
-		vec2 position;
-		vec2 velocity;
-		vec4 color;
-	};
-
-
 	SharedPtr<Device> device;
 	RenderContext context;
 	SharedPtr<Presentation> presentation;
@@ -116,12 +109,18 @@ namespace Graphics
 		{
 
 
-			// 2f position, 2f velocity, 4f color
+			//  4f position 4f color 
+			// careful about alignment
 			Vector<f32> particles{ 
-				0.5f, 0.5f , 0.3f, 0.3f, 1.f, 0.f, 0.f, 1.f, 
-				0.3f, 0.3f , -0.3f, -0.3f, 0.f, 1.f, 0.f, 1.f,	
-				-0.3f, -0.3f , -0.3f, 0.3f, 1.f, 0.f, 0.f, 1.f, 
-				-0.5f, -0.5f , 0.3f, -0.3f, 0.f, 1.f, 0.f, 1.f,	
+				0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+				0.3f, 0.3f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
+				0.3f, 0.3f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
+				0.5f, 0.2f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+				0.5f, 0.2f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+				0.4f, 0.1f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f,
+
+				-0.3f, -0.3f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+				-0.5f, -0.5f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
 			};
 			ResourceBinding particleBufferBinding;
 			particleBufferBinding.binding = 1;
@@ -135,16 +134,16 @@ namespace Graphics
 			particleWriteBinding.binding = 2;
 			particleWriteBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
 
-			particleBuffer = MakeShared<StructuredBuffer>(particles, particleWriteBinding, Buffer::AccessType::READONLY, particleBufferUsage);
+			particleBuffer = MakeShared<StructuredBuffer>(particles, particleWriteBinding, particleBufferUsage);
 			Vector<u32> extendedBufferIDs;
 			auto numParticleBuffers = particleBuffer->extendedBufferIDs.size();
 			for (int i = 0; i < numParticleBuffers; i++)
 				extendedBufferIDs.push_back(particleBuffer->extendedBufferIDs[(i - 1) % numParticleBuffers]);
-			particleBufferPrev = MakeShared<StructuredBuffer>(particles, extendedBufferIDs, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
+			particleBufferPrev = MakeShared<StructuredBuffer>(particles, extendedBufferIDs, particleBufferBinding, particleBufferUsage);
 			particleUniformBuffer = MakeShared<ParticlesUniformBuffer>();
 			computeBuffers.insert(computeBuffers.end(), { particleUniformBuffer, particleBufferPrev, particleBuffer });
 			particleComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
-				 vec3{particles.size() / sizeof(Particle) / 8,1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
+				 vec3{particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle),1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
 
 			auto vertShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_VERT_SHADER), Shader::ShaderType::SHADER_VERTEX, "main");
 			auto fragShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main");
@@ -192,8 +191,13 @@ namespace Graphics
 					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(2.0f, 2.0f, 2.f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f));
 					i32 width = presentation->swapChainDetails.width;
 					i32 height = presentation->swapChainDetails.height;
-					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.1f, 10.0f);
+					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 10.0f);
 					forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
+
+					//particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
+					//particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
+					particleRenderPipeline->uniformDesc->transformUniform.proj = mat4(1);
+					particleRenderPipeline->uniformDesc->transformUniform.view = mat4(1);
 				}
 
 				vikingRoom->Update(deltaTime);
@@ -205,7 +209,7 @@ namespace Graphics
 			context.renderPass = forwardParticlePass;
 			device->BeginRenderPass(context);
 
-			particleBuffer->DrawBuffer(context, particleBuffer->GetBufferSize() / sizeof(Particle));
+			particleBuffer->DrawBuffer(context, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
 			device->EndRenderPass(context);
 

@@ -91,8 +91,8 @@ namespace Graphics
 	{
 		struct Particle
 		{
-			vec2 position;
-			vec2 velocity;
+			vec4 position;
+			//vec2 velocity;
 			vec4 color;
 		};
 		Vector<Particle> particles;
@@ -115,7 +115,7 @@ namespace Graphics
 			posAttribute.binding = 0;
 			posAttribute.location = 0;
 			posAttribute.offset = offsetof(Particle, position);
-			posAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC2;
+			posAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC4;
 
 			VertexAttribute colorAttribute;
 			colorAttribute.binding = 0;

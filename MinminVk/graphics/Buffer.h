@@ -86,19 +86,17 @@ namespace Graphics
 
         Vector<f32> bufferData;
 
-        AccessType accessType;
-
         Vector<BufferUsageType> usageTypes;
 
-        StructuredBuffer(Vector<f32> &data, ResourceBinding &binding, AccessType accessType, Vector<BufferUsageType> usageTypes)
-            : bufferData{ data }, binding{ binding }, accessType{ accessType }, usageTypes{ usageTypes } 
+        StructuredBuffer(Vector<f32> &data, ResourceBinding &binding, Vector<BufferUsageType> usageTypes)
+            : bufferData{ data }, binding{ binding }, usageTypes{ usageTypes } 
         {
             Init();
         }
 
         // initialize using existing buffers. from extendedBufferIDS
-        StructuredBuffer(Vector<f32>& data, Vector<u32>& extendedBufferIDs, ResourceBinding& binding, AccessType accessType, Vector<BufferUsageType> usageTypes)
-            : bufferData{ data }, binding { binding }, accessType{ accessType }, usageTypes{ usageTypes }
+        StructuredBuffer(Vector<f32>& data, Vector<u32>& extendedBufferIDs, ResourceBinding& binding, Vector<BufferUsageType> usageTypes)
+            : bufferData{ data }, binding { binding }, usageTypes{ usageTypes }
         {
             this->extendedBufferIDs = extendedBufferIDs;
         }
@@ -109,7 +107,7 @@ namespace Graphics
         }
         const BufferType GetBufferType() const override { return Buffer::BufferType::STRUCTURED; }
 
-        const AccessType GetAccessType() const override { return accessType; }
+        const AccessType GetAccessType() const override { return AccessType::WRITE; }
 
         const u32 GetBufferSize() const override 
         { 

@@ -6,15 +6,18 @@
 // position vec2 -> vec3, update graphics shaders
 
 
-struct Particle {
-	vec2 position;
-	vec2 velocity;
+struct Particle { 
+	vec4 position;
     vec4 color;
 };
 
 layout (binding = 0) uniform ParameterUBO {
     float deltaTime;
 } ubo;
+
+// at beginning of frame: ParticlesIn holds current particle info, ParticlesOut holds previous particle info
+// at end of frame: ParticlesIn holds same (becomes the previous info next frame), ParticlesOut holds new particle info
+// each dispatch exchanges ParticlesIn and ParticlesOut
 
 layout(std140, binding = 1) readonly buffer ParticleSSBOIn {
    Particle particlesIn[ ];
@@ -34,13 +37,18 @@ void main()
 
     Particle particleIn = particlesIn[index];
 
-    vec2 force = gravityMag * vec2(0.f, 1.f);
-    vec2 curPos = particleIn.position;
-    vec2 oldPos = particlesOut[index].position;
+    vec3 force = gravityMag * vec3(0.f, 1.f, 0.f);
+    vec3 curPos = particleIn.position.xyz;
+    bool isMovable = particleIn.position.w == 0;
+    if (!isMovable)
+    {
+        return;
+    }
+    vec3 oldPos = particlesOut[index].position.xyz;
     float decay = exp(-1.f * ubo.deltaTime * 60.f);
-    vec2 newPos = particleIn.position + (curPos - oldPos) * decay + force * ubo.deltaTime * ubo.deltaTime;
+    vec3 newPos = curPos + (curPos - oldPos) * decay + force * ubo.deltaTime * ubo.deltaTime;
 
-    particlesOut[index].position = newPos;
+    particlesOut[index].position = vec4(newPos, particleIn.position.w);
 
     /**
     particlesOut[index].position = particleIn.position + particleIn.velocity.xy * ubo.deltaTime;
