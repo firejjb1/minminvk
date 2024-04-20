@@ -119,8 +119,8 @@ namespace Graphics
 			// 2f position, 2f velocity, 4f color
 			Vector<f32> particles{ 
 				0.5f, 0.5f , 0.3f, 0.3f, 1.f, 0.f, 0.f, 1.f, 
-				0.5f, 0.5f , -0.3f, -0.3f, 0.f, 1.f, 0.f, 1.f,	
-				-0.5f, -0.5f , -0.3f, 0.3f, 1.f, 0.f, 0.f, 1.f, 
+				0.3f, 0.3f , -0.3f, -0.3f, 0.f, 1.f, 0.f, 1.f,	
+				-0.3f, -0.3f , -0.3f, 0.3f, 1.f, 0.f, 0.f, 1.f, 
 				-0.5f, -0.5f , 0.3f, -0.3f, 0.f, 1.f, 0.f, 1.f,	
 			};
 			ResourceBinding particleBufferBinding;
