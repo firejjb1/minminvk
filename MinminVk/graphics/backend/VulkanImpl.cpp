@@ -1837,7 +1837,7 @@ namespace VulkanImpl
 					const auto& buffer = buffers[bufferIndex];
 					bufferInfo.buffer = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? uniformBuffers[buffer->extendedBufferIDs[i]] : shaderStorageBuffers[buffer->extendedBufferIDs[i]];
 					bufferInfo.offset = 0;
-					bufferInfo.range = VK_WHOLE_SIZE/* buffer->GetBufferSize()*/;
+					bufferInfo.range = buffer->GetBufferSize();
 				}
 				u32 bufferIndex = 0;
 				for (auto& bufferInfo : bufferInfos)
@@ -1887,20 +1887,20 @@ namespace VulkanImpl
 
 	}
 
-	void CreateDescriptorSets(int layoutID, int descriptorCount, int descriptorPoolID, Vector<SharedPtr<Graphics::Buffer>> allBuffers = {}, Vector<Graphics::Texture> allTextures = {})
+	void CreateDescriptorSets(int layoutID, int descriptorsetCount, int descriptorPoolID, Vector<SharedPtr<Graphics::Buffer>> allBuffers = {}, Vector<Graphics::Texture> allTextures = {})
 	{
-		Vector<VkDescriptorSetLayout> layouts(descriptorCount, descriptorSetLayouts[layoutID]);
+		Vector<VkDescriptorSetLayout> layouts(descriptorsetCount, descriptorSetLayouts[layoutID]);
 
 		VkDescriptorSetAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 
 		allocInfo.descriptorPool = descriptorPools[descriptorPoolID];
-		allocInfo.descriptorSetCount = descriptorCount;
+		allocInfo.descriptorSetCount = descriptorsetCount;
 		allocInfo.pSetLayouts = layouts.data();
 
 		auto &descriptorSets = descriptorSetsPerPool.emplace_back();
 		assert(descriptorSetsPerPool.size() == descriptorPools.size());
-		descriptorSets.resize(descriptorCount);
+		descriptorSets.resize(descriptorsetCount);
 		if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
 			throw std::runtime_error("failed to allocate descriptor sets!");
 		}
@@ -2363,8 +2363,20 @@ namespace Graphics
 		this->layoutID = layoutID;
 		pipelineID = VulkanImpl::CreateComputePipeline(computeShader, this, layoutID);
 
+		u32 numUniform = 0;
+		u32 numSSBO = 0;
+		u32 numTex = 0;
+		for (auto& buffer : buffers)
+		{
+			if (buffer->GetBufferType() == Buffer::BufferType::UNIFORM)
+				numUniform += buffer->extendedBufferIDs.size();
+			if (buffer->GetBufferType() == Buffer::BufferType::STRUCTURED)
+				numSSBO += buffer->extendedBufferIDs.size();
+		}
+		for (auto& tex : this->textures)
+			numTex++;
 		// create descriptor pool
-		int poolID = VulkanImpl::CreateDescriptorPool(VulkanImpl::MAX_FRAMES_IN_FLIGHT, 0, VulkanImpl::MAX_FRAMES_IN_FLIGHT * 2);
+		int poolID = VulkanImpl::CreateDescriptorPool(VulkanImpl::MAX_FRAMES_IN_FLIGHT * numUniform, numTex, VulkanImpl::MAX_FRAMES_IN_FLIGHT * numSSBO);
 		this->descriptorPoolID.id = poolID;
 		// create descriptor sets
 		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, this->buffers, this->textures);

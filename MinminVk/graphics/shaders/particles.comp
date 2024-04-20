@@ -1,9 +1,8 @@
 #version 450
 
 // TODO for hair
-// prev position buffer
+// prev prev position buffer
 // initial position buffer
-// position vec2 -> vec3, update graphics shaders
 
 
 struct Particle { 
@@ -13,6 +12,7 @@ struct Particle {
 
 layout (binding = 0) uniform ParameterUBO {
     float deltaTime;
+    uint numVertexPerThread;
 } ubo;
 
 // at beginning of frame: ParticlesIn holds current particle info, ParticlesOut holds previous particle info
@@ -25,6 +25,11 @@ layout(std140, binding = 1) readonly buffer ParticleSSBOIn {
 
 layout(std140, binding = 2) buffer ParticleSSBOOut {
    Particle particlesOut[ ];
+};
+
+layout(std140, binding = 3) buffer ParticleSSBOInitial
+{
+    Particle particlesInitial[];
 };
 
 layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -40,17 +45,37 @@ void main()
     vec3 force = gravityMag * vec3(0.f, 1.f, 0.f);
     vec3 curPos = particleIn.position.xyz;
     bool isMovable = particleIn.position.w == 0;
+    vec3 initialPos = particlesInitial[index].position.xyz;
     if (!isMovable)
     {
+        particlesOut[index].position = vec4(initialPos, 1);
         return;
     }
     vec3 oldPos = particlesOut[index].position.xyz;
     float decay = exp(-1.f * ubo.deltaTime * 60.f);
     vec3 newPos = curPos + (curPos - oldPos) * decay + force * ubo.deltaTime * ubo.deltaTime;
 
+    // Global Shape Constraints
+    float stiffnessForGlobalShapeMatching =  0.1f;//GetGlobalStiffness(strandType);
+    float globalShapeMatchingEffectiveRange = 1.f;//GetGlobalRange(strandType);
+    uint localVertexIndex = index % ubo.numVertexPerThread;
+    if ( stiffnessForGlobalShapeMatching > 0 && globalShapeMatchingEffectiveRange > 0 )
+    {
+        if ( isMovable ) 
+        {
+            if ( float(localVertexIndex) < globalShapeMatchingEffectiveRange * float( ubo.numVertexPerThread) )
+            {
+                float factor = stiffnessForGlobalShapeMatching;
+                vec3 del = factor * (initialPos - newPos).xyz;
+                newPos += del;
+            }
+        }
+    }
+
     particlesOut[index].position = vec4(newPos, particleIn.position.w);
 
     /**
+    // test
     particlesOut[index].position = particleIn.position + particleIn.velocity.xy * ubo.deltaTime;
     particlesOut[index].velocity = particleIn.velocity;
 
@@ -62,5 +87,4 @@ void main()
         particlesOut[index].velocity.y = -particlesOut[index].velocity.y;
     }
     */
-
 }

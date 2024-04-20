@@ -20,7 +20,8 @@ namespace Graphics
 	{
 		struct Uniform
 		{
-			float deltaTime;;
+			float deltaTime;
+			u32 numVertexPerStrand;
 		};
 
 		Uniform uniform;
@@ -68,6 +69,24 @@ namespace Graphics
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
 	
+
+
+	//  4f position 4f color 
+	// careful about alignment
+	Vector<f32> particles{
+		0.4f, 0.1f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f,
+		0.5f, 0.2f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+		//0.5f, 0.2f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+		0.3f, 0.3f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
+		//0.3f, 0.3f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
+		0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+
+
+
+		//-0.3f, -0.3f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+		//-0.5f, -0.5f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
+	};
+
 	void InitGraphics(void * window)
 	{
 		presentation = MakeShared<Presentation>();
@@ -107,21 +126,6 @@ namespace Graphics
 
 		// Compute Pass
 		{
-
-
-			//  4f position 4f color 
-			// careful about alignment
-			Vector<f32> particles{ 
-				0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
-				0.3f, 0.3f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
-				0.3f, 0.3f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
-				0.5f, 0.2f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
-				0.5f, 0.2f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
-				0.4f, 0.1f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f,
-
-				-0.3f, -0.3f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
-				-0.5f, -0.5f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
-			};
 			ResourceBinding particleBufferBinding;
 			particleBufferBinding.binding = 1;
 			particleBufferBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
@@ -134,14 +138,19 @@ namespace Graphics
 			particleWriteBinding.binding = 2;
 			particleWriteBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
 
+			ResourceBinding particleInitialBinding;
+			particleInitialBinding.binding = 3;
+			particleInitialBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+
 			particleBuffer = MakeShared<StructuredBuffer>(particles, particleWriteBinding, particleBufferUsage);
+			auto particleInitialBuffer = MakeShared<StructuredBuffer>(particles, particleInitialBinding, particleBufferUsage);
 			Vector<u32> extendedBufferIDs;
 			auto numParticleBuffers = particleBuffer->extendedBufferIDs.size();
 			for (int i = 0; i < numParticleBuffers; i++)
 				extendedBufferIDs.push_back(particleBuffer->extendedBufferIDs[(i - 1) % numParticleBuffers]);
 			particleBufferPrev = MakeShared<StructuredBuffer>(particles, extendedBufferIDs, particleBufferBinding, particleBufferUsage);
 			particleUniformBuffer = MakeShared<ParticlesUniformBuffer>();
-			computeBuffers.insert(computeBuffers.end(), { particleUniformBuffer, particleBufferPrev, particleBuffer });
+			computeBuffers.insert(computeBuffers.end(), { particleUniformBuffer, particleBufferPrev, particleBuffer, particleInitialBuffer });
 			particleComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
 				 vec3{particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle),1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
 
@@ -150,7 +159,7 @@ namespace Graphics
 			particleRenderPipeline = MakeShared<GraphicsPipeline>(vertShader, fragShader, MakeShared<ParticleVertex>(), MakeShared<BasicUniformBuffer>(), Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{});
 
-			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_LINE_LIST;
+			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_LINE_STRIP;
 			
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 			
@@ -170,6 +179,7 @@ namespace Graphics
 		// particle compute pass
 		{
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
+			particleUniformBuffer->uniform.numVertexPerStrand = particles.size();
 			particleUniformBuffer->UpdateUniformBuffer(frameID);
 			particleComputePipeline->Dispatch(context);
 
