@@ -27,7 +27,7 @@ layout(std140, binding = 2) buffer ParticleSSBOOut {
    Particle particlesOut[ ];
 };
 
-layout(std140, binding = 3) buffer ParticleSSBOInitial
+layout(std140, binding = 3) readonly buffer ParticleSSBOInitial
 {
     Particle particlesInitial[];
 };

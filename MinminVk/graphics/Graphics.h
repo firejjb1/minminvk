@@ -2,6 +2,7 @@
 
 #include <util/Type.h>
 #include <graphics/Device.h>
+#include <graphics/Import.h>
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
@@ -13,6 +14,7 @@
 #define BLUE_IMAGE "blue.jpeg"
 #define VIKING_IMAGE "viking_room.png"
 #define VIKING_MODEL "viking_room.obj"
+#define HAIR_DATA_FILE "hairdata.txt"
 
 namespace Graphics
 {
@@ -74,18 +76,14 @@ namespace Graphics
 	//  4f position 4f color 
 	// careful about alignment
 	Vector<f32> particles{
-		0.4f, 0.1f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f,
-		0.5f, 0.2f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+		//-0.4f, -0.1f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f,
 		//0.5f, 0.2f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
-		0.3f, 0.3f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
 		//0.3f, 0.3f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
-		0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+		//0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
 
 
-
-		//-0.3f, -0.3f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
-		//-0.5f, -0.5f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
 	};
+
 
 	void InitGraphics(void * window)
 	{
@@ -126,6 +124,9 @@ namespace Graphics
 
 		// Compute Pass
 		{
+
+			Import::LoadHairStrands(particles, concat_str(ASSET_DIR, HAIR_DATA_FILE));
+
 			ResourceBinding particleBufferBinding;
 			particleBufferBinding.binding = 1;
 			particleBufferBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;

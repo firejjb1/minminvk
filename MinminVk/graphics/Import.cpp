@@ -1,5 +1,6 @@
 #include <graphics/Import.h>
 #include <graphics/Geometry.h>
+#include <util/IO.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
@@ -47,4 +48,11 @@ namespace Graphics
 			}
 		}
 	}
+
+	 
+	void Import::LoadHairStrands(Vector<f32>& vertices, const String& filename)
+	{
+		Util::IO::ReadFloats(vertices, filename);
+	}
+
 }
