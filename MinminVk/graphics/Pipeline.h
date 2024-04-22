@@ -113,6 +113,7 @@ namespace Graphics
 		BlendFactorType blendSrcFactorType;
 		BlendFactorType blendDestFactorType;
 		BlendOpType blendOpType;
+		bool blendEnabled = false;
 
 		bool depthTestEnable = true;
 		bool depthWriteEnable = true;

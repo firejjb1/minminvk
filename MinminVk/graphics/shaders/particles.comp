@@ -13,6 +13,7 @@ struct Particle {
 layout (binding = 0) uniform ParameterUBO {
     float deltaTime;
     uint numVertexPerThread;
+    uint frame;
 } ubo;
 
 // at beginning of frame: ParticlesIn holds current particle info, ParticlesOut holds previous particle info
@@ -41,10 +42,11 @@ void main()
     uint index = gl_GlobalInvocationID.x;  
 
     Particle particleIn = particlesIn[index];
+    uint localVertexIndex = uint(particleIn.position.w);
 
     vec3 force = gravityMag * vec3(0.f, 1.f, 0.f);
     vec3 curPos = particleIn.position.xyz;
-    bool isMovable = particleIn.position.w == 0;
+    bool isMovable = particleIn.position.w > 40;
     vec3 initialPos = particlesInitial[index].position.xyz;
     if (!isMovable)
     {
@@ -57,34 +59,51 @@ void main()
 
     // Global Shape Constraints
     float stiffnessForGlobalShapeMatching =  0.1f;//GetGlobalStiffness(strandType);
-    float globalShapeMatchingEffectiveRange = 1.f;//GetGlobalRange(strandType);
-    uint localVertexIndex = index % ubo.numVertexPerThread;
+    float globalShapeMatchingEffectiveRange = 1.0f;//GetGlobalRange(strandType);
     if ( stiffnessForGlobalShapeMatching > 0 && globalShapeMatchingEffectiveRange > 0 )
     {
-        if ( isMovable ) 
+        if ( float(localVertexIndex) < globalShapeMatchingEffectiveRange * float( ubo.numVertexPerThread) )
         {
-            if ( float(localVertexIndex) < globalShapeMatchingEffectiveRange * float( ubo.numVertexPerThread) )
-            {
-                float factor = stiffnessForGlobalShapeMatching;
-                vec3 del = factor * (initialPos - newPos).xyz;
-                newPos += del;
-            }
+            float factor = stiffnessForGlobalShapeMatching;
+            vec3 del = factor * (initialPos - newPos).xyz;
+            newPos += del;
         }
     }
-
     particlesOut[index].position = vec4(newPos, particleIn.position.w);
 
-    /**
-    // test
-    particlesOut[index].position = particleIn.position + particleIn.velocity.xy * ubo.deltaTime;
-    particlesOut[index].velocity = particleIn.velocity;
+    groupMemoryBarrier();
 
-    // Flip movement at window border
-    if ((particlesOut[index].position.x <= -1.0) || (particlesOut[index].position.x >= 1.0)) {
-        particlesOut[index].velocity.x = -particlesOut[index].velocity.x;
-    }
-    if ((particlesOut[index].position.y <= -1.0) || (particlesOut[index].position.y >= 1.0)) {
-        particlesOut[index].velocity.y = -particlesOut[index].velocity.y;
-    }
+    // local constraint tmp 
+    // TODO Need to be strand level (sequential vertex order)
+    /**
+    float localConstraintFactor = 0.3f;
+    vec3 D = initialPos - newPos;
+    particlesOut[index-1].position -= vec4(localConstraintFactor * 0.5f * D, 0); 
+    particlesOut[index].position += vec4(localConstraintFactor * 0.5f * D, 0); 
     */
+
+    groupMemoryBarrier();
+
+    // wind force tmp
+    if (index % ubo.numVertexPerThread > 0)
+    {
+        float magnitudeWind = sin(sin(float(ubo.frame) * 0.05f)) + 0.5f;
+        magnitudeWind *= (float(localVertexIndex) / float(ubo.numVertexPerThread) * 30.f);
+        vec3 V = (particlesOut[index-1].position - particlesOut[index].position).xyz;
+        vec3 W = magnitudeWind * vec3(-1.f, -0.f, 0.f);
+        /**
+        vec3 W1 = W;
+        vec3 W2 = W;
+        vec3 W3 = W;
+        vec3 W4 = W;
+        W1.x -= 0.1f;
+        W2.x += -.1f;
+        W3.y -= 0.1f;
+        W4.y += 0.1f;
+        */
+        
+        vec3 F = W; // W1 + W2 + W3 + W4; //-cross(cross(V, W), V);
+        particlesOut[index].position += vec4(F * ubo.deltaTime * ubo.deltaTime, 0);
+    }
+    
 }

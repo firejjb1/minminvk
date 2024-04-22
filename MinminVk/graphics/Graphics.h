@@ -24,6 +24,7 @@ namespace Graphics
 		{
 			float deltaTime;
 			u32 numVertexPerStrand;
+			u32 frame;
 		};
 
 		Uniform uniform;
@@ -161,7 +162,9 @@ namespace Graphics
 				Vector<SharedPtr<Buffer>>{});
 
 			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_LINE_STRIP;
-			
+			particleRenderPipeline->blendEnabled = true;
+			particleRenderPipeline->depthTestEnable = false;
+			particleRenderPipeline->depthWriteEnable = false;
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 			
 			// sync
@@ -180,7 +183,8 @@ namespace Graphics
 		// particle compute pass
 		{
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
-			particleUniformBuffer->uniform.numVertexPerStrand = particles.size();
+			particleUniformBuffer->uniform.numVertexPerStrand = 100;
+			particleUniformBuffer->uniform.frame = frameID;
 			particleUniformBuffer->UpdateUniformBuffer(frameID);
 			particleComputePipeline->Dispatch(context);
 
