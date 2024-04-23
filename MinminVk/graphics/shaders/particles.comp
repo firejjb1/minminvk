@@ -40,7 +40,7 @@ void main()
 
     vec3 force = gravityMag * vec3(0.f, 1.f, 0.f);
     vec3 curPos = particleIn.position.xyz;
-    bool isMovable = particleIn.position.w > 40;
+    bool isMovable = particleIn.position.w > 0;
     vec4 initialPos = particlesInitial[index].position;
     if (!isMovable)
     {
