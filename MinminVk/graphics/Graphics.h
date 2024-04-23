@@ -129,7 +129,7 @@ namespace Graphics
 		// Compute Pass
 		{
 
-			Import::LoadHairStrands(particles, concat_str(ASSET_DIR, HAIR_DATA_FILE));
+			Import::LoadHairStrands(particles, concat_str(HAIR_DIR, HAIR_DATA_FILE));
 
 			ResourceBinding particleBufferBinding;
 			particleBufferBinding.binding = 1;
