@@ -8,6 +8,7 @@
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
 #define PARTICLE_COMP_LSC_SHADER "particlelsc.spv"
+#define PARTICLE_COMP_ELC_WIND_SHADER "particleelcwind.spv"
 #define PARTICLE_VERT_SHADER "particlesvert.spv"
 #define PARTICLE_FRAG_SHADER "particlesfrag.spv"
 #define STATUE_IMAGE "statue.jpg"
@@ -71,6 +72,7 @@ namespace Graphics
 	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
 	SharedPtr<ComputePipeline> particleComputePipeline;
 	SharedPtr<ComputePipeline> particleLSCComputePipeline;
+	SharedPtr<ComputePipeline> particleELCWindComputePipeline;
 	SharedPtr<GraphicsPipeline> particleRenderPipeline;
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
@@ -161,6 +163,9 @@ namespace Graphics
 			particleLSCComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_LSC_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
 				vec3{ particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle) / numVertexPerStrand,1,1 }, vec3{ 256,1,1 }, computeBuffers, computeTextures);
 
+			particleELCWindComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_ELC_WIND_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
+				vec3{ particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle),1,1 }, vec3{ 256,1,1 }, computeBuffers, computeTextures);
+
 			auto vertShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_VERT_SHADER), Shader::ShaderType::SHADER_VERTEX, "main");
 			auto fragShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main");
 			particleRenderPipeline = MakeShared<GraphicsPipeline>(vertShader, fragShader, MakeShared<ParticleVertex>(), MakeShared<BasicUniformBuffer>(), Vector<Texture>{},
@@ -173,8 +178,7 @@ namespace Graphics
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 			
 			// sync
-
-			forwardPipeline->Wait(particleComputePipeline->pipelineID);
+			particleRenderPipeline->Wait(particleELCWindComputePipeline->pipelineID);
 
 			// TODO need to implement inter graphics sync
 			//particleRenderPipeline->Wait(forwardPipeline->pipelineID);
@@ -186,7 +190,7 @@ namespace Graphics
 		renderContext.frameID = frameID;
 		computeContext.frameID = frameID;
 
-		// particle compute pass
+		// particle compute passes
 		{
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
 			particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
@@ -198,6 +202,8 @@ namespace Graphics
 			particleComputePipeline->Dispatch(computeContext);
 			computeContext.computePipeline = particleLSCComputePipeline;
 			particleLSCComputePipeline->Dispatch(computeContext);
+			computeContext.computePipeline = particleELCWindComputePipeline;
+			particleELCWindComputePipeline->Dispatch(computeContext);
 
 			device->EndRecording(computeContext);
 		}

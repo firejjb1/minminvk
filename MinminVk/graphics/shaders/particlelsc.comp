@@ -1,6 +1,5 @@
 #version 450
 
-
 struct Particle { 
 	vec4 position;
     vec4 color;

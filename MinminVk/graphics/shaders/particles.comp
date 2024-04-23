@@ -64,40 +64,5 @@ void main()
         }
     }
     particlesOut[index].position = vec4(newPos, particleIn.position.w);
-
-    groupMemoryBarrier();
-
-    // local constraint tmp 
-    // TODO Need to be strand level (sequential vertex order)
-    /**
-    float localConstraintFactor = 0.3f;
-    vec3 D = initialPos - newPos;
-    particlesOut[index-1].position -= vec4(localConstraintFactor * 0.5f * D, 0); 
-    particlesOut[index].position += vec4(localConstraintFactor * 0.5f * D, 0); 
-    */
-
-    groupMemoryBarrier();
-
-    // wind force tmp
-    if (index % ubo.numVertexPerThread > 0)
-    {
-        float magnitudeWind = sin(sin(float(ubo.frame) * 0.05f)) + 0.5f;
-        magnitudeWind *= (float(localVertexIndex) / float(ubo.numVertexPerThread) * 30.f);
-        vec3 V = (particlesOut[index-1].position - particlesOut[index].position).xyz;
-        vec3 W = magnitudeWind * vec3(-1.f, -0.f, 0.f);
-        /**
-        vec3 W1 = W;
-        vec3 W2 = W;
-        vec3 W3 = W;
-        vec3 W4 = W;
-        W1.x -= 0.1f;
-        W2.x += -.1f;
-        W3.y -= 0.1f;
-        W4.y += 0.1f;
-        */
-        
-        vec3 F = W; // W1 + W2 + W3 + W4; //-cross(cross(V, W), V);
-        particlesOut[index].position += vec4(F * ubo.deltaTime * ubo.deltaTime, 0);
-    }
     
 }

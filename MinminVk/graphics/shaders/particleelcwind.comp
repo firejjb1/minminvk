@@ -1,0 +1,68 @@
+#version 450
+
+struct Particle { 
+	vec4 position;
+    vec4 color;
+};
+
+layout (binding = 0) uniform ParameterUBO {
+    float deltaTime;
+    uint numVertexPerThread;
+    uint frame;
+} ubo;
+
+
+layout(std140, binding = 1) readonly buffer ParticleSSBOIn {
+   Particle particlesIn[ ];
+};
+
+layout(std140, binding = 2) buffer ParticleSSBOOut {
+   Particle particlesOut[ ];
+};
+
+layout(std140, binding = 3) readonly buffer ParticleSSBOInitial
+{
+    Particle particlesInitial[];
+};
+
+
+layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+void main() 
+{
+    uint index = gl_GlobalInvocationID.x;  
+
+    Particle particleIn = particlesIn[index];
+    uint localVertexIndex = uint(particleIn.position.w);
+
+    // wind force tmp
+    if (index % ubo.numVertexPerThread > 0)
+    {
+        float magnitudeWind = sin(sin(float(ubo.frame) * 0.05f)) + 0.5f;
+        magnitudeWind *= (float(localVertexIndex) / float(ubo.numVertexPerThread) * 30.f);
+        vec3 V = (particlesOut[index-1].position - particlesOut[index].position).xyz;
+        vec3 W = magnitudeWind * vec3(-1.f, -0.f, 0.f);
+        /**
+        vec3 W1 = W;
+        vec3 W2 = W;
+        vec3 W3 = W;
+        vec3 W4 = W;
+        W1.x -= 0.1f;
+        W2.x += -.1f;
+        W3.y -= 0.1f;
+        W4.y += 0.1f;
+        */
+        
+        vec3 F = W; // W1 + W2 + W3 + W4; //-cross(cross(V, W), V);
+        particlesOut[index].position += vec4(F * ubo.deltaTime * ubo.deltaTime, 0);
+
+        // TODO save to shared memory and sync group memory
+        //groupMemoryBarrier();
+
+        // TODO edge length constraint
+        // need initial vertex lengths - deduce from initial vertex pos?
+        
+
+
+    }
+    
+}
