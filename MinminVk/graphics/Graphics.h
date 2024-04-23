@@ -199,8 +199,6 @@ namespace Graphics
 			computeContext.computePipeline = particleLSCComputePipeline;
 			particleLSCComputePipeline->Dispatch(computeContext);
 
-			// TODO remove hack, fix fence logic
-			computeContext.computePipeline = particleComputePipeline;
 			device->EndRecording(computeContext);
 		}
 
@@ -240,9 +238,6 @@ namespace Graphics
 			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
 			device->EndRenderPass(renderContext);
-
-			// TODO hack, fence and semaphores are per pipeline but should be per command buffer
-			renderContext.renderPass = forwardPass;
 
 			device->EndRecording(renderContext);
 

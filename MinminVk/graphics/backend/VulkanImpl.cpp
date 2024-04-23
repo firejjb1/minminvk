@@ -80,7 +80,8 @@ namespace VulkanImpl
 	Vector<VkSemaphore> imageFinishedSemaphores;
 	Map<int, Vector<VkSemaphore>> pipelineWaitSemaphore;
 	Vector<Vector<VkFence>> pipelineInFlightFences;
-
+	u32 fenceIndexGraphics = 0;
+	u32 fenceIndexCompute = 1;
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -598,6 +599,26 @@ namespace VulkanImpl
 		}
 	}
 
+	void CreateFenceObjects(int pipelineID, int numFences)
+	{
+		assert(pipelineInFlightFences.size() == pipelineID);
+
+		Vector<VkFence> newFences;
+		VkFenceCreateInfo fenceInfo{};
+		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+		for (size_t i = 0; i < numFences; ++i)
+		{
+			auto& newFence = newFences.emplace_back();
+			if (vkCreateFence(device, &fenceInfo, nullptr, &newFence) != VK_SUCCESS)
+			{
+				throw std::runtime_error("failed to create fence objects for a pipeline!");
+			}
+		}
+		pipelineInFlightFences.push_back(newFences);
+
+	}
+
 	void CreateLogicalDevice()
 	{
 		QueueFamilyIndices indices = FindQueueFamilies(physicalDevice);
@@ -639,6 +660,11 @@ namespace VulkanImpl
 		vkGetDeviceQueue(device, indices.graphicsAndComputeFamily.value(), 0, &graphicsQueue);
 		vkGetDeviceQueue(device, indices.graphicsAndComputeFamily.value(), 0, &computeQueue);
 		vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+
+		// graphics fences
+		CreateFenceObjects(fenceIndexGraphics, MAX_FRAMES_IN_FLIGHT);
+		// compute fences
+		CreateFenceObjects(fenceIndexCompute, MAX_FRAMES_IN_FLIGHT);
 
 	}
 
@@ -1661,26 +1687,6 @@ namespace VulkanImpl
 		pipelineWaitSemaphore[pipelineID] = semaphores;
 	}
 
-	void CreateFenceObjects(int pipelineID, int numFences)
-	{
-		assert(pipelineInFlightFences.size() == pipelineID);
-
-		Vector<VkFence> newFences;
-		VkFenceCreateInfo fenceInfo{};
-		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-		for (size_t i = 0; i < numFences; ++i)
-		{
-			auto& newFence = newFences.emplace_back();
-			if (vkCreateFence(device, &fenceInfo, nullptr, &newFence) != VK_SUCCESS)
-			{
-				throw std::runtime_error("failed to create fence objects for a pipeline!");
-			}
-		}
-		pipelineInFlightFences.push_back(newFences);
-
-	}
-
 	void CleanupSwapChain() 
 	{
 		for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
@@ -2111,7 +2117,7 @@ namespace Graphics
 		// wait for previous frame to finish
 		auto pipelineID = context.renderPass->pso->pipelineID.id;
 
-		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[pipelineID][swapID], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[VulkanImpl::fenceIndexGraphics][swapID], VK_TRUE, UINT64_MAX);
 		// acquire an image from the swap chain
 		u32 imageIndex;
 		VkResult result = vkAcquireNextImageKHR(VulkanImpl::device, VulkanImpl::swapChain, UINT64_MAX, VulkanImpl::imageAvailableSemaphores[swapID], VK_NULL_HANDLE, &imageIndex);
@@ -2123,7 +2129,7 @@ namespace Graphics
 			throw std::runtime_error("failed to acquire swap chain image!");
 		}
 		// Only reset the fence if we are submitting work
-		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[pipelineID][swapID]);
+		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[VulkanImpl::fenceIndexGraphics][swapID]);
 		// record a command buffer which draws the scene onto the image
 		auto &commandList = GetCommandList(swapID);
 		commandList.imageIndex = imageIndex;
@@ -2164,7 +2170,7 @@ namespace Graphics
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
-		if (vkQueueSubmit(VulkanImpl::graphicsQueue, 1, &submitInfo, VulkanImpl::pipelineInFlightFences[context.renderPass->pso->pipelineID.id][swapID]) != VK_SUCCESS) {
+		if (vkQueueSubmit(VulkanImpl::graphicsQueue, 1, &submitInfo, VulkanImpl::pipelineInFlightFences[VulkanImpl::fenceIndexGraphics][swapID]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to submit draw command buffer!");
 		}
 
@@ -2193,9 +2199,9 @@ namespace Graphics
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto pipelineID = context.computePipeline->pipelineID.id;
 
-		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[pipelineID][swapID], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[VulkanImpl::fenceIndexCompute][swapID], VK_TRUE, UINT64_MAX);
 
-		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[pipelineID][swapID]);
+		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[VulkanImpl::fenceIndexCompute][swapID]);
 		auto& commandList = context.device->GetComputeCommandList(swapID);
 		VkCommandBuffer commandBuffer = VulkanImpl::computeCommandBuffers[commandList.commandListID];
 
@@ -2230,7 +2236,7 @@ namespace Graphics
 		VkSemaphore toSignal{ VulkanImpl::pipelineWaitSemaphore[pipelineID].empty() ? nullptr : VulkanImpl::pipelineWaitSemaphore[pipelineID][swapID] };
 		submitInfo.signalSemaphoreCount = VulkanImpl::pipelineWaitSemaphore[pipelineID].empty() ? 0 : 1;
 		submitInfo.pSignalSemaphores = &toSignal;
-		if (vkQueueSubmit(VulkanImpl::computeQueue, 1, &submitInfo, VulkanImpl::pipelineInFlightFences[pipelineID][swapID]) != VK_SUCCESS) {
+		if (vkQueueSubmit(VulkanImpl::computeQueue, 1, &submitInfo, VulkanImpl::pipelineInFlightFences[VulkanImpl::fenceIndexCompute][swapID]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to submit compute command buffer!");
 		};
 
@@ -2379,8 +2385,6 @@ namespace Graphics
 		this->descriptorPoolID.id = poolID;
 		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, allBuffers);
 
-		VulkanImpl::CreateFenceObjects(pipelineID.id, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
-
 	}
 
 	void ComputePipeline::Init()
@@ -2406,8 +2410,6 @@ namespace Graphics
 		this->descriptorPoolID.id = poolID;
 		// create descriptor sets
 		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, this->buffers, this->textures);
-
-		VulkanImpl::CreateFenceObjects(pipelineID.id, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
 	}
 
 	void ComputePipeline::UpdateResources(Vector<SharedPtr<Buffer>>& buffers, Vector<Texture>& textures)
