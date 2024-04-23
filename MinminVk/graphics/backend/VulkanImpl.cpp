@@ -973,7 +973,7 @@ namespace VulkanImpl
         computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
         computeShaderStageInfo.module = computeShaderModule;
-        computeShaderStageInfo.pName = "main";
+        computeShaderStageInfo.pName = computeShader->entryPoint.c_str();
 
 		auto& computePipelineLayout = pipelineLayouts.emplace_back();
 
@@ -1535,42 +1535,20 @@ namespace VulkanImpl
 	{
 		auto& computePipeline = VulkanImpl::pipelines[pipelineID];
 		VkCommandBuffer commandBuffer = VulkanImpl::computeCommandBuffers[commandList.commandListID];
+
 		VkCommandBufferBeginInfo beginInfo{};
-
-		vkWaitForFences(device, 1, &pipelineInFlightFences[pipelineID][swapID], VK_TRUE, UINT64_MAX);
-
-		vkResetFences(device, 1, &pipelineInFlightFences[pipelineID][swapID]);
 
 		auto& computePipelineLayout = pipelineLayouts[pipelineLayoudID];
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-            throw std::runtime_error("failed to begin recording compute command buffer!");
-        }
-
+		vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSetsPerPool[descriptorPoolID][swapID], 0, nullptr);
 
         vkCmdDispatch(commandBuffer, Max(threadSz[0] / invocationSz[0], 1.f), Max(threadSz[1] / invocationSz[1], 1.f), Max(threadSz[2] / invocationSz[2], 1.f));
 
-        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-            throw std::runtime_error("failed to record compute command buffer!");
-        }
 		
-		VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-   		submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
-
-		VkSemaphore toSignal{ VulkanImpl::pipelineWaitSemaphore[pipelineID][swapID] };
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = &toSignal;
-
-		if (vkQueueSubmit(computeQueue, 1, &submitInfo, pipelineInFlightFences[pipelineID][swapID]) != VK_SUCCESS) {
-			throw std::runtime_error("failed to submit compute command buffer!");
-		};
 	}
 
 	void RecordCommandBuffer(Graphics::CommandList commandList) 
@@ -2153,25 +2131,6 @@ namespace Graphics
 		return true;
 	}
 
-	void Device::BeginRenderPass(Graphics::RenderContext& context)
-	{
-		SharedPtr<Graphics::RenderPass> renderPass = context.renderPass;
-		const u32 frameID = context.frameID;
-		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
-		auto pipelineID = context.renderPass->pso->pipelineID.id;
-		auto& commandList = GetCommandList(swapID);
-
-		VulkanImpl::BeginRenderPass(commandList, renderPass->renderPassID, renderPass->pso->pipelineID);
-	}
-
-	void Device::EndRenderPass(Graphics::RenderContext& context)
-	{
-		const u32 frameID = context.frameID;
-		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
-		auto& commandList = GetCommandList(swapID);
-		VulkanImpl::EndRenderPass(commandList);
-	}
-
 	void Graphics::Device::EndRecording(RenderContext& context)
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
@@ -2198,11 +2157,10 @@ namespace Graphics
 		submitInfo.pWaitDstStageMask = waitStages.data();
 
 		submitInfo.commandBufferCount = 1;
-
 		submitInfo.pCommandBuffers = &commandBuffer;
 
-		VkSemaphore signalSemaphores[] = { VulkanImpl::imageFinishedSemaphores[swapID]};
-	
+		VkSemaphore signalSemaphores[] = { VulkanImpl::imageFinishedSemaphores[swapID] };
+
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -2228,6 +2186,74 @@ namespace Graphics
 		else if (result != VK_SUCCESS) {
 			throw std::runtime_error("failed to present swap chain image!");
 		}
+	}
+
+	bool Graphics::Device::BeginRecording(Graphics::ComputeContext& context)
+	{
+		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto pipelineID = context.computePipeline->pipelineID.id;
+
+		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[pipelineID][swapID], VK_TRUE, UINT64_MAX);
+
+		vkResetFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[pipelineID][swapID]);
+		auto& commandList = context.device->GetComputeCommandList(swapID);
+		VkCommandBuffer commandBuffer = VulkanImpl::computeCommandBuffers[commandList.commandListID];
+
+		VkCommandBufferBeginInfo beginInfo{};
+
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+			throw std::runtime_error("failed to begin recording compute command buffer!");
+		}
+		return true;
+	}
+
+	void Graphics::Device::EndRecording(Graphics::ComputeContext& context)
+	{
+		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto& commandList = context.device->GetComputeCommandList(swapID);
+
+		VkCommandBuffer commandBuffer = VulkanImpl::computeCommandBuffers[commandList.commandListID];
+
+		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+			throw std::runtime_error("failed to record compute command buffer!");
+		}
+
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		auto pipelineID = context.computePipeline->pipelineID.id;
+
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+
+		VkSemaphore toSignal{ VulkanImpl::pipelineWaitSemaphore[pipelineID].empty() ? nullptr : VulkanImpl::pipelineWaitSemaphore[pipelineID][swapID] };
+		submitInfo.signalSemaphoreCount = VulkanImpl::pipelineWaitSemaphore[pipelineID].empty() ? 0 : 1;
+		submitInfo.pSignalSemaphores = &toSignal;
+		if (vkQueueSubmit(VulkanImpl::computeQueue, 1, &submitInfo, VulkanImpl::pipelineInFlightFences[pipelineID][swapID]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to submit compute command buffer!");
+		};
+
+
+	}
+
+	void Device::BeginRenderPass(Graphics::RenderContext& context)
+	{
+		SharedPtr<Graphics::RenderPass> renderPass = context.renderPass;
+		const u32 frameID = context.frameID;
+		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto pipelineID = context.renderPass->pso->pipelineID.id;
+		auto& commandList = GetCommandList(swapID);
+
+		VulkanImpl::BeginRenderPass(commandList, renderPass->renderPassID, renderPass->pso->pipelineID);
+	}
+
+	void Device::EndRenderPass(Graphics::RenderContext& context)
+	{
+		const u32 frameID = context.frameID;
+		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto& commandList = GetCommandList(swapID);
+		VulkanImpl::EndRenderPass(commandList);
 	}
 
 	void Device::CleanUp()
@@ -2394,7 +2420,7 @@ namespace Graphics
 		VulkanImpl::UpdateDescriptorSets(this->descriptorPoolID.id, buffers, textureIDs);
 	}
 
-	void ComputePipeline::Dispatch(RenderContext & context)
+	void ComputePipeline::Dispatch(ComputeContext& context)
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetComputeCommandList(swapID);

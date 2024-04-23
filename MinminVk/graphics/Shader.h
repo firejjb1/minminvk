@@ -28,6 +28,11 @@ namespace Graphics
 		Shader(String shaderPath, ShaderType shaderType, String entryPoint) 
 			: shaderPath {shaderPath}, shaderType{shaderType}, entryPoint{entryPoint}
 		{
+			if (entryPoint != "main")
+			{
+				DebugPrint("ERROR: glsl only supports entry point called main for now.\n");
+				assert(false);
+			}
 			shaderCode = Util::IO::ReadFile(shaderPath);
 		}
 

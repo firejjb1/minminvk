@@ -7,6 +7,7 @@
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
+#define PARTICLE_COMP_LSC_SHADER "particlelsc.spv"
 #define PARTICLE_VERT_SHADER "particlesvert.spv"
 #define PARTICLE_FRAG_SHADER "particlesfrag.spv"
 #define STATUE_IMAGE "statue.jpg"
@@ -57,7 +58,8 @@ namespace Graphics
 	};
 
 	SharedPtr<Device> device;
-	RenderContext context;
+	RenderContext renderContext;
+	ComputeContext computeContext;
 	SharedPtr<Presentation> presentation;
 	SharedPtr<GraphicsPipeline> forwardPipeline;
 	SharedPtr<RenderPass> forwardPass;
@@ -68,23 +70,20 @@ namespace Graphics
 	SharedPtr<StructuredBuffer> particleBufferPrev;
 	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
 	SharedPtr<ComputePipeline> particleComputePipeline;
+	SharedPtr<ComputePipeline> particleLSCComputePipeline;
 	SharedPtr<GraphicsPipeline> particleRenderPipeline;
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
-	
+	u32 numVertexPerStrand = 100;
 
-
-	//  4f position 4f color 
+	//  4f position 4f color. can optimize later
 	// careful about alignment
 	Vector<f32> particles{
 		//-0.4f, -0.1f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f,
 		//0.5f, 0.2f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
 		//0.3f, 0.3f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
 		//0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
-
-
 	};
-
 
 	void InitGraphics(void * window)
 	{
@@ -95,9 +94,11 @@ namespace Graphics
 		device->Init();
 		presentation->InitSwapChain();
 
-		context.device = device;
-		context.presentation = presentation;
+		renderContext.device = device;
+		renderContext.presentation = presentation;
 
+		computeContext.device = device;
+		
 		Sampler linearClampSampler;
 		Texture texture(concat_str(IMAGES_DIR, VIKING_IMAGE));
 		texture.binding.binding = 1;
@@ -153,8 +154,12 @@ namespace Graphics
 			particleBufferPrev = MakeShared<StructuredBuffer>(particles, extendedBufferIDs, particleBufferBinding, particleBufferUsage);
 			particleUniformBuffer = MakeShared<ParticlesUniformBuffer>();
 			computeBuffers.insert(computeBuffers.end(), { particleUniformBuffer, particleBufferPrev, particleBuffer, particleInitialBuffer });
+			// Integrate and Global Shape
 			particleComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
-				 vec3{particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle),1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
+				vec3{particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle),1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
+
+			particleLSCComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_LSC_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
+				vec3{ particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle) / numVertexPerStrand,1,1 }, vec3{ 256,1,1 }, computeBuffers, computeTextures);
 
 			auto vertShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_VERT_SHADER), Shader::ShaderType::SHADER_VERTEX, "main");
 			auto fragShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main");
@@ -168,38 +173,46 @@ namespace Graphics
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 			
 			// sync
+
 			forwardPipeline->Wait(particleComputePipeline->pipelineID);
+
 			// TODO need to implement inter graphics sync
 			//particleRenderPipeline->Wait(forwardPipeline->pipelineID);
-
-			
 		}
 	}
 
 	void MainRender(const u32 frameID, const f32 deltaTime)
 	{
-		context.frameID = frameID;
+		renderContext.frameID = frameID;
+		computeContext.frameID = frameID;
 
 		// particle compute pass
 		{
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
-			particleUniformBuffer->uniform.numVertexPerStrand = 100;
+			particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
 			particleUniformBuffer->uniform.frame = frameID;
 			particleUniformBuffer->UpdateUniformBuffer(frameID);
-			particleComputePipeline->Dispatch(context);
+			
+			computeContext.computePipeline = particleComputePipeline;
+			device->BeginRecording(computeContext);
+			particleComputePipeline->Dispatch(computeContext);
+			computeContext.computePipeline = particleLSCComputePipeline;
+			particleLSCComputePipeline->Dispatch(computeContext);
 
-		
+			// TODO remove hack, fix fence logic
+			computeContext.computePipeline = particleComputePipeline;
+			device->EndRecording(computeContext);
 		}
 
 		// forward passes
 		{
 			// pass 1
-			context.renderPass = forwardPass;
-			bool success = device->BeginRecording(context);
+			renderContext.renderPass = forwardPass;
+			bool success = device->BeginRecording(renderContext);
 			if (!success)
 				return;
 			
-			device->BeginRenderPass(context);
+			device->BeginRenderPass(renderContext);
 			{
 				// view projection
 				{
@@ -216,25 +229,24 @@ namespace Graphics
 				}
 
 				vikingRoom->Update(deltaTime);
-				vikingRoom->Draw(context);
+				vikingRoom->Draw(renderContext);
 			}
-			device->EndRenderPass(context);
+			device->EndRenderPass(renderContext);
 
 			// pass 2
-			context.renderPass = forwardParticlePass;
-			device->BeginRenderPass(context);
+			renderContext.renderPass = forwardParticlePass;
+			device->BeginRenderPass(renderContext);
 
-			particleBuffer->DrawBuffer(context, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
+			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
-			device->EndRenderPass(context);
+			device->EndRenderPass(renderContext);
 
 			// TODO hack, fence and semaphores are per pipeline but should be per command buffer
-			context.renderPass = forwardPass;
+			renderContext.renderPass = forwardPass;
 
-			device->EndRecording(context);
+			device->EndRecording(renderContext);
 
 		}
-
 	}
 
 	void CleanUp()

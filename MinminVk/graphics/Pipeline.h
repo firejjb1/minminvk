@@ -14,6 +14,7 @@ namespace Graphics
 	struct BasicUniformBuffer;
 	struct Presentation;
 	struct RenderContext;
+	struct ComputeContext;
 
 	struct RenderPassID { u32 id = 0; RenderPass* pointer; };
 	struct ComputePassID { u32 id = 0; ComputePass* pointer; };
@@ -216,7 +217,7 @@ namespace Graphics
 
 		void Init();
 
-		void Dispatch(RenderContext & context);
+		void Dispatch(ComputeContext & context);
 
 		void UpdateResources(Vector<SharedPtr<Buffer>> &buffers, Vector<Texture> &textures);
 	};
