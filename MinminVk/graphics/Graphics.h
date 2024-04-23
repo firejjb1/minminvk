@@ -76,7 +76,7 @@ namespace Graphics
 	SharedPtr<GraphicsPipeline> particleRenderPipeline;
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
-	u32 numVertexPerStrand = 100;
+	u32 numVertexPerStrand = 128;
 
 	//  4f position 4f color. can optimize later
 	// careful about alignment
@@ -226,10 +226,8 @@ namespace Graphics
 					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 10.0f);
 					forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
 
-					//particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
-					//particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
-					particleRenderPipeline->uniformDesc->transformUniform.proj = mat4(1);
-					particleRenderPipeline->uniformDesc->transformUniform.view = mat4(1);
+					particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
+					particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
 				}
 
 				vikingRoom->Update(deltaTime);

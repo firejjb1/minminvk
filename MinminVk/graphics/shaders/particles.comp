@@ -41,10 +41,10 @@ void main()
     vec3 force = gravityMag * vec3(0.f, 1.f, 0.f);
     vec3 curPos = particleIn.position.xyz;
     bool isMovable = particleIn.position.w > 40;
-    vec3 initialPos = particlesInitial[index].position.xyz;
+    vec4 initialPos = particlesInitial[index].position;
     if (!isMovable)
     {
-        particlesOut[index].position = vec4(initialPos, 1);
+        particlesOut[index].position = initialPos;
         return;
     }
     vec3 oldPos = particlesOut[index].position.xyz;
@@ -59,7 +59,7 @@ void main()
         if ( float(localVertexIndex) < globalShapeMatchingEffectiveRange * float( ubo.numVertexPerThread) )
         {
             float factor = stiffnessForGlobalShapeMatching;
-            vec3 del = factor * (initialPos - newPos).xyz;
+            vec3 del = factor * (initialPos.xyz - newPos).xyz;
             newPos += del;
         }
     }
