@@ -7,7 +7,7 @@ struct Particle {
 
 layout (binding = 0) uniform ParameterUBO {
     float deltaTime;
-    uint numVertexPerThread;
+    uint numVertexPerStrand;
     uint frame;
 } ubo;
 
@@ -24,6 +24,33 @@ layout(std140, binding = 3) readonly buffer ParticleSSBOInitial
 {
     Particle particlesInitial[];
 };
+vec2 ConstraintMultiplier(vec4 pos0, vec4 pos1)
+{
+    vec2 mult;
+    if (pos0.w == 0)
+        mult.x = 0;
+    else
+        mult.x = 1;
+    if (pos1.w == 0)
+        mult.y = 0;
+    else 
+        mult.y = 1;
+    if (mult == vec2(1,1))
+        return vec2(0.5f, 0.5f);
+    return mult;
+}
+
+void ApplyDistanceConstraint(inout vec4 pos0, inout vec4 pos1, float targetDistance, float stiffness)
+{
+    vec3 delta = pos1.xyz - pos0.xyz;
+    float distance = max(length(delta), 1e-7);
+    float stretching = 1 - targetDistance / distance;
+    delta = stretching * delta;
+    vec2 multiplier = ConstraintMultiplier(pos0, pos1);
+
+    pos0.xyz += multiplier[0] * delta * stiffness;
+    pos1.xyz -= multiplier[1] * delta * stiffness;
+}
 
 
 layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -34,35 +61,57 @@ void main()
     Particle particleIn = particlesIn[index];
     uint localVertexIndex = uint(particleIn.position.w);
 
+    bool isMovable = particleIn.position.w > 0;
     // wind force tmp
-    if (index % ubo.numVertexPerThread > 0)
+    if (isMovable)
     {
         float magnitudeWind = sin(sin(float(ubo.frame) * 0.05f)) + 0.5f;
-        magnitudeWind *= (float(localVertexIndex) / float(ubo.numVertexPerThread) * 30.f);
+        magnitudeWind *= (float(localVertexIndex) / float(ubo.numVertexPerStrand) * 30.f);
         vec3 V = (particlesOut[index-1].position - particlesOut[index].position).xyz;
         vec3 W = magnitudeWind * vec3(-1.f, -0.f, 0.f);
-        /**
-        vec3 W1 = W;
-        vec3 W2 = W;
-        vec3 W3 = W;
-        vec3 W4 = W;
-        W1.x -= 0.1f;
-        W2.x += -.1f;
-        W3.y -= 0.1f;
-        W4.y += 0.1f;
-        */
+        // TODO more wind directions
         
         vec3 F = W; // W1 + W2 + W3 + W4; //-cross(cross(V, W), V);
         particlesOut[index].position += vec4(F * ubo.deltaTime * ubo.deltaTime, 0);
 
-        // TODO save to shared memory and sync group memory
-        //groupMemoryBarrier();
-
-        // TODO edge length constraint
-        // need initial vertex lengths - deduce from initial vertex pos?
-        
-
-
     }
+    
+    groupMemoryBarrier();
+
+    
+    // TODO save to shared memory and sync group memory
+    //----------------------------
+    // Enforce length constraints
+    //----------------------------
+    uint a = uint(floor(float(ubo.numVertexPerStrand)/2.0f));
+    uint b = uint(floor((float(ubo.numVertexPerStrand-1))/2.0f));
+
+    // TODO un-hardcode
+    uint numOfStrandsPerThreadGroup = 1;
+    int nLengthContraintIterations = 20;
+    uint localStrandIndex = 0;
+    float stiffness = 1.f;
+
+    for ( int iterationE=0; iterationE < nLengthContraintIterations; iterationE++ )
+    {
+        uint sharedIndex = 2*localVertexIndex * numOfStrandsPerThreadGroup + localStrandIndex;
+
+        if( localVertexIndex < a )
+        {
+            float initialLength = distance(particlesInitial[index + sharedIndex].position.xyz, particlesInitial[index + sharedIndex + 1].position.xyz);
+            ApplyDistanceConstraint(particlesOut[index + sharedIndex].position, particlesOut[index + sharedIndex + 1].position, initialLength, stiffness);
+        }
+
+        groupMemoryBarrier();
+
+        if( localVertexIndex < b )
+        {
+            float initialLength = distance(particlesInitial[index + sharedIndex + 1].position.xyz, particlesInitial[index + sharedIndex + 2].position.xyz);
+            ApplyDistanceConstraint(particlesOut[index + sharedIndex + 1].position, particlesOut[index + sharedIndex + 2].position, initialLength, stiffness);
+        }
+
+        groupMemoryBarrier();
+    }
+
     
 }
