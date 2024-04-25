@@ -78,7 +78,7 @@ namespace Graphics
 	SharedPtr<GraphicsPipeline> particleRenderPipeline;
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
-	u32 numVertexPerStrand = 128;
+	u32 numVertexPerStrand = 16;
 
 	//  4f position 4f color. can optimize later
 	// careful about alignment

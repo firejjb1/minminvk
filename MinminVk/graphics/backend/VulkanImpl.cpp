@@ -1572,7 +1572,7 @@ namespace VulkanImpl
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSetsPerPool[descriptorPoolID][swapID], 0, nullptr);
 
-        vkCmdDispatch(commandBuffer, Max(threadSz[0] / invocationSz[0], 1.f), Max(threadSz[1] / invocationSz[1], 1.f), Max(threadSz[2] / invocationSz[2], 1.f));
+        vkCmdDispatch(commandBuffer, ceilf(threadSz[0] / invocationSz[0]), ceilf(threadSz[1] / invocationSz[1]), ceilf(threadSz[2] / invocationSz[2]));
 
 		
 	}

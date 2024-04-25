@@ -40,29 +40,32 @@ void main()
 
     vec3 force = gravityMag * vec3(0.f, 1.f, 0.f);
     vec3 curPos = particleIn.position.xyz;
-    bool isMovable = particleIn.position.w > 0;
+    bool isMovable = particleIn.position.w > 1.0f;
     vec4 initialPos = particlesInitial[index].position;
     if (!isMovable)
     {
-        particlesOut[index].position = initialPos;
-        return;
+        particlesOut[index].position = vec4(initialPos.xyz, 0);
     }
-    vec3 oldPos = particlesOut[index].position.xyz;
-    float decay = exp(-1.f * ubo.deltaTime * 60.f);
-    vec3 newPos = curPos + (curPos - oldPos) * decay + force * ubo.deltaTime * ubo.deltaTime;
-
-    // Global Shape Constraints
-    float stiffnessForGlobalShapeMatching =  0.1f;//GetGlobalStiffness(strandType);
-    float globalShapeMatchingEffectiveRange = 1.0f;//GetGlobalRange(strandType);
-    if ( stiffnessForGlobalShapeMatching > 0 && globalShapeMatchingEffectiveRange > 0 )
+    else 
     {
-        if ( float(localVertexIndex) < globalShapeMatchingEffectiveRange * float( ubo.numVertexPerThread) )
+        vec3 oldPos = particlesOut[index].position.xyz;
+        float decay = exp(-1.f * ubo.deltaTime * 60.f);
+        vec3 newPos = curPos + (curPos - oldPos) * decay + force * ubo.deltaTime * ubo.deltaTime;
+
+        // Global Shape Constraints
+        float stiffnessForGlobalShapeMatching =  0.1f;//GetGlobalStiffness(strandType);
+        float globalShapeMatchingEffectiveRange = 1.0f;//GetGlobalRange(strandType);
+        if ( stiffnessForGlobalShapeMatching > 0 && globalShapeMatchingEffectiveRange > 0 )
         {
-            float factor = stiffnessForGlobalShapeMatching;
-            vec3 del = factor * (initialPos.xyz - newPos).xyz;
-            newPos += del;
+            if ( float(localVertexIndex) < globalShapeMatchingEffectiveRange * float( ubo.numVertexPerThread) )
+            {
+                float factor = stiffnessForGlobalShapeMatching;
+                vec3 del = factor * (initialPos.xyz - newPos).xyz;
+                newPos += del;
+            }
         }
+        particlesOut[index].position = vec4(newPos, particleIn.position.w);
     }
-    particlesOut[index].position = vec4(newPos, particleIn.position.w);
+   
     
 }

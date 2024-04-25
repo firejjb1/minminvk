@@ -61,7 +61,7 @@ void main()
     Particle particleIn = particlesIn[index];
     uint localVertexIndex = uint(particleIn.position.w);
 
-    bool isMovable = particleIn.position.w > 0;
+    bool isMovable = particleIn.position.w > 1.f;
     // wind force tmp
     if (isMovable)
     {
@@ -77,7 +77,6 @@ void main()
     }
     
     groupMemoryBarrier();
-
     
     // TODO save to shared memory and sync group memory
     //----------------------------
