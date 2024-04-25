@@ -224,7 +224,7 @@ namespace Graphics
 			{
 				// view projection
 				{
-					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(0.0f, 2.0f, 0.f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f));
+					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(0.01f, -1.5f, -1.0f), vec3(0.0f, -1.5f, 0.0f), vec3(0.0f, -1.0f, 0.0f));
 					i32 width = presentation->swapChainDetails.width;
 					i32 height = presentation->swapChainDetails.height;
 					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 10.0f);
@@ -234,8 +234,8 @@ namespace Graphics
 					particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
 				}
 
-				vikingRoom->Update(deltaTime);
-				vikingRoom->Draw(renderContext);
+				//vikingRoom->Update(deltaTime);
+				//vikingRoom->Draw(renderContext);
 
 				headMesh->Update(deltaTime);
 				headMesh->Draw(renderContext);

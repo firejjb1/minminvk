@@ -185,6 +185,7 @@ namespace Graphics
 		void Update(f32 deltaTime) override
 		{
 			//modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, 0, 1));
+			//modelMatrix = Math::Translate(modelMatrix, vec3(0., 0.1, 0));
 		}
 	};
 
