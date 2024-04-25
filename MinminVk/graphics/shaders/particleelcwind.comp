@@ -43,8 +43,8 @@ vec2 ConstraintMultiplier(vec4 pos0, vec4 pos1)
 void ApplyDistanceConstraint(inout vec4 pos0, inout vec4 pos1, float targetDistance, float stiffness)
 {
     vec3 delta = pos1.xyz - pos0.xyz;
-    float distance = max(length(delta), 1e-7);
-    float stretching = 1 - targetDistance / distance;
+    float distanceNow = max(length(delta), 1e-7);
+    float stretching = 1 - targetDistance / distanceNow;
     delta = stretching * delta;
     vec2 multiplier = ConstraintMultiplier(pos0, pos1);
 
@@ -110,7 +110,7 @@ void main()
             ApplyDistanceConstraint(particlesOut[index + sharedIndex + 1].position, particlesOut[index + sharedIndex + 2].position, initialLength, stiffness);
         }
 
-        groupMemoryBarrier();
+       // groupMemoryBarrier();
     }
 
     
