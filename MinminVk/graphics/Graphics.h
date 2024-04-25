@@ -16,6 +16,7 @@
 #define BLUE_IMAGE "blue.jpeg"
 #define VIKING_IMAGE "viking_room.png"
 #define VIKING_MODEL "viking_room.obj"
+#define HEAD_MODEL "head.obj"
 #define HAIR_DATA_FILE "hairdata.txt"
 
 namespace Graphics
@@ -67,6 +68,7 @@ namespace Graphics
 	SharedPtr<RenderPass> forwardParticlePass;
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
+	SharedPtr<OBJMesh> headMesh;
 	SharedPtr<StructuredBuffer> particleBuffer;
 	SharedPtr<StructuredBuffer> particleBufferPrev;
 	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
@@ -123,6 +125,8 @@ namespace Graphics
 			quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
 
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
+
+			headMesh = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
 
 		}
 
@@ -220,7 +224,7 @@ namespace Graphics
 			{
 				// view projection
 				{
-					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(2.0f, 2.0f, 2.f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f));
+					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(0.0f, 2.0f, 0.f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f));
 					i32 width = presentation->swapChainDetails.width;
 					i32 height = presentation->swapChainDetails.height;
 					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 10.0f);
@@ -232,6 +236,9 @@ namespace Graphics
 
 				vikingRoom->Update(deltaTime);
 				vikingRoom->Draw(renderContext);
+
+				headMesh->Update(deltaTime);
+				headMesh->Draw(renderContext);
 			}
 			device->EndRenderPass(renderContext);
 

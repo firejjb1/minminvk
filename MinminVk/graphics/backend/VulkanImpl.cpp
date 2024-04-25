@@ -2481,6 +2481,20 @@ namespace Graphics
 		}
 		);
 	}
+	
+	OBJMesh::OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename)
+		: Geometry(basicUniform, mainTexture)
+	{
+		Import::LoadOBJ(vertexDesc, indices, filename);
+		VulkanImpl::CreateVertexBuffer(*this);
+		VulkanImpl::CreateIndexBuffer(*this);
+		// TODO replace with new function
+		VulkanImpl::UpdateDescriptorSets(
+			descriptorPoolID,
+			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
+			Vector<Graphics::TextureID>{}
+		);
+	}
 
 	void Geometry::Draw(RenderContext& context)
 	{
