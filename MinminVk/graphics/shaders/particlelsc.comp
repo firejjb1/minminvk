@@ -24,8 +24,6 @@ layout(std140, binding = 3) readonly buffer ParticleSSBOInitial
     Particle particlesInitial[];
 };
 
-float gravityMag = 9.8f;
-
 vec4 NormalizeQuaternion(vec4 q)
 {
     vec4 qq = q;
