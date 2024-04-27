@@ -53,7 +53,7 @@ namespace Graphics
 
 		BasicVertex() {};
 
-		BasicVertex(Vector<Vertex> &vertices) : vertices{ vertices } {}
+		BasicVertex(Vector<Vertex> &&vertices) : vertices{ vertices } {}
 
 		VertexBinding GetVertexBinding() override
 		{
@@ -151,12 +151,12 @@ namespace Graphics
 	struct Quad : public Geometry
 	{
 	private:
-		BasicVertex vertexDesc{ Vector<BasicVertex::Vertex>{
+		BasicVertex vertexDesc{ std::move(Vector<BasicVertex::Vertex>{
 				{ {-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
 				{{0.5f, -0.5f, 0.f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
 				{{0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
 				{{-0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-			}
+			})
 		};
 
 		Vector<u16> indices = {
