@@ -1207,7 +1207,7 @@ namespace VulkanImpl
 		colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 		colorBlendAttachment.blendEnable = pipeline->blendEnabled ? VK_TRUE : VK_FALSE;
 		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; // TODO
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA; // Optional
+		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; // Optional
 		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
 		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
 		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
@@ -1573,8 +1573,6 @@ namespace VulkanImpl
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSetsPerPool[descriptorPoolID][swapID], 0, nullptr);
 
         vkCmdDispatch(commandBuffer, ceilf(threadSz[0] / invocationSz[0]), ceilf(threadSz[1] / invocationSz[1]), ceilf(threadSz[2] / invocationSz[2]));
-
-		
 	}
 
 	void RecordCommandBuffer(Graphics::CommandList commandList) 
@@ -1632,7 +1630,11 @@ namespace VulkanImpl
 	void EndRenderPass(Graphics::CommandList commandList)
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
+
 		vkCmdEndRenderPass(commandBuffer);
+
+		vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+
 	}
 
 	void DrawBuffer(Graphics::CommandList commandList, Graphics::Buffer& buffer, u32 bufferSize, u32 swapID, Graphics::DescriptorPoolID &descriptorPoolID, SharedPtr<Graphics::BasicUniformBuffer> basicUniform)
@@ -2260,6 +2262,7 @@ namespace Graphics
 		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = GetCommandList(swapID);
 		VulkanImpl::EndRenderPass(commandList);
+
 	}
 
 	void Device::CleanUp()

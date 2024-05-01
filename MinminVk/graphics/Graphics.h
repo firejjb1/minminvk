@@ -177,7 +177,7 @@ namespace Graphics
 
 			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_LINE_STRIP;
 			particleRenderPipeline->blendEnabled = true;
-			particleRenderPipeline->depthTestEnable = false;
+			particleRenderPipeline->depthTestEnable = true;
 			particleRenderPipeline->depthWriteEnable = false;
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 			
