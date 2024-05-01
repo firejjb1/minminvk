@@ -6,7 +6,7 @@ struct Particle {
 };
 
 layout (binding = 0) uniform ParameterUBO {
-    mat4 headWorld;
+    vec4 translation;
     float deltaTime;
     uint numVertexPerThread;
     uint frame;
@@ -29,7 +29,7 @@ layout(std140, binding = 3) readonly buffer ParticleSSBOInitial
     Particle particlesInitial[];
 };
 
-float gravityMag = 9.8f;
+float gravityMag = 0.8f;
 
 layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() 

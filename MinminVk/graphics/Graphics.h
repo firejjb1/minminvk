@@ -26,7 +26,7 @@ namespace Graphics
 	{
 		struct Uniform
 		{
-			mat4 headWorld;
+			vec4 translation = vec4(0.f);
 			float deltaTime;
 			u32 numVertexPerStrand;
 			u32 frame;
@@ -200,11 +200,17 @@ namespace Graphics
 		vec3 keyboardMovement(0);
 		keyboardMovement.x += Input::A.pressed ? deltaTime : Input::D.pressed ? -deltaTime : 0;
 		keyboardMovement.y += Input::S.pressed ? deltaTime : Input::W.pressed ? -deltaTime : 0;
-		headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
 
 		// particle compute passes
 		{
-			particleUniformBuffer->uniform.headWorld = headMesh->modelMatrix;
+			auto tmpTranslation = headMesh->modelMatrix[3];
+			headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
+			auto headTr = headMesh->modelMatrix[3] - tmpTranslation;
+			//if (glm::dot(headTr, headTr) > 0.f)
+			//{
+				particleUniformBuffer->uniform.translation = headTr;
+			//}
+
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
 			particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
 			particleUniformBuffer->uniform.frame = frameID;
