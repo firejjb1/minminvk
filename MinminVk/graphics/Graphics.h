@@ -26,6 +26,7 @@ namespace Graphics
 	{
 		struct Uniform
 		{
+			mat4 headWorld;
 			float deltaTime;
 			u32 numVertexPerStrand;
 			u32 frame;
@@ -199,9 +200,11 @@ namespace Graphics
 		vec3 keyboardMovement(0);
 		keyboardMovement.x += Input::A.pressed ? deltaTime : Input::D.pressed ? -deltaTime : 0;
 		keyboardMovement.y += Input::S.pressed ? deltaTime : Input::W.pressed ? -deltaTime : 0;
+		headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
 
 		// particle compute passes
 		{
+			particleUniformBuffer->uniform.headWorld = headMesh->modelMatrix;
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
 			particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
 			particleUniformBuffer->uniform.frame = frameID;
@@ -243,7 +246,6 @@ namespace Graphics
 				//vikingRoom->Update(deltaTime);
 				//vikingRoom->Draw(renderContext);
 
-				headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
 				headMesh->Update(deltaTime);
 				headMesh->Draw(renderContext);
 			}
