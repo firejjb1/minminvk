@@ -1,4 +1,6 @@
 #include <graphics/Graphics.h>
+#include <Input.h>
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -19,6 +21,8 @@ namespace Application
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan window", nullptr, nullptr);
         
+        glfwSetKeyCallback(window, Input::keyCallback);
+
         Graphics::InitGraphics(window);
 
     }

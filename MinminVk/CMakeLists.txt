@@ -105,6 +105,7 @@ set(SOURCE_FILES
 )
 
 set(HEADER_FILES 
+	"Input.h"
 	"util/Type.h"
 	"util/IO.h"
 	"util/Math.h"

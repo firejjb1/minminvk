@@ -3,6 +3,7 @@
 #include <util/Type.h>
 #include <graphics/Device.h>
 #include <graphics/Import.h>
+#include <Input.h>
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
@@ -79,6 +80,7 @@ namespace Graphics
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
 	u32 numVertexPerStrand = 16;
+	vec3 eyePosition(0.01f, -1.5f, -1.0f);
 
 	//  4f position 4f color. can optimize later
 	// careful about alignment
@@ -119,7 +121,7 @@ namespace Graphics
 				Vector<Texture>{texture},
 				Vector<SharedPtr<Buffer>>{}
 			);
-
+	
 			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
 
 			quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
@@ -194,6 +196,10 @@ namespace Graphics
 		renderContext.frameID = frameID;
 		computeContext.frameID = frameID;
 
+		vec3 keyboardMovement(0);
+		keyboardMovement.x += Input::A.pressed ? deltaTime : Input::D.pressed ? -deltaTime : 0;
+		keyboardMovement.y += Input::S.pressed ? deltaTime : Input::W.pressed ? -deltaTime : 0;
+
 		// particle compute passes
 		{
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
@@ -224,7 +230,7 @@ namespace Graphics
 			{
 				// view projection
 				{
-					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(0.01f, -1.5f, -1.0f), vec3(0.0f, -1.5f, 0.0f), vec3(0.0f, -1.0f, 0.0f));
+					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(eyePosition, eyePosition + vec3(0.0f, 0.f, 1.0f), vec3(0.0f, -1.0f, 0.0f));
 					i32 width = presentation->swapChainDetails.width;
 					i32 height = presentation->swapChainDetails.height;
 					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 10.0f);
@@ -237,6 +243,7 @@ namespace Graphics
 				//vikingRoom->Update(deltaTime);
 				//vikingRoom->Draw(renderContext);
 
+				headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
 				headMesh->Update(deltaTime);
 				headMesh->Draw(renderContext);
 			}
@@ -246,6 +253,7 @@ namespace Graphics
 			renderContext.renderPass = forwardParticlePass;
 			device->BeginRenderPass(renderContext);
 
+			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->modelMatrix;
 			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
 			device->EndRenderPass(renderContext);
