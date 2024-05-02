@@ -81,7 +81,7 @@ namespace Graphics
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
 	u32 numVertexPerStrand = 16;
-	vec3 eyePosition(0.01f, -1.5f, -1.0f);
+	vec3 eyePosition(0.01f, -1.5f, 1.0f);
 
 	//  4f position 4f color. can optimize later
 	// careful about alignment
@@ -239,7 +239,7 @@ namespace Graphics
 			{
 				// view projection
 				{
-					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(eyePosition, eyePosition + vec3(0.0f, 0.f, 1.0f), vec3(0.0f, -1.0f, 0.0f));
+					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(eyePosition, eyePosition + vec3(0.0f, 0.f, -1.0f), vec3(0.0f, -1.0f, 0.0f));
 					i32 width = presentation->swapChainDetails.width;
 					i32 height = presentation->swapChainDetails.height;
 					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 10.0f);

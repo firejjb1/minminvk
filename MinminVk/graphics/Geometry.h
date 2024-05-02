@@ -184,7 +184,7 @@ namespace Graphics
 		OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> uboTransform, String filename);
 		void Update(f32 deltaTime) override
 		{
-			//modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, 0, 1));
+			modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
 			//modelMatrix = Math::Translate(modelMatrix, vec3(0., 0.1, 0));
 		}
 	};

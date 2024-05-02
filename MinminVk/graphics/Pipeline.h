@@ -155,6 +155,9 @@ namespace Graphics
 		AttachmentOpType stencilLoadOp = AttachmentOpType::DONTCARE;
 		AttachmentOpType stencilStoreOp = AttachmentOpType::DONTCARE;
 
+		AttachmentOpType depthLoadOp = AttachmentOpType::CLEAR;
+		AttachmentOpType depthStoreOp = AttachmentOpType::STORE;
+
 		Texture::LayoutType initialLayout = Texture::LayoutType::UNDEFINED;
 		Texture::LayoutType finalLayout = Texture::LayoutType::COLOR_ATTACHMENT;
 
@@ -191,6 +194,7 @@ namespace Graphics
 		Vector<FrameBuffer> frameBuffers;
 
 		RenderPass(SharedPtr<GraphicsPipeline> pso, SharedPtr<Presentation> presentation, AttachmentOpType loadOp = AttachmentOpType::CLEAR, AttachmentOpType storeOp = AttachmentOpType::STORE) : pso{pso}, loadOp{loadOp}, storeOp{storeOp}
+			,depthLoadOp{loadOp}, depthStoreOp{storeOp}
 		{
 			Init(presentation);
 			pso->Init(renderPassID);
