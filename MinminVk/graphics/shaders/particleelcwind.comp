@@ -6,7 +6,8 @@ struct Particle {
 };
 
 layout (binding = 0) uniform ParameterUBO {
-    vec4 translation;
+    mat4 prevHead;
+    mat4 curHead;
     float deltaTime;
     uint numVertexPerStrand;
     uint frame;
@@ -62,6 +63,12 @@ void main()
     Particle particleIn = particlesIn[index];
     uint localVertexIndex = uint(particleIn.position.w);
 
+    Particle particleRoot = particlesOut[index - localVertexIndex];
+    
+    vec4 prevRootPos = ubo.prevHead * vec4(particleRoot.position.xyz, 1);
+    vec4 curRootPos = ubo.curHead * vec4(particleRoot.position.xyz, 1);
+    vec3 shock = (prevRootPos - curRootPos).xyz;
+
     float vertexMultiplier = float(localVertexIndex) / float(ubo.numVertexPerStrand);
     bool isMovable = particleIn.position.w > 1.f;
     // wind force tmp
@@ -71,10 +78,9 @@ void main()
         vec3 V = (particlesOut[index-1].position - particlesOut[index].position).xyz;
         
         vec3 W = magnitudeWind * vec3(-1.f, -0.f, 0.f) * 3;
-        vec3 headTranslation = -normalize(ubo.translation.xyz);
-        
-        if (dot(ubo.translation.xyz, ubo.translation.xyz) > 0)
-            W += headTranslation * 20;
+         
+        //if (dot(shock, shock) > 0)
+            W += shock / ubo.deltaTime * 20;
 
         W *= vertexMultiplier;
         //W = normalize(W);

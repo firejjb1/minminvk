@@ -6,7 +6,8 @@ struct Particle {
 };
 
 layout (binding = 0) uniform ParameterUBO {
-    vec4 translation;
+    mat4 prevHead;
+    mat4 curHead;
     float deltaTime;
     uint numVertexPerThread;
     uint frame;
@@ -112,7 +113,10 @@ void main()
 
         bool isPosMovable = particlesOut[globalVertexIndex].position.w > 0;
         if (isPosMovable)
+        {
+
             vertexPos.xyz -= del.xyz;
+        }
 
         bool isPosPlusOneMovable = particlesOut[globalVertexIndex+1].position.w > 0;
         if (isPosPlusOneMovable)

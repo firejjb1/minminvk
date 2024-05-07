@@ -6,7 +6,8 @@ struct Particle {
 };
 
 layout (binding = 0) uniform ParameterUBO {
-    vec4 translation;
+    mat4 prevHead;
+    mat4 curHead;
     float deltaTime;
     uint numVertexPerThread;
     uint frame;

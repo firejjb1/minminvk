@@ -26,7 +26,8 @@ namespace Graphics
 	{
 		struct Uniform
 		{
-			vec4 translation = vec4(0.f);
+			mat4 prevHead = mat4(1);
+			mat4 curHead = mat4(1);
 			float deltaTime;
 			u32 numVertexPerStrand;
 			u32 frame;
@@ -203,13 +204,10 @@ namespace Graphics
 
 		// particle compute passes
 		{
-			auto tmpTranslation = headMesh->modelMatrix[3];
+			particleUniformBuffer->uniform.prevHead = headMesh->modelMatrix;
 			headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
-			auto headTr = headMesh->modelMatrix[3] - tmpTranslation;
-			//if (glm::dot(headTr, headTr) > 0.f)
-			//{
-				particleUniformBuffer->uniform.translation = headTr;
-			//}
+			headMesh->Update(deltaTime);
+			particleUniformBuffer->uniform.curHead = headMesh->modelMatrix;
 
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
 			particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
@@ -252,8 +250,8 @@ namespace Graphics
 				//vikingRoom->Update(deltaTime);
 				//vikingRoom->Draw(renderContext);
 
-				headMesh->Update(deltaTime);
 				headMesh->Draw(renderContext);
+
 			}
 			device->EndRenderPass(renderContext);
 
