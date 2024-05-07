@@ -53,6 +53,79 @@ void ApplyDistanceConstraint(inout vec4 pos0, inout vec4 pos1, float targetDista
     pos0.xyz += multiplier[0] * delta * stiffness;
     pos1.xyz -= multiplier[1] * delta * stiffness;
 }
+struct CollisionCapsule
+{
+    vec4 p0;
+    vec4 p1;
+};
+
+bool IsMovable(vec4 pos)
+{
+    return pos.w > 1.f;
+}
+
+bool CapsuleCollision(vec4 curPosition, vec4 oldPosition, inout vec3 newPosition, CollisionCapsule cc)
+{
+    float friction = 0.4f;
+    const float radius0 = cc.p0.w;
+    const float radius1 = cc.p1.w;
+    newPosition = curPosition.xyz;
+
+    if ( !IsMovable(curPosition) )
+        return false;
+
+    vec3 segment = cc.p1.xyz - cc.p0.xyz;
+    vec3 delta0 = curPosition.xyz - cc.p0.xyz;
+    vec3 delta1 = cc.p1.xyz - curPosition.xyz;
+
+    float dist0 = dot(delta0, segment);
+    float dist1 = dot(delta1, segment);
+
+    // colliding with sphere 1
+    if (dist0 < 0.f )
+    {
+        if ( dot(delta0, delta0) < radius0 * radius0)
+        {
+            vec3 n = normalize(delta0);
+            newPosition = radius0 * n + cc.p0.xyz;
+            return true;
+        }
+
+        return false;
+    }
+
+    // colliding with sphere 2
+    if (dist1 < 0.f )
+    {
+        if ( dot(delta1, delta1) < radius1 * radius1)
+        {
+            vec3 n = normalize(-delta1);
+            newPosition = radius1 * n + cc.p1.xyz;
+            return true;
+        }
+
+        return false;
+    }
+
+    // colliding with middle cylinder
+    vec3 x = (dist0 * cc.p1.xyz + dist1 * cc.p0.xyz) / (dist0 + dist1);
+    vec3 delta = curPosition.xyz - x;
+
+    float radius_at_x = (dist0 * radius1 + dist1 * radius0) / (dist0 + dist1);
+
+    if ( dot(delta, delta) < radius_at_x * radius_at_x)
+    {
+        vec3 n = normalize(delta);
+        vec3 vec = curPosition.xyz - oldPosition.xyz;
+        vec3 segN = normalize(segment);
+        vec3 vecTangent = dot(vec, segN) * segN;
+        vec3 vecNormal = vec - vecTangent;
+        newPosition = oldPosition.xyz + friction * vecTangent + (vecNormal + radius_at_x * n - delta);
+        return true;
+    }
+
+    return false;
+}
 
 
 layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
@@ -70,7 +143,9 @@ void main()
     vec3 shock = (prevRootPos - curRootPos).xyz;
 
     float vertexMultiplier = float(localVertexIndex) / float(ubo.numVertexPerStrand);
-    bool isMovable = particleIn.position.w > 1.f;
+    bool isMovable = IsMovable(particleIn.position);
+    vec3 oldPos =  particlesOut[index].position.xyz;
+
     // wind force tmp
     if (isMovable)
     {
@@ -80,14 +155,14 @@ void main()
         vec3 W = magnitudeWind * vec3(-1.f, -0.f, 0.f) * 3;
          
         //if (dot(shock, shock) > 0)
-            W += shock / ubo.deltaTime * 20;
+            W += shock / ubo.deltaTime * 50;
 
         W *= vertexMultiplier;
         //W = normalize(W);
         // TODO more wind directions
         
         vec3 F = W; // W1 + W2 + W3 + W4; //-cross(cross(V, W), V);
-        particlesOut[index].position += vec4(F * ubo.deltaTime * ubo.deltaTime, 0);
+        particlesOut[index].position = vec4(oldPos, localVertexIndex) + vec4(F * ubo.deltaTime * ubo.deltaTime, 0);
 
     }
     
@@ -124,8 +199,18 @@ void main()
             ApplyDistanceConstraint(particlesOut[index + sharedIndex + 1].position, particlesOut[index + sharedIndex + 2].position, initialLength, stiffness);
         }
 
-       // groupMemoryBarrier();
+        groupMemoryBarrier();
     }
 
+    // collision 
+    vec3 newPosition;
+    CollisionCapsule cc;
+    cc.p0 = vec4(0.f, -1.39f, 0.f, 0.09f);
+    cc.p1 = vec4(0.f, -1.45f, 0.f, 0.09f);
+
+    // TODO not harcode
+    bool res = CapsuleCollision(particlesOut[index].position, vec4(oldPos, 1), newPosition, cc);
+    if (res)
+        particlesOut[index].position.xyz = newPosition;
     
 }
