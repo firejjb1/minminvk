@@ -26,14 +26,20 @@ layout(std140, binding = 3) readonly buffer ParticleSSBOInitial
 {
     Particle particlesInitial[];
 };
+
+bool IsMovable(vec4 pos)
+{
+    return pos.w > 1.f;
+}
+
 vec2 ConstraintMultiplier(vec4 pos0, vec4 pos1)
 {
     vec2 mult;
-    if (pos0.w == 0)
+    if (!IsMovable(pos0))
         mult.x = 0;
     else
         mult.x = 1;
-    if (pos1.w == 0)
+    if (!IsMovable(pos1))
         mult.y = 0;
     else 
         mult.y = 1;
@@ -58,11 +64,6 @@ struct CollisionCapsule
     vec4 p0;
     vec4 p1;
 };
-
-bool IsMovable(vec4 pos)
-{
-    return pos.w > 1.f;
-}
 
 bool CapsuleCollision(vec4 curPosition, vec4 oldPosition, inout vec3 newPosition, CollisionCapsule cc)
 {
@@ -154,8 +155,9 @@ void main()
         
         vec3 W = magnitudeWind * vec3(-1.f, -0.f, 0.f) * 3;
          
+        float shockStrength = 50;
         //if (dot(shock, shock) > 0)
-            W += shock / ubo.deltaTime * 50;
+            W += shock / ubo.deltaTime * shockStrength;
 
         W *= vertexMultiplier;
         //W = normalize(W);
@@ -172,18 +174,20 @@ void main()
     //----------------------------
     // Enforce length constraints
     //----------------------------
-    uint a = uint(floor(float(ubo.numVertexPerStrand)/2.0f));
-    uint b = uint(floor((float(ubo.numVertexPerStrand-1))/2.0f));
+    uint a = uint(floor(ubo.numVertexPerStrand));
+    //uint a = uint(floor(float(ubo.numVertexPerStrand)/2.0f));
+    uint b = uint(floor(ubo.numVertexPerStrand-1));
+    //uint b = uint(floor((float(ubo.numVertexPerStrand-1))/2.0f));
 
     // TODO un-hardcode
     uint numOfStrandsPerThreadGroup = 1;
-    int nLengthContraintIterations = 20;
+    int nLengthContraintIterations = 10;
     uint localStrandIndex = 0;
-    float stiffness = 1.f;
+    float stiffness = 1.0f;
 
     for ( int iterationE=0; iterationE < nLengthContraintIterations; iterationE++ )
     {
-        uint sharedIndex = 2*localVertexIndex * numOfStrandsPerThreadGroup + localStrandIndex;
+        uint sharedIndex = 0;// 2*localVertexIndex * numOfStrandsPerThreadGroup + localStrandIndex;
 
         if( localVertexIndex < a )
         {
@@ -205,8 +209,8 @@ void main()
     // collision 
     vec3 newPosition;
     CollisionCapsule cc;
-    cc.p0 = vec4(0.f, -1.39f, 0.f, 0.09f);
-    cc.p1 = vec4(0.f, -1.45f, 0.f, 0.09f);
+    cc.p0 = vec4(0.f, -1.39f, 0.f, 0.11f);
+    cc.p1 = vec4(0.f, -1.45f, 0.f, 0.11f);
 
     // TODO not harcode
     bool res = CapsuleCollision(particlesOut[index].position, vec4(oldPos, 1), newPosition, cc);
