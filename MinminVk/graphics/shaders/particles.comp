@@ -55,8 +55,8 @@ void main()
         vec3 newPos = curPos + (curPos - oldPos) * decay + force * ubo.deltaTime * ubo.deltaTime;
 
         // Global Shape Constraints
-        float stiffnessForGlobalShapeMatching =  0.1f;//GetGlobalStiffness(strandType);
-        float globalShapeMatchingEffectiveRange = 1.0f;//GetGlobalRange(strandType);
+        float stiffnessForGlobalShapeMatching =  0.1f;
+        float globalShapeMatchingEffectiveRange = 1.0f;
         if ( stiffnessForGlobalShapeMatching > 0 && globalShapeMatchingEffectiveRange > 0 )
         {
             if ( float(localVertexIndex) < globalShapeMatchingEffectiveRange * float( ubo.numVertexPerThread) )

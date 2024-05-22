@@ -147,7 +147,6 @@ void main()
     bool isMovable = IsMovable(particleIn.position);
     vec3 oldPos =  particlesOut[index].position.xyz;
 
-    // wind force tmp
     if (isMovable)
     {
         float magnitudeWind = sin(sin(float(ubo.frame) * 0.05f)) + 0.5f;
@@ -156,30 +155,23 @@ void main()
         vec3 W = magnitudeWind * vec3(-1.f, -0.f, 0.f) * 3;
          
         float shockStrength = 50;
-        //if (dot(shock, shock) > 0)
-            W += shock / ubo.deltaTime * shockStrength;
+        W += shock / ubo.deltaTime * shockStrength;
 
         W *= vertexMultiplier;
-        //W = normalize(W);
-        // TODO more wind directions
         
-        vec3 F = W; // W1 + W2 + W3 + W4; //-cross(cross(V, W), V);
+        vec3 F = W; 
         particlesOut[index].position = vec4(oldPos, localVertexIndex) + vec4(F * ubo.deltaTime * ubo.deltaTime, 0);
 
     }
     
     groupMemoryBarrier();
     
-    // TODO save to shared memory and sync group memory
     //----------------------------
     // Enforce length constraints
     //----------------------------
     uint a = uint(floor(ubo.numVertexPerStrand));
-    //uint a = uint(floor(float(ubo.numVertexPerStrand)/2.0f));
     uint b = uint(floor(ubo.numVertexPerStrand-1));
-    //uint b = uint(floor((float(ubo.numVertexPerStrand-1))/2.0f));
 
-    // TODO un-hardcode
     uint numOfStrandsPerThreadGroup = 1;
     int nLengthContraintIterations = 10;
     uint localStrandIndex = 0;
@@ -187,20 +179,19 @@ void main()
 
     for ( int iterationE=0; iterationE < nLengthContraintIterations; iterationE++ )
     {
-        uint sharedIndex = 0;// 2*localVertexIndex * numOfStrandsPerThreadGroup + localStrandIndex;
 
         if( localVertexIndex < a )
         {
-            float initialLength = distance(particlesInitial[index + sharedIndex].position.xyz, particlesInitial[index + sharedIndex + 1].position.xyz);
-            ApplyDistanceConstraint(particlesOut[index + sharedIndex].position, particlesOut[index + sharedIndex + 1].position, initialLength, stiffness);
+            float initialLength = distance(particlesInitial[index].position.xyz, particlesInitial[index + 1].position.xyz);
+            ApplyDistanceConstraint(particlesOut[index].position, particlesOut[index + 1].position, initialLength, stiffness);
         }
 
         groupMemoryBarrier();
 
         if( localVertexIndex < b )
         {
-            float initialLength = distance(particlesInitial[index + sharedIndex + 1].position.xyz, particlesInitial[index + sharedIndex + 2].position.xyz);
-            ApplyDistanceConstraint(particlesOut[index + sharedIndex + 1].position, particlesOut[index + sharedIndex + 2].position, initialLength, stiffness);
+            float initialLength = distance(particlesInitial[index + 1].position.xyz, particlesInitial[index + 2].position.xyz);
+            ApplyDistanceConstraint(particlesOut[index + 1].position, particlesOut[index + 2].position, initialLength, stiffness);
         }
 
         groupMemoryBarrier();
@@ -212,7 +203,6 @@ void main()
     cc.p0 = vec4(0.f, -1.39f, 0.f, 0.11f);
     cc.p1 = vec4(0.f, -1.45f, 0.f, 0.11f);
 
-    // TODO not harcode
     bool res = CapsuleCollision(particlesOut[index].position, vec4(oldPos, 1), newPosition, cc);
     if (res)
         particlesOut[index].position.xyz = newPosition;

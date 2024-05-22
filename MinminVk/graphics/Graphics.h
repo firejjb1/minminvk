@@ -188,8 +188,6 @@ namespace Graphics
 			// sync
 			particleRenderPipeline->Wait(particleELCWindComputePipeline->pipelineID);
 
-			// TODO need to implement inter graphics sync
-			//particleRenderPipeline->Wait(forwardPipeline->pipelineID);
 		}
 	}
 
