@@ -53,7 +53,7 @@ namespace Graphics
 
 		BasicVertex() {};
 
-		BasicVertex(Vector<Vertex> &vertices) : vertices{ vertices } {}
+		BasicVertex(Vector<Vertex> &&vertices) : vertices{ vertices } {}
 
 		VertexBinding GetVertexBinding() override
 		{
@@ -91,7 +91,8 @@ namespace Graphics
 	{
 		struct Particle
 		{
-			vec2 position;
+			vec4 position;
+			//vec2 velocity;
 			vec4 color;
 		};
 		Vector<Particle> particles;
@@ -114,7 +115,7 @@ namespace Graphics
 			posAttribute.binding = 0;
 			posAttribute.location = 0;
 			posAttribute.offset = offsetof(Particle, position);
-			posAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC2;
+			posAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC4;
 
 			VertexAttribute colorAttribute;
 			colorAttribute.binding = 0;
@@ -150,12 +151,12 @@ namespace Graphics
 	struct Quad : public Geometry
 	{
 	private:
-		BasicVertex vertexDesc{ Vector<BasicVertex::Vertex>{
+		BasicVertex vertexDesc{ std::move(Vector<BasicVertex::Vertex>{
 				{ {-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
 				{{0.5f, -0.5f, 0.f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
 				{{0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
 				{{-0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-			}
+			})
 		};
 
 		Vector<u16> indices = {
@@ -180,9 +181,11 @@ namespace Graphics
 	{
 	public:
 		OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture, String filename);
+		OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> uboTransform, String filename);
 		void Update(f32 deltaTime) override
 		{
-			modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, 0, 1));
+			modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
+			//modelMatrix = Math::Translate(modelMatrix, vec3(0., 0.1, 0));
 		}
 	};
 

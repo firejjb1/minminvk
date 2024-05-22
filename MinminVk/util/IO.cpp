@@ -25,6 +25,21 @@ Vector<char> IO::ReadFile(const String& filename)
 	return buffer;
 }
 
+void IO::ReadFloats(Vector<f32> &buffer, const String& filename)
+{
+	DebugPrint("opening %s\n", filename.c_str());
+	std::ifstream file(filename);
+
+	if (!file.is_open()) {
+		throw std::runtime_error("failed to open file!");
+	}
+
+	float value;
+	while (file >> value) {
+		buffer.push_back(value);
+	}
+}
+
 unsigned char* IO::ReadImage(i32& width, i32& height, const String& filename)
 {
 	int texWidth, texHeight, texChannels;

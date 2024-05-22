@@ -105,6 +105,7 @@ set(SOURCE_FILES
 )
 
 set(HEADER_FILES 
+	"Input.h"
 	"util/Type.h"
 	"util/IO.h"
 	"util/Math.h"
@@ -141,6 +142,7 @@ ENDIF(APPLE)
 target_compile_definitions(${PROJECT_NAME} PUBLIC SHADERS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/")
 target_compile_definitions(${PROJECT_NAME} PUBLIC IMAGES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/images/")
 target_compile_definitions(${PROJECT_NAME} PUBLIC OBJ_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/obj/")
+target_compile_definitions(${PROJECT_NAME} PUBLIC HAIR_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/hair/")
 # disable validation layers, etc
 # target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
 

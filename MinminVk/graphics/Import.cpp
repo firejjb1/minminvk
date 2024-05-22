@@ -1,5 +1,6 @@
 #include <graphics/Import.h>
 #include <graphics/Geometry.h>
+#include <util/IO.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
@@ -32,10 +33,13 @@ namespace Graphics
 					attrib.vertices[3 * index.vertex_index + 2]
 				};
 
-				vertex.texCoord = {
+				if (!attrib.texcoords.empty())
+				{
+					vertex.texCoord = {
 					attrib.texcoords[2 * index.texcoord_index + 0],
 					1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-				};
+									};
+				}
 
 				vertex.color = { 1.0f, 1.0f, 1.0f };
 				if (uniqueVertices.count(vertex) == 0) {
@@ -47,4 +51,11 @@ namespace Graphics
 			}
 		}
 	}
+
+	 
+	void Import::LoadHairStrands(Vector<f32>& vertices, const String& filename)
+	{
+		Util::IO::ReadFloats(vertices, filename);
+	}
+
 }

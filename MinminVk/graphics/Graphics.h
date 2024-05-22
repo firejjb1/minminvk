@@ -2,10 +2,14 @@
 
 #include <util/Type.h>
 #include <graphics/Device.h>
+#include <graphics/Import.h>
+#include <Input.h>
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
+#define PARTICLE_COMP_LSC_SHADER "particlelsc.spv"
+#define PARTICLE_COMP_ELC_WIND_SHADER "particleelcwind.spv"
 #define PARTICLE_VERT_SHADER "particlesvert.spv"
 #define PARTICLE_FRAG_SHADER "particlesfrag.spv"
 #define STATUE_IMAGE "statue.jpg"
@@ -13,6 +17,8 @@
 #define BLUE_IMAGE "blue.jpeg"
 #define VIKING_IMAGE "viking_room.png"
 #define VIKING_MODEL "viking_room.obj"
+#define HEAD_MODEL "head.obj"
+#define HAIR_DATA_FILE "hairdata.txt"
 
 namespace Graphics
 {
@@ -20,7 +26,11 @@ namespace Graphics
 	{
 		struct Uniform
 		{
-			float deltaTime;;
+			mat4 prevHead = mat4(1);
+			mat4 curHead = mat4(1);
+			float deltaTime;
+			u32 numVertexPerStrand;
+			u32 frame;
 		};
 
 		Uniform uniform;
@@ -52,23 +62,37 @@ namespace Graphics
 
 	};
 
-
 	SharedPtr<Device> device;
-	RenderContext context;
+	RenderContext renderContext;
+	ComputeContext computeContext;
 	SharedPtr<Presentation> presentation;
 	SharedPtr<GraphicsPipeline> forwardPipeline;
 	SharedPtr<RenderPass> forwardPass;
 	SharedPtr<RenderPass> forwardParticlePass;
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
+	SharedPtr<OBJMesh> headMesh;
 	SharedPtr<StructuredBuffer> particleBuffer;
 	SharedPtr<StructuredBuffer> particleBufferPrev;
 	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
 	SharedPtr<ComputePipeline> particleComputePipeline;
+	SharedPtr<ComputePipeline> particleLSCComputePipeline;
+	SharedPtr<ComputePipeline> particleELCWindComputePipeline;
 	SharedPtr<GraphicsPipeline> particleRenderPipeline;
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
-	
+	u32 numVertexPerStrand = 16;
+	vec3 eyePosition(0.01f, -1.5f, 1.0f);
+
+	//  4f position 4f color. can optimize later
+	// careful about alignment
+	Vector<f32> particles{
+		//-0.4f, -0.1f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f,
+		//0.5f, 0.2f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+		//0.3f, 0.3f, 0.f, 0.f, 0.f, 1.f, 0.f, 1.f,
+		//0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+	};
+
 	void InitGraphics(void * window)
 	{
 		presentation = MakeShared<Presentation>();
@@ -78,9 +102,11 @@ namespace Graphics
 		device->Init();
 		presentation->InitSwapChain();
 
-		context.device = device;
-		context.presentation = presentation;
+		renderContext.device = device;
+		renderContext.presentation = presentation;
 
+		computeContext.device = device;
+		
 		Sampler linearClampSampler;
 		Texture texture(concat_str(IMAGES_DIR, VIKING_IMAGE));
 		texture.binding.binding = 1;
@@ -97,25 +123,22 @@ namespace Graphics
 				Vector<Texture>{texture},
 				Vector<SharedPtr<Buffer>>{}
 			);
-
+	
 			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
 
 			quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
 
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
 
+			headMesh = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
+
 		}
 
 		// Compute Pass
 		{
 
-			struct Particle {
-				vec2 position;
-				vec2 velocity;
-				vec4 color;
-			};
-			// 2f position, 2f velocity, 3f color
-			Vector<f32> particles{ 0.5f, 0.5f , 0.3f, 0.3f, 1.f, 0.f, 0.f, 1.f};
+			Import::LoadHairStrands(particles, concat_str(HAIR_DIR, HAIR_DATA_FILE));
+
 			ResourceBinding particleBufferBinding;
 			particleBufferBinding.binding = 1;
 			particleBufferBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
@@ -128,94 +151,125 @@ namespace Graphics
 			particleWriteBinding.binding = 2;
 			particleWriteBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
 
-			particleBuffer = MakeShared<StructuredBuffer>(particles, particleWriteBinding, Buffer::AccessType::READONLY, particleBufferUsage);
+			ResourceBinding particleInitialBinding;
+			particleInitialBinding.binding = 3;
+			particleInitialBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+
+			particleBuffer = MakeShared<StructuredBuffer>(particles, particleWriteBinding, particleBufferUsage);
+			auto particleInitialBuffer = MakeShared<StructuredBuffer>(particles, particleInitialBinding, particleBufferUsage);
 			Vector<u32> extendedBufferIDs;
 			auto numParticleBuffers = particleBuffer->extendedBufferIDs.size();
 			for (int i = 0; i < numParticleBuffers; i++)
 				extendedBufferIDs.push_back(particleBuffer->extendedBufferIDs[(i - 1) % numParticleBuffers]);
-			particleBufferPrev = MakeShared<StructuredBuffer>(extendedBufferIDs, particleBufferBinding, Buffer::AccessType::READONLY, particleBufferUsage);
+			particleBufferPrev = MakeShared<StructuredBuffer>(particles, extendedBufferIDs, particleBufferBinding, particleBufferUsage);
 			particleUniformBuffer = MakeShared<ParticlesUniformBuffer>();
-			computeBuffers.insert(computeBuffers.end(), { particleUniformBuffer, particleBufferPrev, particleBuffer });
+			computeBuffers.insert(computeBuffers.end(), { particleUniformBuffer, particleBufferPrev, particleBuffer, particleInitialBuffer });
+			// Integrate and Global Shape
 			particleComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
-				 vec3{particles.size() / 8,1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
+				vec3{particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle),1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
+
+			particleLSCComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_LSC_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
+				vec3{ particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle) / numVertexPerStrand,1,1 }, vec3{ 256,1,1 }, computeBuffers, computeTextures);
+
+			particleELCWindComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_ELC_WIND_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
+				vec3{ particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle),1,1 }, vec3{ 256,1,1 }, computeBuffers, computeTextures);
 
 			auto vertShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_VERT_SHADER), Shader::ShaderType::SHADER_VERTEX, "main");
 			auto fragShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main");
 			particleRenderPipeline = MakeShared<GraphicsPipeline>(vertShader, fragShader, MakeShared<ParticleVertex>(), MakeShared<BasicUniformBuffer>(), Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{});
-			// TODO set the pipeline settings for particle rendering
-			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_POINT_LIST;
-			
+
+			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_LINE_STRIP;
+			particleRenderPipeline->blendEnabled = true;
+			particleRenderPipeline->depthTestEnable = true;
+			particleRenderPipeline->depthWriteEnable = false;
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 			
 			// sync
-			forwardPipeline->Wait(particleComputePipeline->pipelineID);
-			// TODO need to implement inter graphics sync
-			//particleRenderPipeline->Wait(forwardPipeline->pipelineID);
+			particleRenderPipeline->Wait(particleELCWindComputePipeline->pipelineID);
 
-			
 		}
 	}
 
 	void MainRender(const u32 frameID, const f32 deltaTime)
 	{
-		context.frameID = frameID;
+		renderContext.frameID = frameID;
+		computeContext.frameID = frameID;
 
-		// particle compute pass
+		vec3 keyboardMovement(0);
+		keyboardMovement.x += Input::A.pressed ? deltaTime : Input::D.pressed ? -deltaTime : 0;
+		keyboardMovement.y += Input::S.pressed ? deltaTime : Input::W.pressed ? -deltaTime : 0;
+
+		// particle compute passes
 		{
-			particleUniformBuffer->uniform.deltaTime = deltaTime;
-			particleUniformBuffer->UpdateUniformBuffer(frameID);
-			particleComputePipeline->Dispatch(context);
+			particleUniformBuffer->uniform.prevHead = headMesh->modelMatrix;
+			headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
+			headMesh->Update(deltaTime);
+			particleUniformBuffer->uniform.curHead = headMesh->modelMatrix;
 
-		
+			particleUniformBuffer->uniform.deltaTime = deltaTime;
+			particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
+			particleUniformBuffer->uniform.frame = frameID;
+			particleUniformBuffer->UpdateUniformBuffer(frameID);
+			
+			computeContext.computePipeline = particleComputePipeline;
+			device->BeginRecording(computeContext);
+			particleComputePipeline->Dispatch(computeContext);
+			computeContext.computePipeline = particleLSCComputePipeline;
+			particleLSCComputePipeline->Dispatch(computeContext);
+			computeContext.computePipeline = particleELCWindComputePipeline;
+			particleELCWindComputePipeline->Dispatch(computeContext);
+
+			device->EndRecording(computeContext);
 		}
 
 		// forward passes
 		{
 			// pass 1
-			context.renderPass = forwardPass;
-			bool success = device->BeginRecording(context);
+			renderContext.renderPass = forwardPass;
+			bool success = device->BeginRecording(renderContext);
 			if (!success)
 				return;
 			
-			device->BeginRenderPass(context);
+			device->BeginRenderPass(renderContext);
 			{
 				// view projection
 				{
-					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(vec3(2.0f, 2.0f, 2.f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f));
+					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(eyePosition, eyePosition + vec3(0.0f, 0.f, -1.0f), vec3(0.0f, -1.0f, 0.0f));
 					i32 width = presentation->swapChainDetails.width;
 					i32 height = presentation->swapChainDetails.height;
-					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.1f, 10.0f);
+					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 10.0f);
 					forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
+
+					particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
+					particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
 				}
 
-				vikingRoom->Update(deltaTime);
-				vikingRoom->Draw(context);
+				//vikingRoom->Update(deltaTime);
+				//vikingRoom->Draw(renderContext);
+
+				headMesh->Draw(renderContext);
+
 			}
-			device->EndRenderPass(context);
+			device->EndRenderPass(renderContext);
 
 			// pass 2
-			context.renderPass = forwardParticlePass;
-			device->BeginRenderPass(context);
+			renderContext.renderPass = forwardParticlePass;
+			device->BeginRenderPass(renderContext);
 
-				particleBuffer->DrawBuffer(context);
+			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->modelMatrix;
+			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
-			device->EndRenderPass(context);
+			device->EndRenderPass(renderContext);
 
-			// TODO hack, fence is per pipeline but should be per command buffer
-			context.renderPass = forwardPass;
-
-			device->EndRecording(context);
+			device->EndRecording(renderContext);
 
 		}
-
 	}
 
 	void CleanUp()
 	{
 		presentation->CleanUp();
 		device->CleanUp();
-
-
 	}
 };

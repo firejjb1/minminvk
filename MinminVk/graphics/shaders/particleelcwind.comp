@@ -1,0 +1,210 @@
+#version 450
+
+struct Particle { 
+	vec4 position;
+    vec4 color;
+};
+
+layout (binding = 0) uniform ParameterUBO {
+    mat4 prevHead;
+    mat4 curHead;
+    float deltaTime;
+    uint numVertexPerStrand;
+    uint frame;
+} ubo;
+
+
+layout(std140, binding = 1) readonly buffer ParticleSSBOIn {
+   Particle particlesIn[ ];
+};
+
+layout(std140, binding = 2) buffer ParticleSSBOOut {
+   Particle particlesOut[ ];
+};
+
+layout(std140, binding = 3) readonly buffer ParticleSSBOInitial
+{
+    Particle particlesInitial[];
+};
+
+bool IsMovable(vec4 pos)
+{
+    return pos.w > 1.f;
+}
+
+vec2 ConstraintMultiplier(vec4 pos0, vec4 pos1)
+{
+    vec2 mult;
+    if (!IsMovable(pos0))
+        mult.x = 0;
+    else
+        mult.x = 1;
+    if (!IsMovable(pos1))
+        mult.y = 0;
+    else 
+        mult.y = 1;
+    if (mult == vec2(1,1))
+        return vec2(0.5f, 0.5f);
+    return mult;
+}
+
+void ApplyDistanceConstraint(inout vec4 pos0, inout vec4 pos1, float targetDistance, float stiffness)
+{
+    vec3 delta = pos1.xyz - pos0.xyz;
+    float distanceNow = max(length(delta), 1e-7);
+    float stretching = 1 - targetDistance / distanceNow;
+    delta = stretching * delta;
+    vec2 multiplier = ConstraintMultiplier(pos0, pos1);
+
+    pos0.xyz += multiplier[0] * delta * stiffness;
+    pos1.xyz -= multiplier[1] * delta * stiffness;
+}
+struct CollisionCapsule
+{
+    vec4 p0;
+    vec4 p1;
+};
+
+bool CapsuleCollision(vec4 curPosition, vec4 oldPosition, inout vec3 newPosition, CollisionCapsule cc)
+{
+    float friction = 0.4f;
+    const float radius0 = cc.p0.w;
+    const float radius1 = cc.p1.w;
+    newPosition = curPosition.xyz;
+
+    if ( !IsMovable(curPosition) )
+        return false;
+
+    vec3 segment = cc.p1.xyz - cc.p0.xyz;
+    vec3 delta0 = curPosition.xyz - cc.p0.xyz;
+    vec3 delta1 = cc.p1.xyz - curPosition.xyz;
+
+    float dist0 = dot(delta0, segment);
+    float dist1 = dot(delta1, segment);
+
+    // colliding with sphere 1
+    if (dist0 < 0.f )
+    {
+        if ( dot(delta0, delta0) < radius0 * radius0)
+        {
+            vec3 n = normalize(delta0);
+            newPosition = radius0 * n + cc.p0.xyz;
+            return true;
+        }
+
+        return false;
+    }
+
+    // colliding with sphere 2
+    if (dist1 < 0.f )
+    {
+        if ( dot(delta1, delta1) < radius1 * radius1)
+        {
+            vec3 n = normalize(-delta1);
+            newPosition = radius1 * n + cc.p1.xyz;
+            return true;
+        }
+
+        return false;
+    }
+
+    // colliding with middle cylinder
+    vec3 x = (dist0 * cc.p1.xyz + dist1 * cc.p0.xyz) / (dist0 + dist1);
+    vec3 delta = curPosition.xyz - x;
+
+    float radius_at_x = (dist0 * radius1 + dist1 * radius0) / (dist0 + dist1);
+
+    if ( dot(delta, delta) < radius_at_x * radius_at_x)
+    {
+        vec3 n = normalize(delta);
+        vec3 vec = curPosition.xyz - oldPosition.xyz;
+        vec3 segN = normalize(segment);
+        vec3 vecTangent = dot(vec, segN) * segN;
+        vec3 vecNormal = vec - vecTangent;
+        newPosition = oldPosition.xyz + friction * vecTangent + (vecNormal + radius_at_x * n - delta);
+        return true;
+    }
+
+    return false;
+}
+
+
+layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+void main() 
+{
+    uint index = gl_GlobalInvocationID.x;  
+
+    Particle particleIn = particlesIn[index];
+    uint localVertexIndex = uint(particleIn.position.w);
+
+    Particle particleRoot = particlesOut[index - localVertexIndex];
+    
+    vec4 prevRootPos = ubo.prevHead * vec4(particleRoot.position.xyz, 1);
+    vec4 curRootPos = ubo.curHead * vec4(particleRoot.position.xyz, 1);
+    vec3 shock = (prevRootPos - curRootPos).xyz;
+
+    float vertexMultiplier = float(localVertexIndex) / float(ubo.numVertexPerStrand);
+    bool isMovable = IsMovable(particleIn.position);
+    vec3 oldPos =  particlesOut[index].position.xyz;
+
+    if (isMovable)
+    {
+        float magnitudeWind = sin(sin(float(ubo.frame) * 0.05f)) + 0.5f;
+        vec3 V = (particlesOut[index-1].position - particlesOut[index].position).xyz;
+        
+        vec3 W = magnitudeWind * vec3(-1.f, -0.f, 0.f) * 3;
+         
+        float shockStrength = 50;
+        W += shock / ubo.deltaTime * shockStrength;
+
+        W *= vertexMultiplier;
+        
+        vec3 F = W; 
+        particlesOut[index].position = vec4(oldPos, localVertexIndex) + vec4(F * ubo.deltaTime * ubo.deltaTime, 0);
+
+    }
+    
+    groupMemoryBarrier();
+    
+    //----------------------------
+    // Enforce length constraints
+    //----------------------------
+    uint a = uint(floor(ubo.numVertexPerStrand));
+    uint b = uint(floor(ubo.numVertexPerStrand-1));
+
+    uint numOfStrandsPerThreadGroup = 1;
+    int nLengthContraintIterations = 10;
+    uint localStrandIndex = 0;
+    float stiffness = 1.0f;
+
+    for ( int iterationE=0; iterationE < nLengthContraintIterations; iterationE++ )
+    {
+
+        if( localVertexIndex < a )
+        {
+            float initialLength = distance(particlesInitial[index].position.xyz, particlesInitial[index + 1].position.xyz);
+            ApplyDistanceConstraint(particlesOut[index].position, particlesOut[index + 1].position, initialLength, stiffness);
+        }
+
+        groupMemoryBarrier();
+
+        if( localVertexIndex < b )
+        {
+            float initialLength = distance(particlesInitial[index + 1].position.xyz, particlesInitial[index + 2].position.xyz);
+            ApplyDistanceConstraint(particlesOut[index + 1].position, particlesOut[index + 2].position, initialLength, stiffness);
+        }
+
+        groupMemoryBarrier();
+    }
+
+    // collision 
+    vec3 newPosition;
+    CollisionCapsule cc;
+    cc.p0 = vec4(0.f, -1.39f, 0.f, 0.11f);
+    cc.p1 = vec4(0.f, -1.45f, 0.f, 0.11f);
+
+    bool res = CapsuleCollision(particlesOut[index].position, vec4(oldPos, 1), newPosition, cc);
+    if (res)
+        particlesOut[index].position.xyz = newPosition;
+    
+}

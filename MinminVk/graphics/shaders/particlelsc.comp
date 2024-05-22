@@ -1,0 +1,129 @@
+#version 450
+
+struct Particle { 
+	vec4 position;
+    vec4 color;
+};
+
+layout (binding = 0) uniform ParameterUBO {
+    mat4 prevHead;
+    mat4 curHead;
+    float deltaTime;
+    uint numVertexPerThread;
+    uint frame;
+} ubo;
+
+layout(std140, binding = 1) readonly buffer ParticleSSBOIn {
+   Particle particlesIn[ ];
+};
+
+layout(std140, binding = 2) buffer ParticleSSBOOut {
+   Particle particlesOut[ ];
+};
+
+layout(std140, binding = 3) readonly buffer ParticleSSBOInitial
+{
+    Particle particlesInitial[];
+};
+
+vec4 NormalizeQuaternion(vec4 q)
+{
+    vec4 qq = q;
+    float n = q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w;
+
+    if (n < 1e-10f)
+    {
+        qq.w = 1;
+        return qq;
+    }
+
+    qq *= 1.0f / sqrt(n);
+    return qq;
+}
+
+
+vec3 MultQuaternionAndVector(vec4 q, vec3 v)
+{
+    vec3 uv, uuv;
+    vec3 qvec = vec3(q.x, q.y, q.z);
+    uv = cross(qvec, v);
+    uuv = cross(qvec, uv);
+    uv *= (2.0f * q.w);
+    uuv *= 2.0f;
+
+    return v + uv + uuv;
+}
+
+
+// Compute a quaternion which rotates u to v. u and v must be unit vector. 
+vec4 QuatFromTwoUnitVectors(vec3 u, vec3 v)
+{
+    float r = 1.f + dot(u, v);
+    vec3 n;
+
+    // if u and v are parallel
+    if (r < 1e-7)
+    {
+        r = 0.0f;
+        n = abs(u.x) > abs(u.z) ? vec3(-u.y, u.x, 0.f) : vec3(0.f, -u.z, u.y);
+    }
+    else
+    {
+        n = cross(u, v);  
+    }
+
+    vec4 q = vec4(n.x, n.y, n.z, r);
+    return NormalizeQuaternion(q);
+}
+
+bool IsMovable(vec4 pos)
+{
+    return pos.w > 0;
+}
+
+layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+void main() 
+{
+    uint strandIndex =  gl_GlobalInvocationID.x;
+    uint globalStrandRootIndex = strandIndex * ubo.numVertexPerThread;
+
+    for (int localVertexIndex = 1; localVertexIndex < ubo.numVertexPerThread - 1; ++localVertexIndex)
+    {
+        uint globalVertexIndex = globalStrandRootIndex + localVertexIndex;
+
+        vec3 vertexPos = particlesOut[globalVertexIndex].position.xyz;
+        vec3 vertexPlusOnePos = particlesOut[globalVertexIndex + 1].position.xyz;
+        vec3 vertexMinusOnePos = particlesOut[globalVertexIndex - 1].position.xyz;  
+        
+        vec3 vertexInitialPos = particlesInitial[globalVertexIndex].position.xyz;
+        vec3 vertexPlusOneInitialPos = particlesInitial[globalVertexIndex + 1].position.xyz;
+        vec3 vertexMinusOneInitialPos = particlesInitial[globalVertexIndex - 1].position.xyz;
+
+        vec3 lastVec = vertexPos - vertexMinusOnePos;
+        vec3 vecBindPose = vertexPlusOneInitialPos - vertexInitialPos;
+        vec3 lastVecBindPose = vertexInitialPos - vertexMinusOneInitialPos;
+
+        vec4 rotGlobal = QuatFromTwoUnitVectors(normalize(lastVecBindPose), normalize(lastVec));
+
+        vec3 orgPos_i_plus_1_InGlobalFrame = MultQuaternionAndVector(rotGlobal, vecBindPose) + vertexPos.xyz;
+        
+        float stiffnessForLocalShapeMatching = 0.5f * 0.5f;
+
+        vec3 del = stiffnessForLocalShapeMatching * (orgPos_i_plus_1_InGlobalFrame - vertexPlusOnePos.xyz);
+
+        bool isPosMovable = particlesOut[globalVertexIndex].position.w > 0;
+        if (isPosMovable)
+        {
+
+            vertexPos.xyz -= del.xyz;
+        }
+
+        bool isPosPlusOneMovable = particlesOut[globalVertexIndex+1].position.w > 0;
+        if (isPosPlusOneMovable)
+            vertexPlusOnePos.xyz += del.xyz;
+
+        particlesOut[globalVertexIndex].position.xyz = vertexPos.xyz;
+        particlesOut[globalVertexIndex + 1].position.xyz = vertexPlusOnePos.xyz;
+
+    }
+}
