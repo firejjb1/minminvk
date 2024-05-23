@@ -95,7 +95,27 @@ ENDIF()
 
 include_directories(${Vulkan_INCLUDE_DIR})
 
-set(LIBS glfw)
+include_directories(external/imgui external/imgui/backends)
+add_library(imgui
+        external/imgui/imgui.cpp
+        external/imgui/imgui.h
+        external/imgui/imgui_demo.cpp
+        external/imgui/imgui_draw.cpp
+        external/imgui/imgui_widgets.cpp
+        external/imgui/imgui_tables.cpp
+        external/imgui/imgui_internal.h
+        external/imgui/imstb_rectpack.h
+        external/imgui/imstb_textedit.h
+        external/imgui/imstb_truetype.h
+		# Here implementation
+        external/imgui/backends/imgui_impl_vulkan.cpp
+        external/imgui/backends/imgui_impl_vulkan.h
+        external/imgui/backends/imgui_impl_glfw.cpp
+        external/imgui/backends/imgui_impl_glfw.h
+
+	    external/imgui/imconfig.h)
+
+set(LIBS glfw imgui)
 
 set(SOURCE_FILES 
 	"Main.cpp"
@@ -119,6 +139,7 @@ set(HEADER_FILES
 	"graphics/Geometry.h"
 	"graphics/Import.h"
 	"graphics/Resource.h"
+	"graphics/UIRender.h"
 )
 
 IF(WIN32)

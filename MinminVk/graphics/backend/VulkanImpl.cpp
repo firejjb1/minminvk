@@ -10,6 +10,7 @@
 #include <graphics/Pipeline.h>
 #include <graphics/Geometry.h>
 #include <graphics/Import.h>
+#include <graphics/UIRender.h>
 #include <util/IO.h>
 
 namespace VulkanImpl
@@ -2536,6 +2537,67 @@ namespace Graphics
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);
 		VulkanImpl::DrawBuffer(commandList, *this, numVertex, swapID, context.renderPass->pso->descriptorPoolID, context.renderPass->pso->uniformDesc);
+	}
+
+	UIRender::UIRender(ImGui_ImplVulkan_InitInfo &init_info, SharedPtr<Presentation> presentation)
+	{
+		init_info.Instance = VulkanImpl::instance;
+		init_info.PhysicalDevice = VulkanImpl::physicalDevice;
+		init_info.Device = VulkanImpl::device;
+		auto fam = VulkanImpl::FindQueueFamilies(VulkanImpl::physicalDevice);
+		init_info.QueueFamily = fam.graphicsAndComputeFamily.value();
+		init_info.Queue = VulkanImpl::graphicsQueue;
+
+		int poolID = VulkanImpl::CreateDescriptorPool(0, 1, 0);
+		this->poolID = poolID;
+		init_info.DescriptorPool = VulkanImpl::descriptorPools[poolID];
+
+		// renderpass
+		{
+			VkAttachmentDescription attachment = {};
+			attachment.format = VulkanImpl::MapToVulkanFormat(presentation->swapChainDetails.format);
+			attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+			attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+			attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			VkAttachmentReference color_attachment = {};
+			color_attachment.attachment = 0;
+			color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			VkSubpassDescription subpass = {};
+			subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			subpass.colorAttachmentCount = 1;
+			subpass.pColorAttachments = &color_attachment;
+			VkSubpassDependency dependency = {};
+			dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+			dependency.dstSubpass = 0;
+			dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			dependency.srcAccessMask = 0;  // or VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			VkRenderPassCreateInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+			info.attachmentCount = 1;
+			info.pAttachments = &attachment;
+			info.subpassCount = 1;
+			info.pSubpasses = &subpass;
+			info.dependencyCount = 1;
+			info.pDependencies = &dependency;
+			VkRenderPass imGuiRenderPass;
+			if (vkCreateRenderPass(VulkanImpl::device, &info, nullptr, &imGuiRenderPass) != VK_SUCCESS) {
+				throw std::runtime_error("Could not create Dear ImGui's render pass");
+			}
+
+			init_info.RenderPass = imGuiRenderPass;
+			VulkanImpl::renderPasses.push_back(imGuiRenderPass);
+		}
+		init_info.Subpass = 0;
+		init_info.MinImageCount = presentation->swapChainDetails.targetImageCount;
+		init_info.ImageCount = presentation->swapChainDetails.targetImageCount;
+		init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
 	}
 
 }

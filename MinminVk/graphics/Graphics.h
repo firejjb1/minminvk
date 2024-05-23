@@ -3,6 +3,7 @@
 #include <util/Type.h>
 #include <graphics/Device.h>
 #include <graphics/Import.h>
+#include <graphics/UIRender.h>
 #include <Input.h>
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
@@ -69,6 +70,7 @@ namespace Graphics
 	SharedPtr<GraphicsPipeline> forwardPipeline;
 	SharedPtr<RenderPass> forwardPass;
 	SharedPtr<RenderPass> forwardParticlePass;
+	SharedPtr<UIRender> uiRender;
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
 	SharedPtr<OBJMesh> headMesh;
@@ -93,6 +95,12 @@ namespace Graphics
 		//0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
 	};
 
+	void InitUI(ImGui_ImplVulkan_InitInfo &initInfo) 
+	{
+		uiRender = MakeShared<UIRender>(initInfo, presentation);
+		
+	}
+
 	void InitGraphics(void * window)
 	{
 		presentation = MakeShared<Presentation>();
@@ -101,7 +109,7 @@ namespace Graphics
 		presentation->Init(window);
 		device->Init();
 		presentation->InitSwapChain();
-
+	
 		renderContext.device = device;
 		renderContext.presentation = presentation;
 
