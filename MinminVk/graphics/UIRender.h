@@ -1,6 +1,5 @@
 #pragma once
 
-#include <imgui_impl_vulkan.h>
 #include <graphics/presentation.h>
 
 namespace Graphics
@@ -9,6 +8,8 @@ namespace Graphics
 	{
 		int poolID;
 
-		UIRender(ImGui_ImplVulkan_InitInfo &init_info, SharedPtr<Presentation> presentation);
+		UIRender(SharedPtr<Presentation> presentation);
+
+		void Render(Graphics::RenderContext& context);
 	};
 }

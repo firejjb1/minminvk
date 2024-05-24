@@ -7,7 +7,6 @@
 #include <chrono>
 
 #include <imgui.h>
-#include <imgui_impl_vulkan.h>
 #include <imgui_impl_glfw.h>
 
 namespace Application
@@ -40,11 +39,8 @@ namespace Application
 
             // Setup Dear ImGui style
             ImGui::StyleColorsDark();
-            ImGui_ImplGlfw_InitForVulkan(window, true);
-            ImGui_ImplVulkan_InitInfo init_info = {};
 
-            Graphics::InitUI(init_info);
-            ImGui_ImplVulkan_Init(&init_info);
+            Graphics::InitUI();
 
         }
     }
@@ -60,7 +56,7 @@ namespace Application
 
             // IMGUI
             {
-                ImGui_ImplVulkan_NewFrame();
+                //ImGui_ImplVulkan_NewFrame();
                 ImGui_ImplGlfw_NewFrame();
                 ImGui::NewFrame();
                 ImGui::ShowDemoWindow();
@@ -77,13 +73,11 @@ namespace Application
 
     void CleanUp()
     {
+        Graphics::CleanUp();
         {
-            ImGui_ImplVulkan_Shutdown();
             ImGui_ImplGlfw_Shutdown();
             ImGui::DestroyContext();
         }
-        Graphics::CleanUp();
-
         glfwDestroyWindow(window);
         glfwTerminate();
     }

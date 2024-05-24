@@ -2,6 +2,8 @@
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+#include <imgui_impl_vulkan.h>
+#include <imgui_impl_glfw.h>
 
 #include <stb_image.h>
 
@@ -1558,6 +1560,12 @@ namespace VulkanImpl
 		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(geometry.GetIndicesData().size()), 1, 0, 0, 0);
 	}
 
+	void DrawIMGui(Graphics::CommandList commandList, ImDrawData* drawData)
+	{
+		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
+		ImGui_ImplVulkan_RenderDrawData(drawData, commandBuffer);
+	}
+
 	void Dispatch(Graphics::CommandList commandList, int pipelineID, int pipelineLayoudID, int descriptorPoolID, int swapID, vec3 threadSz, vec3 invocationSz)
 	{
 		auto& computePipeline = VulkanImpl::pipelines[pipelineID];
@@ -2333,6 +2341,8 @@ namespace Graphics
 			VulkanImpl::DestroyDebugUtilsMessengerEXT(VulkanImpl::instance, VulkanImpl::debugMessenger, nullptr);
 		}
 		vkDestroyInstance(VulkanImpl::instance, nullptr);
+
+
 	}
 
 	// Presentation
@@ -2358,9 +2368,9 @@ namespace Graphics
 	{
 		vkDeviceWaitIdle(VulkanImpl::device);
 		VulkanImpl::CleanupSwapChain();
-
 		vkDestroySurfaceKHR(VulkanImpl::instance, VulkanImpl::surface, nullptr);
 
+		ImGui_ImplVulkan_Shutdown();
 	}
 
 	void UniformBuffer::Init()
@@ -2539,8 +2549,11 @@ namespace Graphics
 		VulkanImpl::DrawBuffer(commandList, *this, numVertex, swapID, context.renderPass->pso->descriptorPoolID, context.renderPass->pso->uniformDesc);
 	}
 
-	UIRender::UIRender(ImGui_ImplVulkan_InitInfo &init_info, SharedPtr<Presentation> presentation)
+	UIRender::UIRender(SharedPtr<Presentation> presentation)
 	{
+		ImGui_ImplGlfw_InitForVulkan((GLFWwindow*)presentation->window, true);
+
+		ImGui_ImplVulkan_InitInfo init_info = {};
 		init_info.Instance = VulkanImpl::instance;
 		init_info.PhysicalDevice = VulkanImpl::physicalDevice;
 		init_info.Device = VulkanImpl::device;
@@ -2551,7 +2564,7 @@ namespace Graphics
 		int poolID = VulkanImpl::CreateDescriptorPool(0, 1, 0);
 		this->poolID = poolID;
 		init_info.DescriptorPool = VulkanImpl::descriptorPools[poolID];
-
+		
 		// renderpass
 		{
 			VkAttachmentDescription attachment = {};
@@ -2597,7 +2610,17 @@ namespace Graphics
 		init_info.MinImageCount = presentation->swapChainDetails.targetImageCount;
 		init_info.ImageCount = presentation->swapChainDetails.targetImageCount;
 		init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+		ImGui_ImplVulkan_Init(&init_info);
+		ImGui_ImplVulkan_CreateFontsTexture();
 
+	}
+
+	void UIRender::Render(Graphics::RenderContext& context)
+	{
+		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		auto& commandList = context.device->GetCommandList(swapID);
+		ImDrawData* drawData = ImGui::GetDrawData();
+		VulkanImpl::DrawIMGui(commandList, drawData);
 	}
 
 }

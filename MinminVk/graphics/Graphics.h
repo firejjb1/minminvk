@@ -95,10 +95,9 @@ namespace Graphics
 		//0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
 	};
 
-	void InitUI(ImGui_ImplVulkan_InitInfo &initInfo) 
+	void InitUI() 
 	{
-		uiRender = MakeShared<UIRender>(initInfo, presentation);
-		
+		uiRender = MakeShared<UIRender>(presentation);
 	}
 
 	void InitGraphics(void * window)
@@ -269,6 +268,12 @@ namespace Graphics
 			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
 			device->EndRenderPass(renderContext);
+
+			// UI pass
+			/*renderContext.renderPass = forwardPass;
+			device->BeginRenderPass(renderContext);
+			uiRender->Render(renderContext);
+			device->EndRenderPass(renderContext);*/
 
 			device->EndRecording(renderContext);
 
