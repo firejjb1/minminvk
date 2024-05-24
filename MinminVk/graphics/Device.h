@@ -14,6 +14,7 @@ namespace Graphics
 		SharedPtr<RenderPass> renderPass;
 		SharedPtr<Presentation> presentation;
 		SharedPtr<Device> device;
+		bool shouldRenderUI = false;
 	};
 
 	struct ComputeContext

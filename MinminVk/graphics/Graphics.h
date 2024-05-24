@@ -270,10 +270,7 @@ namespace Graphics
 			device->EndRenderPass(renderContext);
 
 			// UI pass
-			/*renderContext.renderPass = forwardPass;
-			device->BeginRenderPass(renderContext);
-			uiRender->Render(renderContext);
-			device->EndRenderPass(renderContext);*/
+			renderContext.shouldRenderUI = true;
 
 			device->EndRecording(renderContext);
 
