@@ -1702,33 +1702,20 @@ namespace VulkanImpl
 
 	void CleanupSwapChain() 
 	{
+		for (auto framebuffer : VulkanImpl::uiFramebuffers) {
+			vkDestroyFramebuffer(VulkanImpl::device, framebuffer, nullptr);
+		}
+
 		for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
 			vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
 		}
+
 
 		for (size_t i = 0; i < swapChainImageViews.size(); i++) {
 			vkDestroyImageView(device, swapChainImageViews[i], nullptr);
 		}
 
 		vkDestroySwapchainKHR(device, swapChain, nullptr);
-	}
-
-	void RecreateSwapchain(Graphics::RenderContext &context)
-	{
-		int width = 0, height = 0;
-		glfwGetFramebufferSize((GLFWwindow*) windowVK, &width, &height);
-		while (width == 0 || height == 0) {
-			glfwGetFramebufferSize((GLFWwindow*)windowVK, &width, &height);
-			glfwWaitEvents();
-		}
-		vkDeviceWaitIdle(device);
-		CleanupSwapChain();
-
-		CreateSwapChain(context.presentation->swapChainDetails, windowVK);
-		CreateSwapchainImageViews();
-		CreateColorResources(context.renderPass.get());
-		CreateDepthResources(context.presentation.get(), context.renderPass.get());
-		CreateFramebuffers(context.renderPass, context.presentation);
 	}
 
 	int CreateDescriptorSetLayout(const Vector<SharedPtr<Graphics::Buffer>>& buffers, const Vector<Graphics::Texture>& textures)
@@ -2196,7 +2183,7 @@ namespace VulkanImpl
 		}
 	}
 
-	void RecordUICommands(uint32_t bufferIdx) {
+	void RecordUICommands(u32 bufferIdx, u32 imageIndex) {
 		VkCommandBufferBeginInfo cmdBufferBegin = {};
 		cmdBufferBegin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		cmdBufferBegin.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -2209,11 +2196,11 @@ namespace VulkanImpl
 		VkRenderPassBeginInfo renderPassBeginInfo = {};
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassBeginInfo.renderPass = uiRenderPass;
-		renderPassBeginInfo.framebuffer = uiFramebuffers[bufferIdx];
+		renderPassBeginInfo.framebuffer = uiFramebuffers[imageIndex];
 		renderPassBeginInfo.renderArea.extent.width = swapChainExtent.width;
 		renderPassBeginInfo.renderArea.extent.height = swapChainExtent.height;
-		renderPassBeginInfo.clearValueCount = 1;
-		renderPassBeginInfo.pClearValues = &clearColor;
+		renderPassBeginInfo.clearValueCount = 0;
+		//renderPassBeginInfo.pClearValues = &clearColor;
 
 		vkCmdBeginRenderPass(uiCommandBuffers[bufferIdx], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -2223,10 +2210,34 @@ namespace VulkanImpl
 		// End and submit render pass
 		vkCmdEndRenderPass(uiCommandBuffers[bufferIdx]);
 
-		//vkCmdPipelineBarrier(uiCommandBuffers[bufferIdx], VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
-
 		if (vkEndCommandBuffer(uiCommandBuffers[bufferIdx]) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to record command buffers!");
+		}
+	}
+
+	void RecreateSwapchain(Graphics::RenderContext& context)
+	{
+		int width = 0, height = 0;
+		glfwGetFramebufferSize((GLFWwindow*)windowVK, &width, &height);
+		while (width == 0 || height == 0) {
+			glfwGetFramebufferSize((GLFWwindow*)windowVK, &width, &height);
+			glfwWaitEvents();
+		}
+		vkDeviceWaitIdle(device);
+		CleanupSwapChain();
+
+		CreateSwapChain(context.presentation->swapChainDetails, windowVK);
+		CreateSwapchainImageViews();
+		CreateColorResources(context.renderPass.get());
+		CreateDepthResources(context.presentation.get(), context.renderPass.get());
+		CreateFramebuffers(context.renderPass, context.presentation);
+
+		// ImGUI
+		if (context.shouldRenderUI)
+		{
+			ImGui_ImplVulkan_SetMinImageCount(VulkanImpl::MAX_FRAMES_IN_FLIGHT);
+			CreateUICommandBuffers();
+			CreateUIFramebuffers();
 		}
 	}
 
@@ -2308,7 +2319,7 @@ namespace Graphics
 		submitInfo.pWaitDstStageMask = waitStages.data();
 
 		if (context.shouldRenderUI)
-			VulkanImpl::RecordUICommands(swapID);
+			VulkanImpl::RecordUICommands(swapID, commandList.imageIndex);
 
 		VkCommandBuffer uiCommandBuffer = VulkanImpl::uiCommandBuffers[swapID];
 		Vector<VkCommandBuffer> cmdBuffers = { commandBuffer };
@@ -2423,9 +2434,6 @@ namespace Graphics
 		vkDestroyDescriptorPool(VulkanImpl::device, VulkanImpl::uiDescriptorPool, nullptr);
 		vkDestroyRenderPass(VulkanImpl::device, VulkanImpl::uiRenderPass, nullptr);
 		vkDestroyCommandPool(VulkanImpl::device, VulkanImpl::uiCommandPool, nullptr);
-		for (auto framebuffer : VulkanImpl::uiFramebuffers) {
-			vkDestroyFramebuffer(VulkanImpl::device, framebuffer, nullptr);
-		}
 
 		for (size_t i = 0; i < VulkanImpl::MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageFinishedSemaphores[i], nullptr);
