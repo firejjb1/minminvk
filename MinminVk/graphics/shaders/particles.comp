@@ -11,6 +11,15 @@ layout (binding = 0) uniform ParameterUBO {
     float deltaTime;
     uint numVertexPerThread;
     uint frame;
+
+    float windStrength;
+	vec4 windDirection;
+	float shockStrength;
+	uint elcIteration;
+	float stiffnessLocal;
+	float stiffnessGlobal;
+	float effectiveRangeGlobal;
+	float capsuleRadius;
 } ubo;
 
 // at beginning of frame: ParticlesIn holds current particle info, ParticlesOut holds previous particle info
@@ -30,7 +39,7 @@ layout(std140, binding = 3) readonly buffer ParticleSSBOInitial
     Particle particlesInitial[];
 };
 
-float gravityMag = 0.8f;
+float gravityMag = 10.8f;
 
 layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() 
@@ -55,8 +64,8 @@ void main()
         vec3 newPos = curPos + (curPos - oldPos) * decay + force * ubo.deltaTime * ubo.deltaTime;
 
         // Global Shape Constraints
-        float stiffnessForGlobalShapeMatching =  0.1f;
-        float globalShapeMatchingEffectiveRange = 1.0f;
+        float stiffnessForGlobalShapeMatching =  ubo.stiffnessGlobal;
+        float globalShapeMatchingEffectiveRange = ubo.effectiveRangeGlobal;
         if ( stiffnessForGlobalShapeMatching > 0 && globalShapeMatchingEffectiveRange > 0 )
         {
             if ( float(localVertexIndex) < globalShapeMatchingEffectiveRange * float( ubo.numVertexPerThread) )

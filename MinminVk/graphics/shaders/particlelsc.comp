@@ -11,6 +11,15 @@ layout (binding = 0) uniform ParameterUBO {
     float deltaTime;
     uint numVertexPerThread;
     uint frame;
+
+    float windStrength;
+	vec4 windDirection;
+	float shockStrength;
+	uint elcIteration;
+	float stiffnessLocal;
+	float stiffnessGlobal;
+	float effectiveRangeGlobal;
+	float capsuleRadius;
 } ubo;
 
 layout(std140, binding = 1) readonly buffer ParticleSSBOIn {
@@ -107,7 +116,7 @@ void main()
 
         vec3 orgPos_i_plus_1_InGlobalFrame = MultQuaternionAndVector(rotGlobal, vecBindPose) + vertexPos.xyz;
         
-        float stiffnessForLocalShapeMatching = 0.5f * 0.5f;
+        float stiffnessForLocalShapeMatching = ubo.stiffnessLocal * ubo.stiffnessLocal;
 
         vec3 del = stiffnessForLocalShapeMatching * (orgPos_i_plus_1_InGlobalFrame - vertexPlusOnePos.xyz);
 

@@ -1,5 +1,6 @@
 #include <graphics/Graphics.h>
 #include <Input.h>
+#include <UI.h>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -59,7 +60,30 @@ namespace Application
                 //ImGui_ImplVulkan_NewFrame();
                 ImGui_ImplGlfw_NewFrame();
                 ImGui::NewFrame();
-                ImGui::ShowDemoWindow();
+
+
+                ImGui::Begin("Renderer Options");
+                {
+                    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+                    ImGui::Separator();
+                    ImGui::Text("Hair Parameters");
+                    bool resetHead = ImGui::Button("Reset Head Position");
+                    ImGui::Checkbox("Rotate Head", &UI::rotateHead);
+
+                    ImGui::SliderFloat("Wind Strength", &UI::windStrength, 0, 100);
+                    ImGui::InputFloat3("Wind Direction", glm::value_ptr(UI::windDirection));
+                    f32 shockStrength = 1;
+                    ImGui::SliderFloat("Shock Strength", &UI::shockStrength, 0, 100);
+                    int elc = UI::elcIteration;
+                    ImGui::SliderInt("Edge Length Constraint Iteration", &elc, 0, 20);
+                    UI::elcIteration = elc;
+                    f32 stiffnessLocal = 0.5f;
+                    ImGui::SliderFloat("Stiffness Local", &UI::stiffnessLocal, 0, 1);
+                    ImGui::SliderFloat("Stiffness Global", &UI::stiffnessGlobal, 0, 1);
+                    ImGui::SliderFloat("Range Global Constraint", &UI::effectiveRangeGlobal, 0, 1);
+                    ImGui::SliderFloat("Capsule radius", &UI::capsuleRadius, 0, 0.2f);
+                }
+                ImGui::End();
                 ImGui::Render();
             }
 

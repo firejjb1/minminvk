@@ -6,6 +6,7 @@
 
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <memory>
 #include <vector>
 #include <set>

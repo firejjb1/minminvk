@@ -11,6 +11,15 @@ layout (binding = 0) uniform ParameterUBO {
     float deltaTime;
     uint numVertexPerStrand;
     uint frame;
+
+    float windStrength;
+	vec4 windDirection;
+	float shockStrength;
+	uint elcIteration;
+	float stiffnessLocal;
+	float stiffnessGlobal;
+	float effectiveRangeGlobal;
+	float capsuleRadius;
 } ubo;
 
 
@@ -152,9 +161,9 @@ void main()
         float magnitudeWind = sin(sin(float(ubo.frame) * 0.05f)) + 0.5f;
         vec3 V = (particlesOut[index-1].position - particlesOut[index].position).xyz;
         
-        vec3 W = magnitudeWind * vec3(-1.f, -0.f, 0.f) * 3;
+        vec3 W = magnitudeWind * ubo.windDirection.xyz * ubo.windStrength;
          
-        float shockStrength = 50;
+        float shockStrength = ubo.shockStrength;
         W += shock / ubo.deltaTime * shockStrength;
 
         W *= vertexMultiplier;
@@ -173,11 +182,11 @@ void main()
     uint b = uint(floor(ubo.numVertexPerStrand-1));
 
     uint numOfStrandsPerThreadGroup = 1;
-    int nLengthContraintIterations = 10;
+    uint nLengthContraintIterations = ubo.elcIteration;
     uint localStrandIndex = 0;
     float stiffness = 1.0f;
 
-    for ( int iterationE=0; iterationE < nLengthContraintIterations; iterationE++ )
+    for ( uint iterationE=0; iterationE < nLengthContraintIterations; iterationE++ )
     {
 
         if( localVertexIndex < a )
@@ -200,8 +209,8 @@ void main()
     // collision 
     vec3 newPosition;
     CollisionCapsule cc;
-    cc.p0 = vec4(0.f, -1.39f, 0.f, 0.11f);
-    cc.p1 = vec4(0.f, -1.45f, 0.f, 0.11f);
+    cc.p0 = vec4(0.f, -1.39f, 0.f, ubo.capsuleRadius);
+    cc.p1 = vec4(0.f, -1.45f, 0.f, ubo.capsuleRadius);
 
     bool res = CapsuleCollision(particlesOut[index].position, vec4(oldPos, 1), newPosition, cc);
     if (res)

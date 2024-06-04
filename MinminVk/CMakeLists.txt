@@ -126,6 +126,7 @@ set(SOURCE_FILES
 
 set(HEADER_FILES 
 	"Input.h"
+	"UI.h" 
 	"util/Type.h"
 	"util/IO.h"
 	"util/Math.h"

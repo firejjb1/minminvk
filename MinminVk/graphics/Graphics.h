@@ -5,6 +5,7 @@
 #include <graphics/Import.h>
 #include <graphics/UIRender.h>
 #include <Input.h>
+#include <UI.h>
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
@@ -32,6 +33,15 @@ namespace Graphics
 			float deltaTime;
 			u32 numVertexPerStrand;
 			u32 frame;
+
+			f32 windStrength = 3;
+			vec4 windDirection = vec4(-1.f, -0.f, 0.f, 0.f);
+			f32 shockStrength = 50;
+			u32 elcIteration = 10;
+			f32 stiffnessLocal = 0.5f;
+			f32 stiffnessGlobal = 0.1f;
+			f32 effectiveRangeGlobal = 1.f;
+			f32 capsuleRadius = 0.11f;
 		};
 
 		Uniform uniform;
@@ -209,9 +219,19 @@ namespace Graphics
 
 		// particle compute passes
 		{
+			particleUniformBuffer->uniform.windStrength = UI::windStrength;
+			particleUniformBuffer->uniform.windDirection = vec4(UI::windDirection, 0);
+			particleUniformBuffer->uniform.shockStrength = UI::shockStrength;
+			particleUniformBuffer->uniform.elcIteration = UI::elcIteration;
+			particleUniformBuffer->uniform.stiffnessLocal = UI::stiffnessLocal;
+			particleUniformBuffer->uniform.stiffnessGlobal = UI::stiffnessGlobal;
+			particleUniformBuffer->uniform.effectiveRangeGlobal = UI::effectiveRangeGlobal;
+			particleUniformBuffer->uniform.capsuleRadius = UI::capsuleRadius;
+
 			particleUniformBuffer->uniform.prevHead = headMesh->modelMatrix;
 			headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
-			headMesh->Update(deltaTime);
+			if (UI::rotateHead)
+				headMesh->Update(deltaTime);
 			particleUniformBuffer->uniform.curHead = headMesh->modelMatrix;
 
 			particleUniformBuffer->uniform.deltaTime = deltaTime;
@@ -273,7 +293,6 @@ namespace Graphics
 			renderContext.shouldRenderUI = true;
 
 			device->EndRecording(renderContext);
-
 		}
 	}
 
