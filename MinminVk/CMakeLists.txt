@@ -176,3 +176,10 @@ set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 
 target_link_libraries(${PROJECT_NAME} ${Vulkan_LIBRARY} ${LIBS})
 
+if(WIN32)
+	add_custom_target(run_bat_file
+					  COMMAND "compile.bat"
+					  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/")
+
+	add_dependencies(${PROJECT_NAME} run_bat_file)
+endif()

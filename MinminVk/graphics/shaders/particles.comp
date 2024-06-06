@@ -64,7 +64,7 @@ void main()
         vec3 newPos = curPos + (curPos - oldPos) * decay + force * ubo.deltaTime * ubo.deltaTime;
 
         // Global Shape Constraints
-        float stiffnessForGlobalShapeMatching =  ubo.stiffnessGlobal;
+        float stiffnessForGlobalShapeMatching = ubo.stiffnessGlobal;
         float globalShapeMatchingEffectiveRange = ubo.effectiveRangeGlobal;
         if ( stiffnessForGlobalShapeMatching > 0 && globalShapeMatchingEffectiveRange > 0 )
         {
