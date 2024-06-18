@@ -18,6 +18,8 @@ include_directories(external/tinyobjloader)
 # STB (header only library): Load images
 include_directories(external/stbImage)
 
+include_directories(external/tinygltf)
+
 if (NOT CMAKE_VERSION VERSION_LESS 3.7.0)
 	message(STATUS "Using module to find Vulkan")
 	find_package(Vulkan)
@@ -170,7 +172,6 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC HAIR_DIR="${CMAKE_CURRENT_SOUR
 
 # define vulkan implementation. only supports vulkan for now
 target_compile_definitions(${PROJECT_NAME} PUBLIC VULKAN_IMPL)
-
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 

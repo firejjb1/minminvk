@@ -1,13 +1,18 @@
 #include "IO.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define TINYGLTF_IMPLEMENTATION
+#include <tiny_gltf.h>
 namespace Util
 {
     
 Vector<char> IO::ReadFile(const String& filename)
 {
+
+	// TODO remove
+	tinygltf::TinyGLTF loader;
+
     DebugPrint("opening %s\n", filename.c_str());
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -51,6 +56,12 @@ unsigned char* IO::ReadImage(i32& width, i32& height, const String& filename)
 	width = texWidth;
 	height = texHeight;
 	return data;
+}
+
+bool IO::ReadGLTF(tinygltf::Model& model, const String& filename)
+{
+
+	return true;
 }
 
 }

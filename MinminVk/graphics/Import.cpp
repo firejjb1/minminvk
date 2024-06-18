@@ -20,7 +20,7 @@ namespace Graphics
 		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str())) {
 			throw std::runtime_error(warn + err);
 		}
-		
+
 		std::unordered_map<Graphics::BasicVertex::Vertex, u32> uniqueVertices{};
 		for (const auto& shape : shapes)
 		{
