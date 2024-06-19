@@ -9,10 +9,6 @@ namespace Util
     
 Vector<char> IO::ReadFile(const String& filename)
 {
-
-	// TODO remove
-	tinygltf::TinyGLTF loader;
-
     DebugPrint("opening %s\n", filename.c_str());
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -60,8 +56,27 @@ unsigned char* IO::ReadImage(i32& width, i32& height, const String& filename)
 
 bool IO::ReadGLTF(tinygltf::Model& model, const String& filename)
 {
+	// loadModel
+	tinygltf::TinyGLTF loader;
+	std::string err;
+	std::string warn;
 
-	return true;
+	bool res = loader.LoadASCIIFromFile(&model, &err, &warn, filename.c_str());
+
+	if (!warn.empty()) {
+		DebugPrint("WARN: %s\n", warn);
+	}
+
+	if (!err.empty()) {
+		DebugPrint("ERR: %s\n", err);
+	}
+
+	if (!res)
+		DebugPrint("Failed to load glTF: %s\n", filename.c_str());
+	else
+		DebugPrint("Loaded glTF: %s\n", filename.c_str());
+
+	return res;
 }
 
 }

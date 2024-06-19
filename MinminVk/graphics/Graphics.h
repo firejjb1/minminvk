@@ -22,6 +22,8 @@
 #define HEAD_MODEL "head.obj"
 #define HAIR_DATA_FILE "hairdata.txt"
 
+#define CUBE_GLTF "Cube/Cube.gltf"
+
 namespace Graphics
 {
 	struct ParticlesUniformBuffer : UniformBuffer
@@ -112,6 +114,11 @@ namespace Graphics
 
 	void InitGraphics(void * window)
 	{
+		// test GLTF 
+		{
+			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF));
+		}
+
 		presentation = MakeShared<Presentation>();
 		device = MakeShared<Device>();
 

@@ -58,4 +58,10 @@ namespace Graphics
 		Util::IO::ReadFloats(vertices, filename);
 	}
 
+	void Import::LoadGLTF(const String& filename)
+	{
+		tinygltf::Model model;
+		Util::IO::ReadGLTF(model, filename);
+	}
+
 }
