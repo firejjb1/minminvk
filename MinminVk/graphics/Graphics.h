@@ -86,6 +86,7 @@ namespace Graphics
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
 	SharedPtr<OBJMesh> headMesh;
+	SharedPtr<GLTFMesh> cubeMesh;
 	SharedPtr<StructuredBuffer> particleBuffer;
 	SharedPtr<StructuredBuffer> particleBufferPrev;
 	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
@@ -114,11 +115,6 @@ namespace Graphics
 
 	void InitGraphics(void * window)
 	{
-		// test GLTF 
-		{
-			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF));
-		}
-
 		presentation = MakeShared<Presentation>();
 		device = MakeShared<Device>();
 
@@ -152,9 +148,15 @@ namespace Graphics
 
 			quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
 
+			// OBJ
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
-
+			vikingRoom->modelMatrix = Math::Translate(vikingRoom->modelMatrix, vec3(0, -1.5f, -50));
 			headMesh = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
+
+			// GLTF
+			cubeMesh = MakeShared<GLTFMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, concat_str(GLTF_DIR, CUBE_GLTF), 0);
+			cubeMesh->modelMatrix = Math::Translate(cubeMesh->modelMatrix, vec3(2.f, -1.5f, -10));
+
 		}
 
 		// Compute Pass
@@ -271,16 +273,19 @@ namespace Graphics
 					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(eyePosition, eyePosition + vec3(0.0f, 0.f, -1.0f), vec3(0.0f, -1.0f, 0.0f));
 					i32 width = presentation->swapChainDetails.width;
 					i32 height = presentation->swapChainDetails.height;
-					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 10.0f);
+					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 1000.0f);
 					forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
 
 					particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
 					particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
 				}
 
-				//vikingRoom->Update(deltaTime);
-				//vikingRoom->Draw(renderContext);
+		/*		vikingRoom->Update(deltaTime);
+				vikingRoom->Draw(renderContext);*/
+				cubeMesh->Update(deltaTime);
+				cubeMesh->Draw(renderContext);
 
+				// TODO make texture apply per object draw
 				headMesh->Draw(renderContext);
 
 			}

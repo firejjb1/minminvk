@@ -40,7 +40,7 @@ namespace Graphics
 		struct Vertex 
 		{
 			vec3 pos;
-			vec3 color;
+			vec3 color = vec3(1);
 			vec2 texCoord;
 
 			bool operator==(const Vertex& other) const {
@@ -189,6 +189,16 @@ namespace Graphics
 		}
 	};
 
+	struct GLTFMesh : public Geometry
+	{
+	public:
+		GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> uboTransform, String filename, u32 meshIndex);
+		void Update(f32 deltaTime) override
+		{
+			modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
+			//modelMatrix = Math::Translate(modelMatrix, vec3(0., 0.1, 0));
+		}
+	};
 }
 
 namespace std {

@@ -1206,8 +1206,12 @@ namespace VulkanImpl
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = 0; // Optional
 		pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
-		pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-		pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+		VkPushConstantRange pushConstantRange{};
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // Accessible in vertex shader
+		pushConstantRange.offset = 0; // Start offset
+		pushConstantRange.size = sizeof(mat4);
+		pipelineLayoutInfo.pushConstantRangeCount = 1; // Optional
+		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange; // Optional
 
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = 1;
@@ -1560,6 +1564,7 @@ namespace VulkanImpl
 
 		geometry.basicUniform->transformUniform.model = geometry.modelMatrix;
 		UpdateUniformBuffer(geometry.basicUniform->GetData(), geometry.basicUniform->GetBufferSize(), *geometry.basicUniform, swapID);
+		vkCmdPushConstants(commandBuffer, pipelineLayouts[geometry.basicUniform->layoutID], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.modelMatrix);
 
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
@@ -2666,6 +2671,28 @@ namespace Graphics
 			descriptorPoolID,
 			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
 			Vector<Graphics::TextureID>{}
+		);
+	}
+
+	GLTFMesh::GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, u32 meshIndex)
+		: Geometry(basicUniform, mainTexture)
+	{
+		String mainTextureURI;
+		Import::LoadGLTF(filename, vertexDesc, indices, mainTextureURI);
+		String texturePath;
+		texturePath.append(filename);
+		texturePath.append("/../");
+		texturePath.append(mainTextureURI);
+		Texture mainTexture(texturePath);
+		this->mainTexture = mainTexture;
+		VulkanImpl::CreateVertexBuffer(*this);
+		VulkanImpl::CreateIndexBuffer(*this);
+		VulkanImpl::UpdateDescriptorSets(
+			descriptorPoolID,
+			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
+			Vector<Graphics::TextureID>{
+				this->mainTexture.textureID
+			}
 		);
 	}
 

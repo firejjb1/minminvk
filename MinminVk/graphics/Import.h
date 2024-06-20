@@ -12,6 +12,6 @@ namespace Graphics
 
 		static void LoadHairStrands(Vector<f32>& vertices, const String& filename);
 
-		static void LoadGLTF(const String& filename);
+		static void LoadGLTF(const String& filename, Graphics::BasicVertex& vertices, Vector<u16>& indices, String& mainTextureURI);
 	};
 }
