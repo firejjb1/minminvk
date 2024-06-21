@@ -23,6 +23,7 @@
 #define HAIR_DATA_FILE "hairdata.txt"
 
 #define CUBE_GLTF "Cube/Cube.gltf"
+// #define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
 
 namespace Graphics
 {

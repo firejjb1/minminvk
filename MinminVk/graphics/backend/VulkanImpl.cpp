@@ -2679,20 +2679,24 @@ namespace Graphics
 	{
 		String mainTextureURI;
 		Import::LoadGLTF(filename, vertexDesc, indices, mainTextureURI);
-		String texturePath;
-		texturePath.append(filename);
-		texturePath.append("/../");
-		texturePath.append(mainTextureURI);
-		Texture mainTexture(texturePath);
-		this->mainTexture = mainTexture;
+		Vector<Graphics::TextureID> textures;
+		if (mainTextureURI != "")
+		{
+			String texturePath;
+			texturePath.append(filename);
+			texturePath.append("/../");
+			texturePath.append(mainTextureURI);
+			Texture mainTexture(texturePath);
+			this->mainTexture = mainTexture;
+			textures.push_back(this->mainTexture.textureID);
+		}
+
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 		VulkanImpl::UpdateDescriptorSets(
 			descriptorPoolID,
 			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
-			Vector<Graphics::TextureID>{
-				this->mainTexture.textureID
-			}
+			textures
 		);
 	}
 

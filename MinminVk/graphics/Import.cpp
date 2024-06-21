@@ -71,27 +71,30 @@ namespace Graphics
 		auto indicesAccessor = model.accessors[mesh.primitives[0].indices];
 
 		// reading first primitive only
-		mainTextureURI = model.images[model.textures[model.materials[mesh.primitives[0].material].pbrMetallicRoughness.baseColorTexture.index].source].uri;
+		if (model.materials[mesh.primitives[0].material].pbrMetallicRoughness.baseColorTexture.index > -1)
+		{
+			mainTextureURI = model.images[model.textures[model.materials[mesh.primitives[0].material].pbrMetallicRoughness.baseColorTexture.index].source].uri;
+		}
 		for (auto& attrib : mesh.primitives[0].attributes)
 		{
 			if (attrib.first.compare("POSITION") == 0)
 			{
 				positionAccessor = model.accessors[attrib.second];
+				assert(positionAccessor.componentType == 5126);
 			}
 
 			if (attrib.first.compare("NORMAL") == 0)
 			{
 				normalAccessor = model.accessors[attrib.second];
+				assert(normalAccessor.componentType == 5126);
 			}
 			if (attrib.first.compare("TEXCOORD_0") == 0)
 			{
 				uvAccessor = model.accessors[attrib.second];
+				assert(uvAccessor.componentType == 5126);
 			}
 		}
 		// only support f32 types for now
-		assert(positionAccessor.componentType == 5126);
-		assert(normalAccessor.componentType == 5126);
-		assert(uvAccessor.componentType == 5126);
 
 		assert(indicesAccessor.componentType == 5123);
 
@@ -99,14 +102,17 @@ namespace Graphics
 		
 		auto positionBufferView = model.bufferViews[positionAccessor.bufferView];
 		DebugPrint("Positions\n");
-		for (int i = positionBufferView.byteOffset / sizeof(f32); i < positionBufferView.byteOffset / sizeof(f32) + positionBufferView.byteLength / sizeof(f32); ++i)
-		{
-			f32 val = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[i]);
-			DebugPrint("%f ", val);
-			if ((i + 1) % 3 == 0)
-				DebugPrint("\n");
 
-			vertices.vertices[(i - positionBufferView.byteOffset / sizeof(f32)) / 3].pos[i % 3] = val;
+		assert(positionAccessor.type == 3);
+		u32 startOfPositionBuffer = positionAccessor.byteOffset + positionBufferView.byteOffset;
+		u32 stridePositionBuffer = positionBufferView.byteStride == 0 ? sizeof(f32) * 3 : positionBufferView.byteStride;
+		for (int i = 0; i < positionAccessor.count; ++i)
+		{
+			u32 index = (startOfPositionBuffer + stridePositionBuffer * i);
+			vertices.vertices[i].pos.x = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[index / sizeof(f32)]);
+			vertices.vertices[i].pos.y = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+			vertices.vertices[i].pos.z = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[(index + sizeof(f32)*2) / sizeof(f32)]);
+
 		}
 
 		//auto normalBufferView = model.bufferViews[normalAccessor.bufferView];
@@ -119,28 +125,45 @@ namespace Graphics
 		//		DebugPrint("\n");
 		//}
 
-		auto uvBufferView = model.bufferViews[uvAccessor.bufferView];
-		DebugPrint("UV\n");
-		for (int i = uvBufferView.byteOffset / sizeof(f32); i < uvBufferView.byteOffset / sizeof(f32) + uvBufferView.byteLength / sizeof(f32); ++i)
+		if (uvAccessor.bufferView != -1)
 		{
-			f32 val = static_cast<f32>(((f32*)model.buffers[uvBufferView.buffer].data.data())[i]);
-			val = 0.5f * val + 0.5f;
-			DebugPrint("%f ", val);
-			if ((i + 1) % 2 == 0)
-				DebugPrint("\n");
+			auto uvBufferView = model.bufferViews[uvAccessor.bufferView];
+			DebugPrint("UV\n");
 
-			vertices.vertices[(i - uvBufferView.byteOffset / sizeof(f32)) / 2].texCoord[i % 2] = val;
+			assert(uvAccessor.type == 2);
+			u32 startOfUVBuffer = uvAccessor.byteOffset + uvBufferView.byteOffset;
+			u32 strideUVBuffer = uvBufferView.byteStride == 0 ? sizeof(f32) * 2 : uvBufferView.byteStride;
 
+			for (int i = 0; i < uvAccessor.count; ++i)
+			{
+				u32 index = (startOfUVBuffer + strideUVBuffer * i);
+				vertices.vertices[i].texCoord.x = static_cast<f32>(((f32*)model.buffers[uvBufferView.buffer].data.data())[index / sizeof(f32)]);
+				vertices.vertices[i].texCoord.y = static_cast<f32>(((f32*)model.buffers[uvBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+				// convert from -1,1 to 0,1
+				vertices.vertices[i].texCoord = vertices.vertices[i].texCoord * 0.5f + vec2(0.5f);
+
+			}
 		}
+
 
 		DebugPrint("Indices\n");
 		auto indicesBufferView = model.bufferViews[indicesAccessor.bufferView];
-		for (int i = indicesBufferView.byteOffset / sizeof(u16); i < indicesAccessor.byteOffset / sizeof(u16) + indicesBufferView.byteLength / sizeof(u16); ++i)
+		u32 startOfIndicesBuffer = indicesAccessor.byteOffset + indicesBufferView.byteOffset;
+		u32 strideIndicesBuffer = indicesBufferView.byteStride == 0 ? sizeof(u16) : indicesBufferView.byteStride;
+
+		for (int i = 0; i < indicesAccessor.count; ++i)
 		{
-			u16 val = static_cast<u16>(((u16*)model.buffers[indicesBufferView.buffer].data.data())[i]);
-			DebugPrint("%d\n", val);
+			u32 index = (startOfIndicesBuffer + strideIndicesBuffer * i);
+			u16 val = static_cast<u16>(((u16*)model.buffers[indicesBufferView.buffer].data.data())[index / sizeof(u16)]);
 			indices.push_back(val);
 		}
+
+		//for (int i = indicesBufferView.byteOffset / sizeof(u16); i < indicesAccessor.byteOffset / sizeof(u16) + indicesBufferView.byteLength / sizeof(u16); ++i)
+		//{
+		//	u16 val = static_cast<u16>(((u16*)model.buffers[indicesBufferView.buffer].data.data())[i]);
+		//	DebugPrint("%d\n", val);
+		//	indices.push_back(val);
+		//}
 
 	}
 
