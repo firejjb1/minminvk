@@ -170,7 +170,7 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC HAIR_DIR="${CMAKE_CURRENT_SOUR
 target_compile_definitions(${PROJECT_NAME} PUBLIC GLTF_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/gltf/")
 
 # disable validation layers, etc
-# target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
+#target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
 
 # define vulkan implementation. only supports vulkan for now
 target_compile_definitions(${PROJECT_NAME} PUBLIC VULKAN_IMPL)

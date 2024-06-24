@@ -14,4 +14,5 @@ namespace UI
 	f32 effectiveRangeGlobal = 0.1f;
 	f32 capsuleRadius = 0.12f;
 	bool rotateHead = false;
+	bool resetHeadPos = false;
 }

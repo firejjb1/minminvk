@@ -100,6 +100,10 @@ namespace Graphics
 	u32 numVertexPerStrand = 16;
 	vec3 eyePosition(0.01f, -1.5f, 1.0f);
 
+	f32 fixedDeltaTime = 0.02f;
+	f32 updateTimeAccumulator = 0.f;
+	u32 maxUpdateStepsPerFrame = 5;
+
 	//  4f position 4f color. can optimize later
 	// careful about alignment
 	Vector<f32> particles{
@@ -212,8 +216,67 @@ namespace Graphics
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 			
 			// sync
-			particleRenderPipeline->Wait(particleELCWindComputePipeline->pipelineID);
+			//particleRenderPipeline->Wait(particleELCWindComputePipeline->pipelineID);
 
+		}
+	}
+
+	void Update(const f32 fixedDeltaTime, const f32 deltaTime, const u32 frameID)
+	{
+		u32 curSteps = 0;
+		while (updateTimeAccumulator > fixedDeltaTime)
+		{
+			curSteps++;
+			if (curSteps > maxUpdateStepsPerFrame)
+				break;
+			// all the fixed updates
+			{
+				// particle compute passes
+				{
+					vec3 keyboardMovement(0);
+					keyboardMovement.x += Input::A.pressed ? fixedDeltaTime : Input::D.pressed ? -fixedDeltaTime : 0;
+					keyboardMovement.y += Input::S.pressed ? fixedDeltaTime : Input::W.pressed ? -fixedDeltaTime : 0;
+
+
+					particleUniformBuffer->uniform.windStrength = UI::windStrength;
+					particleUniformBuffer->uniform.windDirection = vec4(UI::windDirection, 0);
+					particleUniformBuffer->uniform.shockStrength = UI::shockStrength;
+					particleUniformBuffer->uniform.elcIteration = UI::elcIteration;
+					particleUniformBuffer->uniform.stiffnessLocal = UI::stiffnessLocal;
+					particleUniformBuffer->uniform.stiffnessGlobal = UI::stiffnessGlobal;
+					particleUniformBuffer->uniform.effectiveRangeGlobal = UI::effectiveRangeGlobal;
+					particleUniformBuffer->uniform.capsuleRadius = UI::capsuleRadius;
+
+					particleUniformBuffer->uniform.prevHead = headMesh->modelMatrix;
+
+					headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
+					if (UI::rotateHead)
+						headMesh->Update(fixedDeltaTime);
+					if (UI::resetHeadPos)
+						headMesh->modelMatrix = mat4(1);
+
+					particleUniformBuffer->uniform.curHead = headMesh->modelMatrix;
+
+					particleUniformBuffer->uniform.deltaTime = fixedDeltaTime;
+					particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
+					particleUniformBuffer->uniform.frame = frameID;
+					particleUniformBuffer->UpdateUniformBuffer(frameID);
+
+					computeContext.computePipeline = particleComputePipeline;
+					device->BeginRecording(computeContext);
+					particleComputePipeline->Dispatch(computeContext);
+					computeContext.computePipeline = particleLSCComputePipeline;
+					particleLSCComputePipeline->Dispatch(computeContext);
+					computeContext.computePipeline = particleELCWindComputePipeline;
+					particleELCWindComputePipeline->Dispatch(computeContext);
+
+					device->EndRecording(computeContext);
+				}
+
+				vikingRoom->Update(fixedDeltaTime);
+				cubeMesh->Update(fixedDeltaTime);
+			}
+			updateTimeAccumulator -= fixedDeltaTime;
 		}
 	}
 
@@ -222,42 +285,8 @@ namespace Graphics
 		renderContext.frameID = frameID;
 		computeContext.frameID = frameID;
 
-		vec3 keyboardMovement(0);
-		keyboardMovement.x += Input::A.pressed ? deltaTime : Input::D.pressed ? -deltaTime : 0;
-		keyboardMovement.y += Input::S.pressed ? deltaTime : Input::W.pressed ? -deltaTime : 0;
-
-		// particle compute passes
-		{
-			particleUniformBuffer->uniform.windStrength = UI::windStrength;
-			particleUniformBuffer->uniform.windDirection = vec4(UI::windDirection, 0);
-			particleUniformBuffer->uniform.shockStrength = UI::shockStrength;
-			particleUniformBuffer->uniform.elcIteration = UI::elcIteration;
-			particleUniformBuffer->uniform.stiffnessLocal = UI::stiffnessLocal;
-			particleUniformBuffer->uniform.stiffnessGlobal = UI::stiffnessGlobal;
-			particleUniformBuffer->uniform.effectiveRangeGlobal = UI::effectiveRangeGlobal;
-			particleUniformBuffer->uniform.capsuleRadius = UI::capsuleRadius;
-
-			particleUniformBuffer->uniform.prevHead = headMesh->modelMatrix;
-			headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
-			if (UI::rotateHead)
-				headMesh->Update(deltaTime);
-			particleUniformBuffer->uniform.curHead = headMesh->modelMatrix;
-
-			particleUniformBuffer->uniform.deltaTime = deltaTime;
-			particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
-			particleUniformBuffer->uniform.frame = frameID;
-			particleUniformBuffer->UpdateUniformBuffer(frameID);
-			
-			computeContext.computePipeline = particleComputePipeline;
-			device->BeginRecording(computeContext);
-			particleComputePipeline->Dispatch(computeContext);
-			computeContext.computePipeline = particleLSCComputePipeline;
-			particleLSCComputePipeline->Dispatch(computeContext);
-			computeContext.computePipeline = particleELCWindComputePipeline;
-			particleELCWindComputePipeline->Dispatch(computeContext);
-
-			device->EndRecording(computeContext);
-		}
+		updateTimeAccumulator += deltaTime;
+		Update(fixedDeltaTime, deltaTime, frameID);
 
 		// forward passes
 		{
@@ -282,8 +311,8 @@ namespace Graphics
 				}
 
 		/*		vikingRoom->Update(deltaTime);
-				vikingRoom->Draw(renderContext);*/
-				cubeMesh->Update(deltaTime);
+				vikingRoom->Draw(renderContext);
+				cubeMesh->Update(deltaTime);*/
 				cubeMesh->Draw(renderContext);
 
 				// TODO make texture apply per object draw

@@ -25,7 +25,6 @@ namespace Application
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan window", nullptr, nullptr);
-        
         glfwSetKeyCallback(window, Input::keyCallback);
 
         Graphics::InitGraphics(window);
@@ -68,6 +67,7 @@ namespace Application
                     ImGui::Separator();
                     ImGui::Text("Hair Parameters");
                     bool resetHead = ImGui::Button("Reset Head Position");
+                    UI::resetHeadPos = resetHead;
                     ImGui::Checkbox("Rotate Head", &UI::rotateHead);
 
                     ImGui::SliderFloat("Wind Strength", &UI::windStrength, 0, 100);
