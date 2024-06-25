@@ -100,9 +100,10 @@ namespace Graphics
 	u32 numVertexPerStrand = 16;
 	vec3 eyePosition(0.01f, -1.5f, 1.0f);
 
-	f32 fixedDeltaTime = 0.02f;
+	const f32 fixedDeltaTime = 0.016f;
 	f32 updateTimeAccumulator = 0.f;
-	u32 maxUpdateStepsPerFrame = 5;
+	const u32 maxUpdateStepsPerFrame = 5;
+	u32 physicsFrameID = 0;
 
 	//  4f position 4f color. can optimize later
 	// careful about alignment
@@ -122,6 +123,7 @@ namespace Graphics
 	{
 		presentation = MakeShared<Presentation>();
 		device = MakeShared<Device>();
+		presentation->swapChainDetails.mode = Presentation::SwapChainDetails::ModeType::MAILBOX;
 
 		presentation->Init(window);
 		device->Init();
@@ -221,12 +223,16 @@ namespace Graphics
 		}
 	}
 
-	void Update(const f32 fixedDeltaTime, const f32 deltaTime, const u32 frameID)
+	void Update(const f32 fixedDeltaTime)
 	{
 		u32 curSteps = 0;
 		while (updateTimeAccumulator > fixedDeltaTime)
 		{
+			updateTimeAccumulator -= fixedDeltaTime;
 			curSteps++;
+			physicsFrameID++;
+			computeContext.frameID = physicsFrameID;
+
 			if (curSteps > maxUpdateStepsPerFrame)
 				break;
 			// all the fixed updates
@@ -259,8 +265,8 @@ namespace Graphics
 
 					particleUniformBuffer->uniform.deltaTime = fixedDeltaTime;
 					particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
-					particleUniformBuffer->uniform.frame = frameID;
-					particleUniformBuffer->UpdateUniformBuffer(frameID);
+					particleUniformBuffer->uniform.frame = physicsFrameID;
+					particleUniformBuffer->UpdateUniformBuffer(physicsFrameID);
 
 					computeContext.computePipeline = particleComputePipeline;
 					device->BeginRecording(computeContext);
@@ -276,18 +282,15 @@ namespace Graphics
 				vikingRoom->Update(fixedDeltaTime);
 				cubeMesh->Update(fixedDeltaTime);
 			}
-			updateTimeAccumulator -= fixedDeltaTime;
 		}
 	}
 
 	void MainRender(const u32 frameID, const f32 deltaTime)
 	{
 		renderContext.frameID = frameID;
-		computeContext.frameID = frameID;
 
 		updateTimeAccumulator += deltaTime;
-		Update(fixedDeltaTime, deltaTime, frameID);
-
+		Update(fixedDeltaTime);
 		// forward passes
 		{
 			// pass 1
