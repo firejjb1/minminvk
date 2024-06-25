@@ -143,6 +143,7 @@ set(HEADER_FILES
 	"graphics/Import.h"
 	"graphics/Resource.h"
 	"graphics/UIRender.h"
+	"graphics/Node.h"
 )
 
 IF(WIN32)

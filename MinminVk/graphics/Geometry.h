@@ -3,6 +3,7 @@
 #include <util/Type.h>
 #include <graphics/Device.h>
 #include <graphics/Buffer.h>
+#include <graphics/Node.h>
 #include <util/Math.h>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
@@ -129,11 +130,10 @@ namespace Graphics
 
 	struct GeometryID { u32 vertexBufferID = 0; u32 indexBufferID = 0; };
 
-	struct Geometry
+	struct Geometry : public Node
 	{
 	GeometryID geometryID;
 	SharedPtr<BasicUniformBuffer> basicUniform;
-	mat4 modelMatrix = mat4(1);
 	Texture mainTexture;
 
 	protected:
