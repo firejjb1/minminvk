@@ -22,8 +22,8 @@
 #define HEAD_MODEL "head.obj"
 #define HAIR_DATA_FILE "hairdata.txt"
 
-#define CUBE_GLTF "Cube/Cube.gltf"
-// #define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
+//#define CUBE_GLTF "Cube/Cube.gltf"
+#define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
 
 namespace Graphics
 {
@@ -165,9 +165,11 @@ namespace Graphics
 
 			// GLTF
 			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, gltfMeshes);
-			for (auto& mesh : gltfMeshes)
+		
+			for (int i = 0; i < gltfMeshes.size(); ++i)
 			{
-				mesh->node->modelMatrix = Math::Translate(mesh->node->modelMatrix, vec3(2.f, -1.5f, -10));
+				auto& mesh = gltfMeshes[i];
+				mesh->node->modelMatrix = Math::Translate(mesh->node->modelMatrix, vec3(2.f, -1.5f * i, -10));
 			}
 
 		}

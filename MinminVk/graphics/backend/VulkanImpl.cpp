@@ -2661,7 +2661,7 @@ namespace Graphics
 	}
 	
 	OBJMesh::OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename)
-		: Geometry(basicUniform, mainTexture)
+		: Geometry(basicUniform, Texture())
 	{
 		Import::LoadOBJ(vertexDesc, indices, filename);
 		VulkanImpl::CreateVertexBuffer(*this);
@@ -2675,7 +2675,7 @@ namespace Graphics
 	}
 
 	GLTFMesh::GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model)
-		: Geometry(basicUniform, mainTexture)
+		: Geometry(basicUniform, Texture())
 	{
 		Import::LoadGLTFMesh(filename, mesh, model, vertexDesc, indices, mainTexture);
 		VulkanImpl::CreateVertexBuffer(*this);
@@ -2683,10 +2683,13 @@ namespace Graphics
 		VulkanImpl::UpdateDescriptorSets(
 			descriptorPoolID,
 			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
-			Vector<Graphics::TextureID>
-			{
-				this->mainTexture.textureID
-			}
+			this->mainTexture.initialized ? 
+				Vector<Graphics::TextureID>
+				{
+					this->mainTexture.textureID
+				} 
+				:
+				Vector<Graphics::TextureID>{}
 		);
 	}
 
@@ -2708,6 +2711,7 @@ namespace Graphics
 			mipLevels = static_cast<u32>(std::floor(std::log2(Max(width, height))) + 1);
 		}
 		VulkanImpl::CreateTextureImage(*this, (stbi_uc*)data, width, height, mipLevels);
+		initialized = true;
 	}
 
 	Sampler::Sampler()
