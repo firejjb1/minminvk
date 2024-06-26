@@ -77,6 +77,7 @@ namespace Graphics
 	};
 
 	SharedPtr<Device> device;
+	SharedPtr<NodeManager> nodeManager;
 	RenderContext renderContext;
 	ComputeContext computeContext;
 	SharedPtr<Presentation> presentation;
@@ -87,7 +88,7 @@ namespace Graphics
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
 	SharedPtr<OBJMesh> headMesh;
-	SharedPtr<GLTFMesh> cubeMesh;
+	Vector<SharedPtr<GLTFMesh>> gltfMeshes;
 	SharedPtr<StructuredBuffer> particleBuffer;
 	SharedPtr<StructuredBuffer> particleBufferPrev;
 	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
@@ -121,6 +122,8 @@ namespace Graphics
 
 	void InitGraphics(void * window)
 	{
+		nodeManager = MakeShared<NodeManager>(10000);
+
 		presentation = MakeShared<Presentation>();
 		device = MakeShared<Device>();
 		presentation->swapChainDetails.mode = Presentation::SwapChainDetails::ModeType::MAILBOX;
@@ -157,12 +160,15 @@ namespace Graphics
 
 			// OBJ
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
-			vikingRoom->modelMatrix = Math::Translate(vikingRoom->modelMatrix, vec3(0, -1.5f, -50));
+			vikingRoom->node->modelMatrix = Math::Translate(vikingRoom->node->modelMatrix, vec3(0, -1.5f, -50));
 			headMesh = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
 
 			// GLTF
-			cubeMesh = MakeShared<GLTFMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, concat_str(GLTF_DIR, CUBE_GLTF), 0);
-			cubeMesh->modelMatrix = Math::Translate(cubeMesh->modelMatrix, vec3(2.f, -1.5f, -10));
+			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, gltfMeshes);
+			for (auto& mesh : gltfMeshes)
+			{
+				mesh->node->modelMatrix = Math::Translate(mesh->node->modelMatrix, vec3(2.f, -1.5f, -10));
+			}
 
 		}
 
@@ -217,8 +223,8 @@ namespace Graphics
 			particleRenderPipeline->depthWriteEnable = false;
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 			
-			// sync
-			//particleRenderPipeline->Wait(particleELCWindComputePipeline->pipelineID);
+			// TODO async compute
+			// particleRenderPipeline->Wait(particleELCWindComputePipeline->pipelineID);
 
 		}
 	}
@@ -253,15 +259,15 @@ namespace Graphics
 					particleUniformBuffer->uniform.effectiveRangeGlobal = UI::effectiveRangeGlobal;
 					particleUniformBuffer->uniform.capsuleRadius = UI::capsuleRadius;
 
-					particleUniformBuffer->uniform.prevHead = headMesh->modelMatrix;
+					particleUniformBuffer->uniform.prevHead = headMesh->node->modelMatrix;
 
-					headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
+					headMesh->node->modelMatrix = glm::translate(headMesh->node->modelMatrix, keyboardMovement);
 					if (UI::rotateHead)
 						headMesh->Update(fixedDeltaTime);
 					if (UI::resetHeadPos)
-						headMesh->modelMatrix = mat4(1);
+						headMesh->node->modelMatrix = mat4(1);
 
-					particleUniformBuffer->uniform.curHead = headMesh->modelMatrix;
+					particleUniformBuffer->uniform.curHead = headMesh->node->modelMatrix;
 
 					particleUniformBuffer->uniform.deltaTime = fixedDeltaTime;
 					particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
@@ -280,7 +286,10 @@ namespace Graphics
 				}
 
 				vikingRoom->Update(fixedDeltaTime);
-				cubeMesh->Update(fixedDeltaTime);
+				for (auto& mesh : gltfMeshes)
+				{
+					mesh->Update(fixedDeltaTime);
+				}
 			}
 		}
 	}
@@ -313,10 +322,15 @@ namespace Graphics
 					particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
 				}
 
-		/*		vikingRoom->Update(deltaTime);
+				/*
+				vikingRoom->Update(deltaTime);
 				vikingRoom->Draw(renderContext);
-				cubeMesh->Update(deltaTime);*/
-				cubeMesh->Draw(renderContext);
+				*/
+
+				for (auto& mesh : gltfMeshes)
+				{
+					mesh->Draw(renderContext);
+				}
 
 				// TODO make texture apply per object draw
 				headMesh->Draw(renderContext);
@@ -328,7 +342,7 @@ namespace Graphics
 			renderContext.renderPass = forwardParticlePass;
 			device->BeginRenderPass(renderContext);
 
-			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->modelMatrix;
+			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->node->modelMatrix;
 			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
 			device->EndRenderPass(renderContext);

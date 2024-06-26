@@ -1,5 +1,7 @@
 #include <graphics/Import.h>
 #include <graphics/Geometry.h>
+#include <graphics/Texture.h>
+
 #include <util/IO.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -58,22 +60,25 @@ namespace Graphics
 		Util::IO::ReadFloats(vertices, filename);
 	}
 
-	void Import::LoadGLTF(const String& filename, Graphics::BasicVertex& vertices, Vector<u16>& indices, String& mainTextureURI)
+	void Import::LoadGLTFMesh(const String filename, tinygltf::Mesh& mesh, tinygltf::Model& model, Graphics::BasicVertex& vertices, Vector<u16>& indices, Texture& mainTexture)
 	{
-		tinygltf::Model model;
-		Util::IO::ReadGLTF(model, filename);
-
-		// reading first mesh only
-		auto& mesh = model.meshes[0];
 		tinygltf::Accessor positionAccessor;
 		tinygltf::Accessor normalAccessor;
 		tinygltf::Accessor uvAccessor;
 		auto indicesAccessor = model.accessors[mesh.primitives[0].indices];
 
-		// reading first primitive only
 		if (model.materials[mesh.primitives[0].material].pbrMetallicRoughness.baseColorTexture.index > -1)
 		{
-			mainTextureURI = model.images[model.textures[model.materials[mesh.primitives[0].material].pbrMetallicRoughness.baseColorTexture.index].source].uri;
+			String mainTextureURI = model.images[model.textures[model.materials[mesh.primitives[0].material].pbrMetallicRoughness.baseColorTexture.index].source].uri;
+			if (mainTextureURI != "")
+			{
+				String texturePath;
+				texturePath.append(filename);
+				texturePath.append("/../");
+				texturePath.append(mainTextureURI);
+				Texture texture(texturePath);
+				mainTexture = texture;
+			}
 		}
 		for (auto& attrib : mesh.primitives[0].attributes)
 		{
@@ -99,7 +104,7 @@ namespace Graphics
 		assert(indicesAccessor.componentType == 5123);
 
 		vertices.vertices.resize(positionAccessor.count);
-		
+
 		auto positionBufferView = model.bufferViews[positionAccessor.bufferView];
 		DebugPrint("Positions\n");
 
@@ -111,10 +116,11 @@ namespace Graphics
 			u32 index = (startOfPositionBuffer + stridePositionBuffer * i);
 			vertices.vertices[i].pos.x = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[index / sizeof(f32)]);
 			vertices.vertices[i].pos.y = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
-			vertices.vertices[i].pos.z = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[(index + sizeof(f32)*2) / sizeof(f32)]);
+			vertices.vertices[i].pos.z = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
 
 		}
 
+		// no normals yet
 		//auto normalBufferView = model.bufferViews[normalAccessor.bufferView];
 		//DebugPrint("Normals\n");
 		//for (int i = normalBufferView.byteOffset / sizeof(f32); i < normalBufferView.byteOffset / sizeof(f32) + normalBufferView.byteLength / sizeof(f32); ++i)
@@ -157,13 +163,66 @@ namespace Graphics
 			u16 val = static_cast<u16>(((u16*)model.buffers[indicesBufferView.buffer].data.data())[index / sizeof(u16)]);
 			indices.push_back(val);
 		}
+	}
 
-		//for (int i = indicesBufferView.byteOffset / sizeof(u16); i < indicesAccessor.byteOffset / sizeof(u16) + indicesBufferView.byteLength / sizeof(u16); ++i)
-		//{
-		//	u16 val = static_cast<u16>(((u16*)model.buffers[indicesBufferView.buffer].data.data())[i]);
-		//	DebugPrint("%d\n", val);
-		//	indices.push_back(val);
-		//}
+	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Vector<SharedPtr<GLTFMesh>>& newMeshes)
+	{
+		tinygltf::Model model;
+		Util::IO::ReadGLTF(model, filename);
+
+		for (auto& scene : model.scenes)
+		{
+			Vector<std::pair<u32, u32>> nodesStack; // node and parent id
+			for (auto& node : scene.nodes)
+			{
+				nodesStack.push_back(std::make_pair<u32, u32>(node, 0));
+			}
+			while (nodesStack.size() > 0)
+			{
+				auto& pair = nodesStack.back();
+				auto& node = model.nodes[pair.first];
+				auto& parent = pair.second;
+				nodesStack.pop_back();
+				auto matrix = node.matrix;
+				mat4 modelMatrix = mat4(1);
+				if (matrix.size() > 0)
+				{
+					modelMatrix = mat4(*matrix.data());
+				}
+
+				NodeID parentID;
+				parentID.id = parent;
+
+				Node::NodeType nodeType = Node::NodeType::EMPTY_NODE;
+				if (node.camera >= 0)
+					nodeType = Node::NodeType::CAMERA_NODE;
+				else if (node.mesh >= 0)
+					nodeType = Node::NodeType::MESH_NODE;
+				else if (node.skin >= 0)
+					nodeType = Node::NodeType::BONE_NODE;
+
+				auto newNode = nodeManager.AddNode(modelMatrix, parentID, nodeType);
+
+				if (nodeType == Node::MESH_NODE)
+				{
+					auto& gltfMesh = model.meshes[node.mesh];
+					auto geometry = MakeShared<GLTFMesh>(descriptorPoolID, basicUniform, filename, gltfMesh, model);
+					geometry->node = newNode;
+					newMeshes.push_back(geometry);
+				}
+
+				for (auto& child : node.children)
+				{
+					nodesStack.push_back(std::make_pair<u32, u32>(child, newNode->nodeID.id));
+				}
+
+			}
+		}
+		// reading first mesh only
+		//auto& mesh = model.meshes[0];
+
+		//LoadGLTFMesh(mesh, model, vertices, indices, mainTextureURI);
+		
 
 	}
 

@@ -4,6 +4,7 @@
 
 namespace Graphics
 {
+
 	struct NodeID
 	{
 		i32 id = -1;
@@ -11,8 +12,8 @@ namespace Graphics
 
 	struct Node
 	{
-		enum NodeType { MESH_NODE, CAMERA_NODE, BONE_NODE, ROOT_NODE };
-		NodeType nodeType = MESH_NODE;
+		enum NodeType { EMPTY_NODE, MESH_NODE, CAMERA_NODE, BONE_NODE, ROOT_NODE };
+		NodeType nodeType = EMPTY_NODE;
 		
 		NodeID nodeID;
 		NodeID parentNodeID;
@@ -36,12 +37,12 @@ namespace Graphics
 			auto rootNode = MakeShared<Node>();
 			rootNode->nodeID.id = 0;
 			rootNode->nodeType = Node::ROOT_NODE;
-			nodes.push_back(rootNode);
+			nodes[0] = rootNode;
 		}
 
 		SharedPtr<Node> AddNode(mat4 modelMatrix, NodeID parentID, Node::NodeType nodeType)
 		{
-			auto newNode = MakeShared<Node>();
+			SharedPtr<Node> newNode = MakeShared<Node>();
 			newNode->nodeID.id = cyclicIndex;
 			newNode->nodeType = nodeType;
 			newNode->parentNodeID = parentID;

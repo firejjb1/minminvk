@@ -130,11 +130,13 @@ namespace Graphics
 
 	struct GeometryID { u32 vertexBufferID = 0; u32 indexBufferID = 0; };
 
-	struct Geometry : public Node
+	struct Geometry
 	{
-	GeometryID geometryID;
-	SharedPtr<BasicUniformBuffer> basicUniform;
-	Texture mainTexture;
+
+		SharedPtr<Node> node;
+		GeometryID geometryID;
+		SharedPtr<BasicUniformBuffer> basicUniform;
+		Texture mainTexture;
 
 	protected:
 		BasicVertex vertexDesc;
@@ -146,6 +148,9 @@ namespace Graphics
 		virtual void Update(f32 deltaTime) {};
 
 		Geometry(SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture);
+
+		Geometry() {}
+
 	};
 
 	struct Quad : public Geometry
@@ -184,7 +189,7 @@ namespace Graphics
 		OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> uboTransform, String filename);
 		void Update(f32 deltaTime) override
 		{
-			modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
+			node->modelMatrix = Math::Rotate(node->modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
 			//modelMatrix = Math::Translate(modelMatrix, vec3(0., 0.1, 0));
 		}
 	};
@@ -192,10 +197,10 @@ namespace Graphics
 	struct GLTFMesh : public Geometry
 	{
 	public:
-		GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> uboTransform, String filename, u32 meshIndex);
+		GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
 		void Update(f32 deltaTime) override
 		{
-			modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
+			node->modelMatrix = Math::Rotate(node->modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
 			//modelMatrix = Math::Translate(modelMatrix, vec3(0., 0.1, 0));
 		}
 	};

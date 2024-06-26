@@ -1562,9 +1562,9 @@ namespace VulkanImpl
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 
-		geometry.basicUniform->transformUniform.model = geometry.modelMatrix;
+		geometry.basicUniform->transformUniform.model = geometry.node->modelMatrix;
 		UpdateUniformBuffer(geometry.basicUniform->GetData(), geometry.basicUniform->GetBufferSize(), *geometry.basicUniform, swapID);
-		vkCmdPushConstants(commandBuffer, pipelineLayouts[geometry.basicUniform->layoutID], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.modelMatrix);
+		vkCmdPushConstants(commandBuffer, pipelineLayouts[geometry.basicUniform->layoutID], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.node->modelMatrix);
 
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
@@ -2624,7 +2624,7 @@ namespace Graphics
 	Geometry::Geometry(SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture)
 		: basicUniform{basicUniform}, mainTexture{mainTexture}
 	{
-
+		node = MakeShared<Node>();
 	}
 
 	Quad::Quad(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture) 
@@ -2674,29 +2674,19 @@ namespace Graphics
 		);
 	}
 
-	GLTFMesh::GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, u32 meshIndex)
+	GLTFMesh::GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model)
 		: Geometry(basicUniform, mainTexture)
 	{
-		String mainTextureURI;
-		Import::LoadGLTF(filename, vertexDesc, indices, mainTextureURI);
-		Vector<Graphics::TextureID> textures;
-		if (mainTextureURI != "")
-		{
-			String texturePath;
-			texturePath.append(filename);
-			texturePath.append("/../");
-			texturePath.append(mainTextureURI);
-			Texture mainTexture(texturePath);
-			this->mainTexture = mainTexture;
-			textures.push_back(this->mainTexture.textureID);
-		}
-
+		Import::LoadGLTFMesh(filename, mesh, model, vertexDesc, indices, mainTexture);
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 		VulkanImpl::UpdateDescriptorSets(
 			descriptorPoolID,
 			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
-			textures
+			Vector<Graphics::TextureID>
+			{
+				this->mainTexture.textureID
+			}
 		);
 	}
 
