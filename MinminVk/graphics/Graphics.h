@@ -99,7 +99,7 @@ namespace Graphics
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
 	u32 numVertexPerStrand = 16;
-	vec3 eyePosition(0.01f, -1.5f, 1.0f);
+	vec3 eyePosition(0.01f, -1.5f, 10.0f); 
 
 	const f32 fixedDeltaTime = 0.016f;
 	f32 updateTimeAccumulator = 0.f;
@@ -162,15 +162,9 @@ namespace Graphics
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
 			vikingRoom->node->modelMatrix = Math::Translate(vikingRoom->node->modelMatrix, vec3(0, -1.5f, -50));
 			headMesh = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
-
+			headMesh->node->modelMatrix = Math::Translate(mat4(1), vec3(0, 0, 9));
 			// GLTF
 			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, gltfMeshes);
-		
-			for (int i = 0; i < gltfMeshes.size(); ++i)
-			{
-				auto& mesh = gltfMeshes[i];
-				mesh->node->modelMatrix = Math::Translate(mesh->node->modelMatrix, vec3(2.f, -1.5f * i, -10));
-			}
 
 		}
 

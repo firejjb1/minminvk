@@ -1,6 +1,7 @@
 #pragma once
 
 #include <util/Type.h>
+#include <graphics/Animation.h>
 
 namespace Graphics
 {
@@ -21,6 +22,8 @@ namespace Graphics
 
 		mat4 modelMatrix = mat4(1);
 		mat4 parentModelMatrix = mat4(1);
+
+		Vector<SharedPtr<Animation>> animations;
 	};
 
 	struct NodeManager
@@ -80,5 +83,7 @@ namespace Graphics
 		{
 			return nodes[nodeID.id];
 		}
+
+
 	};
 }

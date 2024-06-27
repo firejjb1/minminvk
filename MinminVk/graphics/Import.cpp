@@ -1,6 +1,7 @@
 #include <graphics/Import.h>
 #include <graphics/Geometry.h>
 #include <graphics/Texture.h>
+#include <graphics/Animation.h>
 
 #include <util/IO.h>
 
@@ -170,13 +171,75 @@ namespace Graphics
 		tinygltf::Model model;
 		Util::IO::ReadGLTF(model, filename);
 
+
+
 		for (auto& scene : model.scenes)
 		{
+			Vector<Vector<SharedPtr<Animation>>> animationToNodes;
+			animationToNodes.resize(model.nodes.size());
+
 			Vector<std::pair<u32, u32>> nodesStack; // node and parent id
 			for (auto& node : scene.nodes)
 			{
 				nodesStack.push_back(std::make_pair<u32, u32>(node, 0));
 			}
+
+			// create animations and add them to nodes
+			for (auto& animation : model.animations)
+			{
+				for (u32 i = 0; i < animation.channels.size(); ++i)
+				{
+					auto& channel = animation.channels[i];
+					auto& sampler = animation.samplers[i];
+					Animation::AnimationType animationType = channel.target_path == "rotation" ? Animation::AnimationType::ROTATION : channel.target_path == "translation" ? Animation::AnimationType::TRANSLATION : Animation::AnimationType::SCALE;
+					Animation::SamplerType samplerType = sampler.interpolation == "LINEAR" ? Animation::SamplerType::LINEAR : sampler.interpolation == "STEP" ? Animation::SamplerType::STEP : Animation::SamplerType::CUBIC;
+					auto& inputAccessor = model.accessors[sampler.input];
+					auto& inputBufferView = model.bufferViews[inputAccessor.bufferView];
+					Vector<f32> inputVector;
+					u32 startOfInputBuffer = inputAccessor.byteOffset + inputBufferView.byteOffset;
+					u32 strideOfInputBuffer = inputBufferView.byteStride == 0 ? sizeof(f32) : inputBufferView.byteStride;
+
+					for (int j = 0; j < inputAccessor.count; ++j)
+					{
+						u32 index = (startOfInputBuffer + strideOfInputBuffer * j);
+						f32 val = static_cast<f32>(((f32*)model.buffers[inputBufferView.buffer].data.data())[index / sizeof(f32)]);
+						inputVector.push_back(val);
+					}
+
+					Vector<vec3> vec3Output;
+					Vector<vec4> vec4Output;
+
+					auto& outputAccessor = model.accessors[sampler.output];
+					auto& outputBufferView = model.bufferViews[outputAccessor.bufferView];
+					if (outputAccessor.type == 3)
+					{
+						// vec3 output
+						u32 startOfOutputBuffer = outputAccessor.byteOffset + outputBufferView.byteOffset;
+						u32 strideOfOutputBuffer = outputBufferView.byteStride == 0 ? sizeof(vec3) : outputBufferView.byteStride;
+						for (int j = 0; j < outputAccessor.count; ++j)
+						{
+							u32 index = (startOfOutputBuffer + strideOfOutputBuffer * j);
+							vec3 val = static_cast<vec3>(((vec3*)model.buffers[inputBufferView.buffer].data.data())[index / sizeof(vec3)]);
+							vec3Output.push_back(val);
+						}
+					}
+					if (outputAccessor.type == 4)
+					{
+						// vec4 output
+						u32 startOfOutputBuffer = outputAccessor.byteOffset + outputBufferView.byteOffset;
+						u32 strideOfOutputBuffer = outputBufferView.byteStride == 0 ? sizeof(vec4) : outputBufferView.byteStride;
+						for (int j = 0; j < outputAccessor.count; ++j)
+						{
+							u32 index = (startOfOutputBuffer + strideOfOutputBuffer * j);
+							vec4 val = static_cast<vec4>(((vec4*)model.buffers[inputBufferView.buffer].data.data())[index / sizeof(vec4)]);
+							vec4Output.push_back(val);
+						}
+					}
+					auto newAnimation = MakeShared<Animation>(animationType, samplerType, inputVector, vec3Output, vec4Output);
+					animationToNodes[channel.target_node].push_back(newAnimation);
+				}
+			}
+
 			while (nodesStack.size() > 0)
 			{
 				auto& pair = nodesStack.back();
@@ -215,6 +278,8 @@ namespace Graphics
 				{
 					nodesStack.push_back(std::make_pair<u32, u32>(child, newNode->nodeID.id));
 				}
+
+				newNode->animations = animationToNodes[pair.first];
 
 			}
 		}

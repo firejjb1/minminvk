@@ -4,6 +4,7 @@
 #include <graphics/Device.h>
 #include <graphics/Buffer.h>
 #include <graphics/Node.h>
+#include <graphics/Animation.h>
 #include <util/Math.h>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
@@ -200,8 +201,33 @@ namespace Graphics
 		GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
 		void Update(f32 deltaTime) override
 		{
-			node->modelMatrix = Math::Rotate(node->modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
+			//node->modelMatrix = Math::Rotate(node->modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
 			//modelMatrix = Math::Translate(modelMatrix, vec3(0., 0.1, 0));
+			mat4 newrot(1);
+			mat4 newscale(1);
+			mat4 newtrans(1);
+			for (auto& anim : node->animations)
+			{
+				if (anim->animationType == Animation::AnimationType::ROTATION)
+				{
+					vec4 rot = anim->Sample(deltaTime);
+					quat quatRot(rot);
+					newrot = Math::RotateQuat(quatRot);
+				}
+				if (anim->animationType == Animation::AnimationType::SCALE)
+				{
+					vec3 scale = anim->Sample(deltaTime);
+					newscale = Math::Scale(mat4(1), scale);
+				}
+				if (anim->animationType == Animation::AnimationType::TRANSLATION)
+				{
+					vec3 trans = anim->Sample(deltaTime);
+					newtrans = Math::Translate(mat4(1), trans);
+				}
+
+			}
+			mat4 newModel = newtrans * newrot * newscale;
+			node->modelMatrix = newModel;
 		}
 	};
 }

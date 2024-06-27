@@ -15,6 +15,11 @@ namespace Math
 		return glm::rotate(matrix, radian, axis);
 	}
 
+	inline const mat4 RotateQuat(const quat q)
+	{
+		return mat4(q);
+	}
+
 	inline mat4 Translate(const mat4 &matrix, const vec3 translation)
 	{
 		return glm::translate(matrix, translation);

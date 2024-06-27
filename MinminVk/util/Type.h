@@ -39,6 +39,8 @@ typedef glm::uvec2 vec2u;
 typedef glm::uvec3 vec3u;
 typedef glm::uvec4 vec4u;
 
+typedef glm::quat quat;
+
 typedef std::string String;
 
 template <class T>
