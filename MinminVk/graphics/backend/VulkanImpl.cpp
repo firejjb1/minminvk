@@ -1562,9 +1562,9 @@ namespace VulkanImpl
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 
-		geometry.basicUniform->transformUniform.model = geometry.node->modelMatrix;
+		geometry.basicUniform->transformUniform.model = geometry.node->worldMatrix;
 		UpdateUniformBuffer(geometry.basicUniform->GetData(), geometry.basicUniform->GetBufferSize(), *geometry.basicUniform, swapID);
-		vkCmdPushConstants(commandBuffer, pipelineLayouts[geometry.basicUniform->layoutID], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.node->modelMatrix);
+		vkCmdPushConstants(commandBuffer, pipelineLayouts[geometry.basicUniform->layoutID], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.node->worldMatrix);
 
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);

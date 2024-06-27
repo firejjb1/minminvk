@@ -26,8 +26,6 @@ namespace Graphics
 		// vec4 for rotation only (quaternion)
 		Vector<vec4> vec4Output;
 
-		f32 timer = 0;
-
 		Animation(AnimationType animationType, SamplerType samplerTYpe, Vector<f32>& input, Vector<vec3>& vec3Output, Vector<vec4>& vec4Output) :
 			animationType{ animationType }, samplerType{ samplerType }, input { input}, vec3Output{ vec3Output }, vec4Output{ vec4Output } 
 		{
@@ -40,13 +38,10 @@ namespace Graphics
 				outputType = OutputType::VEC4;
 		}
 
-		vec4 Sample(f32 deltaTime)
+		vec4 Sample(f32 timer)
 		{
-			timer += deltaTime;
 			f32 samplingTime = timer;
-			if (timer > maxAnimationTime)
-				timer = 0;
-			// binary search
+
 			for (u32 i = 0; i < input.size(); ++i)
 			{
 				f32 inputVal = input[i];
@@ -54,7 +49,6 @@ namespace Graphics
 				{
 					if (i == 0)
 					{
-						// should interpolate with last element?
 						return outputType == OutputType::VEC3 ? vec4(vec3Output[i], 0) : vec4Output[i];
 					}
 					f32 lastInputVal = input[i - 1];
@@ -62,15 +56,16 @@ namespace Graphics
 					f32 a = (inputVal - samplingTime) / inputDiff;
 					f32 b = (samplingTime - lastInputVal) / inputDiff;
 					if (outputType == OutputType::VEC3)
-						return vec4(a * vec3Output[i] + b * vec3Output[i - 1], 0);
+						return vec4(glm::mix(vec3Output[i], vec3Output[i - 1], a), 0);
 					else
 					{
 						// vec4 output
-						return a * vec4Output[i] + b * vec4Output[i - 1];
+						quat lerpedRot = glm::slerp(quat(vec4Output[i]), quat(vec4Output[i-1]), a);
+						return vec4(lerpedRot.x, lerpedRot.y, lerpedRot.z, lerpedRot.w);
 					}
 				}
 			}
-			return vec4(0);
+			return outputType == OutputType::VEC3 ? vec4(vec3Output[vec3Output.size() - 1], 0) : vec4Output[vec4Output.size() - 1];
 		}
 
 

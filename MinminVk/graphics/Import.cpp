@@ -9,6 +9,7 @@
 #include <tiny_obj_loader.h>
 
 #include <unordered_map>
+#include <deque>
 
 namespace Graphics
 {
@@ -178,7 +179,7 @@ namespace Graphics
 			Vector<Vector<SharedPtr<Animation>>> animationToNodes;
 			animationToNodes.resize(model.nodes.size());
 
-			Vector<std::pair<u32, u32>> nodesStack; // node and parent id
+			std::deque<std::pair<u32, u32>> nodesStack; // node and parent id
 			for (auto& node : scene.nodes)
 			{
 				nodesStack.push_back(std::make_pair<u32, u32>(node, 0));
@@ -215,11 +216,14 @@ namespace Graphics
 					{
 						// vec3 output
 						u32 startOfOutputBuffer = outputAccessor.byteOffset + outputBufferView.byteOffset;
-						u32 strideOfOutputBuffer = outputBufferView.byteStride == 0 ? sizeof(vec3) : outputBufferView.byteStride;
+						u32 strideOfOutputBuffer = outputBufferView.byteStride == 0 ? sizeof(f32) * 3 : outputBufferView.byteStride;
 						for (int j = 0; j < outputAccessor.count; ++j)
 						{
 							u32 index = (startOfOutputBuffer + strideOfOutputBuffer * j);
-							vec3 val = static_cast<vec3>(((vec3*)model.buffers[inputBufferView.buffer].data.data())[index / sizeof(vec3)]);
+							vec3 val;
+							val.x = static_cast<f32>(((f32*)model.buffers[outputBufferView.buffer].data.data())[index / sizeof(f32)]);
+							val.y = static_cast<f32>(((f32*)model.buffers[outputBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+							val.z = static_cast<f32>(((f32*)model.buffers[outputBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
 							vec3Output.push_back(val);
 						}
 					}
@@ -227,11 +231,16 @@ namespace Graphics
 					{
 						// vec4 output
 						u32 startOfOutputBuffer = outputAccessor.byteOffset + outputBufferView.byteOffset;
-						u32 strideOfOutputBuffer = outputBufferView.byteStride == 0 ? sizeof(vec4) : outputBufferView.byteStride;
+						u32 strideOfOutputBuffer = outputBufferView.byteStride == 0 ? sizeof(f32) * 4 : outputBufferView.byteStride;
 						for (int j = 0; j < outputAccessor.count; ++j)
 						{
 							u32 index = (startOfOutputBuffer + strideOfOutputBuffer * j);
-							vec4 val = static_cast<vec4>(((vec4*)model.buffers[inputBufferView.buffer].data.data())[index / sizeof(vec4)]);
+							vec4 val;
+
+							val.x = static_cast<f32>(((f32*)model.buffers[outputBufferView.buffer].data.data())[index / sizeof(f32)]);
+							val.y = static_cast<f32>(((f32*)model.buffers[outputBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+							val.z = static_cast<f32>(((f32*)model.buffers[outputBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
+							val.w = static_cast<f32>(((f32*)model.buffers[outputBufferView.buffer].data.data())[(index + sizeof(f32) * 3) / sizeof(f32)]);
 							vec4Output.push_back(val);
 						}
 					}
@@ -242,10 +251,10 @@ namespace Graphics
 
 			while (nodesStack.size() > 0)
 			{
-				auto& pair = nodesStack.back();
+				auto& pair = nodesStack.front();
 				auto& node = model.nodes[pair.first];
 				auto& parent = pair.second;
-				nodesStack.pop_back();
+				nodesStack.pop_front();
 				auto matrix = node.matrix;
 				mat4 modelMatrix = mat4(1);
 				if (matrix.size() > 0)

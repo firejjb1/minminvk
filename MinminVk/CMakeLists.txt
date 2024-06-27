@@ -124,6 +124,7 @@ set(SOURCE_FILES
 	"graphics/backend/VulkanImpl.cpp"
 	"util/IO.cpp"
 	"graphics/Import.cpp"
+	"graphics/Node.cpp"
 )
 
 set(HEADER_FILES 

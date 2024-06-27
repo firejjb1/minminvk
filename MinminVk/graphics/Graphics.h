@@ -160,9 +160,9 @@ namespace Graphics
 
 			// OBJ
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
-			vikingRoom->node->modelMatrix = Math::Translate(vikingRoom->node->modelMatrix, vec3(0, -1.5f, -50));
+			vikingRoom->node->worldMatrix = Math::Translate(vikingRoom->node->worldMatrix, vec3(0, -1.5f, -50));
 			headMesh = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
-			headMesh->node->modelMatrix = Math::Translate(mat4(1), vec3(0, 0, 9));
+			headMesh->node->worldMatrix = Math::Translate(mat4(1), vec3(0, 0, 9));
 			// GLTF
 			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, gltfMeshes);
 
@@ -255,15 +255,15 @@ namespace Graphics
 					particleUniformBuffer->uniform.effectiveRangeGlobal = UI::effectiveRangeGlobal;
 					particleUniformBuffer->uniform.capsuleRadius = UI::capsuleRadius;
 
-					particleUniformBuffer->uniform.prevHead = headMesh->node->modelMatrix;
+					particleUniformBuffer->uniform.prevHead = headMesh->node->worldMatrix;
 
-					headMesh->node->modelMatrix = glm::translate(headMesh->node->modelMatrix, keyboardMovement);
+					headMesh->node->worldMatrix = glm::translate(headMesh->node->worldMatrix, keyboardMovement);
 					if (UI::rotateHead)
 						headMesh->Update(fixedDeltaTime);
 					if (UI::resetHeadPos)
-						headMesh->node->modelMatrix = mat4(1);
+						headMesh->node->worldMatrix = mat4(1);
 
-					particleUniformBuffer->uniform.curHead = headMesh->node->modelMatrix;
+					particleUniformBuffer->uniform.curHead = headMesh->node->worldMatrix;
 
 					particleUniformBuffer->uniform.deltaTime = fixedDeltaTime;
 					particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
@@ -282,10 +282,8 @@ namespace Graphics
 				}
 
 				vikingRoom->Update(fixedDeltaTime);
-				for (auto& mesh : gltfMeshes)
-				{
-					mesh->Update(fixedDeltaTime);
-				}
+				nodeManager->Update(fixedDeltaTime);
+
 			}
 		}
 	}
@@ -338,7 +336,7 @@ namespace Graphics
 			renderContext.renderPass = forwardParticlePass;
 			device->BeginRenderPass(renderContext);
 
-			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->node->modelMatrix;
+			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->node->worldMatrix;
 			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
 			device->EndRenderPass(renderContext);

@@ -11,6 +11,8 @@ namespace Graphics
 		i32 id = -1;
 	};
 
+	struct NodeManager;
+
 	struct Node
 	{
 		enum NodeType { EMPTY_NODE, MESH_NODE, CAMERA_NODE, BONE_NODE, ROOT_NODE };
@@ -22,14 +24,21 @@ namespace Graphics
 
 		mat4 modelMatrix = mat4(1);
 		mat4 parentModelMatrix = mat4(1);
+		mat4 worldMatrix = mat4(1);
+
+		bool isDirty = true;
 
 		Vector<SharedPtr<Animation>> animations;
+	
+		void Update(f32 deltaTime, NodeManager& nodeManager);
 	};
 
 	struct NodeManager
 	{
 		u32 maxSize;
 		u32 cyclicIndex = 1;
+
+		f32 timer = 0;
 
 		Vector<SharedPtr<Node>> nodes;
 
@@ -82,6 +91,18 @@ namespace Graphics
 		SharedPtr<Node> GetNode(NodeID nodeID)
 		{
 			return nodes[nodeID.id];
+		}
+
+		void Update(f32 deltaTime)
+		{
+			timer += deltaTime;
+			if (timer > Animation::maxAnimationTime)
+				timer = 0;
+			for (auto node : nodes)
+			{
+				if (node)
+					node->Update(deltaTime, *this);
+			}
 		}
 
 
