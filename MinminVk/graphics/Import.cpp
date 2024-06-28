@@ -172,14 +172,12 @@ namespace Graphics
 		tinygltf::Model model;
 		Util::IO::ReadGLTF(model, filename);
 
-
-
 		for (auto& scene : model.scenes)
 		{
 			Vector<Vector<SharedPtr<Animation>>> animationToNodes;
 			animationToNodes.resize(model.nodes.size());
 
-			std::deque<std::pair<u32, u32>> nodesStack; // node and parent id
+			std::deque<std::pair<u32, u32>> nodesStack; // node id (gltf ID) and parent id (engine ID). kinda confusing but need to track both
 			for (auto& node : scene.nodes)
 			{
 				nodesStack.push_back(std::make_pair<u32, u32>(node, 0));
@@ -251,9 +249,9 @@ namespace Graphics
 
 			while (nodesStack.size() > 0)
 			{
-				auto& pair = nodesStack.front();
-				auto& node = model.nodes[pair.first];
-				auto& parent = pair.second;
+				auto nodeFront = nodesStack.front();
+				auto& node = model.nodes[nodeFront.first];
+				auto& parent = nodeFront.second;
 				nodesStack.pop_front();
 				auto matrix = node.matrix;
 				mat4 modelMatrix = mat4(1);
@@ -288,7 +286,7 @@ namespace Graphics
 					nodesStack.push_back(std::make_pair<u32, u32>(child, newNode->nodeID.id));
 				}
 
-				newNode->animations = animationToNodes[pair.first];
+				newNode->animations = animationToNodes[nodeFront.first];
 
 			}
 		}

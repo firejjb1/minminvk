@@ -23,7 +23,8 @@
 #define HAIR_DATA_FILE "hairdata.txt"
 
 //#define CUBE_GLTF "Cube/Cube.gltf"
-#define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
+//#define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
+#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
 
 namespace Graphics
 {
@@ -99,7 +100,7 @@ namespace Graphics
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
 	u32 numVertexPerStrand = 16;
-	vec3 eyePosition(0.01f, -1.5f, 10.0f); 
+	vec3 eyePosition(0.01f, -1.0f, 11.0f); 
 
 	const f32 fixedDeltaTime = 0.016f;
 	f32 updateTimeAccumulator = 0.f;

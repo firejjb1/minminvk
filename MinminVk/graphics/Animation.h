@@ -1,6 +1,7 @@
 #pragma once
 
 #include <util/Type.h>
+#include <util/Math.h>
 
 namespace Graphics
 {
@@ -38,6 +39,11 @@ namespace Graphics
 				outputType = OutputType::VEC4;
 		}
 
+		inline vec4 gltfQuatToVec4(vec4 &gltfQuat)
+		{
+			return vec4(gltfQuat.w, gltfQuat.x, gltfQuat.y, gltfQuat.z);
+		}
+
 		vec4 Sample(f32 timer)
 		{
 			f32 samplingTime = timer;
@@ -49,7 +55,7 @@ namespace Graphics
 				{
 					if (i == 0)
 					{
-						return outputType == OutputType::VEC3 ? vec4(vec3Output[i], 0) : vec4Output[i];
+						return outputType == OutputType::VEC3 ? vec4(vec3Output[i], 0) : gltfQuatToVec4(vec4Output[i]);
 					}
 					f32 lastInputVal = input[i - 1];
 					f32 inputDiff = inputVal - lastInputVal;
@@ -60,12 +66,15 @@ namespace Graphics
 					else
 					{
 						// vec4 output
-						quat lerpedRot = glm::slerp(quat(vec4Output[i]), quat(vec4Output[i-1]), a);
-						return vec4(lerpedRot.x, lerpedRot.y, lerpedRot.z, lerpedRot.w);
+						vec4 quatA = gltfQuatToVec4(vec4Output[i]);
+						vec4 quatB = gltfQuatToVec4(vec4Output[i - 1]);
+						quat lerpedRot = glm::slerp(quat(quatB.x, quatB.y, quatB.z, quatB.w), quat(quatA.x, quatA.y, quatA.z, quatA.w), b);
+						return vec4(lerpedRot.w, lerpedRot.x, lerpedRot.y, lerpedRot.z);
 					}
 				}
 			}
-			return outputType == OutputType::VEC3 ? vec4(vec3Output[vec3Output.size() - 1], 0) : vec4Output[vec4Output.size() - 1];
+			// reached the end (clamp to end)
+			return outputType == OutputType::VEC3 ? vec4(vec3Output[vec3Output.size() - 1], 0) : gltfQuatToVec4(vec4Output[vec4Output.size() - 1]);
 		}
 
 

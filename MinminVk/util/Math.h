@@ -2,9 +2,12 @@
 
 #include <util/Type.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 namespace Math
 {
+	inline static const f32 PI = 3.1415926f;
+
 	inline const f32 Radians(f32 deg)
 	{
 		return glm::radians(deg);
@@ -17,7 +20,7 @@ namespace Math
 
 	inline const mat4 RotateQuat(const quat q)
 	{
-		return mat4(q);
+		return glm::toMat4(q);
 	}
 
 	inline mat4 Translate(const mat4 &matrix, const vec3 translation)

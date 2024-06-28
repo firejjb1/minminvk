@@ -13,8 +13,9 @@ namespace Graphics
 			if (anim->animationType == Animation::AnimationType::ROTATION)
 			{
 				vec4 rot = anim->Sample(nodeManager.timer);
-				quat quatRot(rot);
+				quat quatRot(rot.x, rot.y, rot.z, rot.w);
 				newrot = Math::RotateQuat(quatRot);
+
 				isDirty = true;
 			}
 			if (anim->animationType == Animation::AnimationType::SCALE)
@@ -29,13 +30,14 @@ namespace Graphics
 				newtrans = Math::Translate(mat4(1), trans);
 				isDirty = true;
 			}
-
 		}
-		mat4 newModel = newtrans * newrot * newscale;
+
+		mat4 newModel = newtrans* newrot* newscale;
 		modelMatrix = newModel;
 		if (isDirty)
 		{
 			worldMatrix = parentModelMatrix * modelMatrix;
+
 			for (NodeID childID : childrenIDs)
 			{
 				auto childNode = nodeManager.GetNode(childID);
