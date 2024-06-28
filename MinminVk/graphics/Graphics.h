@@ -24,7 +24,8 @@
 
 //#define CUBE_GLTF "Cube/Cube.gltf"
 //#define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
-#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
+//#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
+#define CUBE_GLTF "RiggedSimple/RiggedSimple.gltf"
 
 namespace Graphics
 {
@@ -100,7 +101,6 @@ namespace Graphics
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
 	u32 numVertexPerStrand = 16;
-	vec3 eyePosition(0.01f, -1.0f, 11.0f); 
 
 	const f32 fixedDeltaTime = 0.016f;
 	f32 updateTimeAccumulator = 0.f;
@@ -307,7 +307,7 @@ namespace Graphics
 			{
 				// view projection
 				{
-					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(eyePosition, eyePosition + vec3(0.0f, 0.f, -1.0f), vec3(0.0f, -1.0f, 0.0f));
+					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(UI::cameraPosition, UI::cameraPosition + UI::cameraLookDirection, vec3(0.0f, -1.0f, 0.0f));
 					i32 width = presentation->swapChainDetails.width;
 					i32 height = presentation->swapChainDetails.height;
 					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 1000.0f);

@@ -32,11 +32,10 @@ namespace Graphics
 			}
 		}
 
-		mat4 newModel = newtrans* newrot* newscale;
-		modelMatrix = newModel;
+		mat4 newModel = newtrans* newrot* newscale * modelMatrix;
 		if (isDirty)
 		{
-			worldMatrix = parentModelMatrix * modelMatrix;
+			worldMatrix = parentModelMatrix * newModel;
 
 			for (NodeID childID : childrenIDs)
 			{

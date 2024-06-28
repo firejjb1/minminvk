@@ -60,10 +60,13 @@ namespace Application
                 ImGui_ImplGlfw_NewFrame();
                 ImGui::NewFrame();
 
-
                 ImGui::Begin("Renderer Options");
                 {
                     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+                    ImGui::Separator();
+                    ImGui::Text("Camera");
+                    ImGui::InputFloat3("Camera Position", glm::value_ptr(UI::cameraPosition));
+                    ImGui::InputFloat3("Camera Direction", glm::value_ptr(UI::cameraLookDirection));
                     ImGui::Separator();
                     ImGui::Text("Hair Parameters");
                     bool resetHead = ImGui::Button("Reset Head Position");
