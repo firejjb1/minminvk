@@ -122,16 +122,18 @@ namespace Graphics
 
 		}
 
-		// no normals yet
-		//auto normalBufferView = model.bufferViews[normalAccessor.bufferView];
-		//DebugPrint("Normals\n");
-		//for (int i = normalBufferView.byteOffset / sizeof(f32); i < normalBufferView.byteOffset / sizeof(f32) + normalBufferView.byteLength / sizeof(f32); ++i)
-		//{
-		//	f32 val = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[i]);
-		//	DebugPrint("%f ", val);
-		//	if ((i + 1) % 3 == 0)
-		//		DebugPrint("\n");
-		//}
+		auto normalBufferView = model.bufferViews[normalAccessor.bufferView];
+		DebugPrint("Normals\n");
+		u32 startOfNormalBuffer = normalAccessor.byteOffset + normalBufferView.byteOffset;
+		u32 strideNormalBuffer = normalBufferView.byteStride == 0 ? sizeof(f32) * 3 : normalBufferView.byteStride;
+
+		for (int i = 0; i < normalAccessor.count; ++i)
+		{
+			u32 index = (startOfNormalBuffer + strideNormalBuffer * i);
+			vertices.vertices[i].normal.x = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[index / sizeof(f32)]);
+			vertices.vertices[i].normal.y = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+			vertices.vertices[i].normal.z = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
+		}
 
 		if (uvAccessor.bufferView != -1)
 		{
@@ -166,6 +168,12 @@ namespace Graphics
 			indices.push_back(val);
 		}
 	}
+
+	void Import::LoadGLTFSkinnedMesh(const String filename, tinygltf::Mesh & mesh, tinygltf::Model & model, Graphics::SkinnedVertex & vertices, Vector<u16>&indices, Texture & mainTexture)
+	{
+		// TODO
+	}
+
 
 	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Vector<SharedPtr<GLTFMesh>>& newMeshes)
 	{

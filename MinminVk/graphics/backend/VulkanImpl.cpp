@@ -886,8 +886,8 @@ namespace VulkanImpl
 
 	void CreateVertexBuffer(Graphics::Geometry &geometry)
 	{
-		const auto& vertices = geometry.GetVertexData().vertices;
-		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+		const u8* vertices = geometry.GetVertexData()->GetVertices();
+		VkDeviceSize bufferSize = sizeof(u8) * geometry.GetVertexData()->GetVerticesCount();
 
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
@@ -895,7 +895,7 @@ namespace VulkanImpl
 
 		void* data;
 		vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-		memcpy(data, vertices.data(), (size_t)bufferSize);
+		memcpy(data, vertices, (size_t)bufferSize);
 		vkUnmapMemory(device, stagingBufferMemory);
 
 		auto& vertexBuffer = vertexBuffers.emplace_back();
@@ -2625,11 +2625,19 @@ namespace Graphics
 		: basicUniform{basicUniform}, mainTexture{mainTexture}
 	{
 		node = MakeShared<Node>();
+		vertexDesc = MakeShared<BasicVertex>();
 	}
 
 	Quad::Quad(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture) 
 		: Geometry( basicUniform, mainTexture ) 
 	{
+		vertexDesc = MakeShared<BasicVertex>( std::move(Vector<BasicVertex::Vertex>{
+			{ {-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.f, 0.f, 1.f}},
+			{{0.5f, -0.5f, 0.f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.f, 0.f, 1.f}},
+			{{0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.f, 0.f, 1.f}},
+			{{-0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}, {0.f, 0.f, 1.f}},
+		})
+		);
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 		// TODO replace with new function
@@ -2646,7 +2654,9 @@ namespace Graphics
 	OBJMesh::OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture, String filename)
 		: Geometry(basicUniform, mainTexture)
 	{
-		Import::LoadOBJ(vertexDesc, indices, filename);
+		auto vertexDesc = MakeShared<BasicVertex>();
+		Import::LoadOBJ(*vertexDesc, indices, filename);
+		this->vertexDesc = vertexDesc;
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 		// TODO replace with new function
@@ -2663,7 +2673,9 @@ namespace Graphics
 	OBJMesh::OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename)
 		: Geometry(basicUniform, Texture())
 	{
-		Import::LoadOBJ(vertexDesc, indices, filename);
+		auto vertexDesc = MakeShared<BasicVertex>();
+		Import::LoadOBJ(*vertexDesc, indices, filename);
+		this->vertexDesc = vertexDesc;
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 		// TODO replace with new function
@@ -2677,7 +2689,30 @@ namespace Graphics
 	GLTFMesh::GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model)
 		: Geometry(basicUniform, Texture())
 	{
-		Import::LoadGLTFMesh(filename, mesh, model, vertexDesc, indices, mainTexture);
+		auto vertexDesc = MakeShared<BasicVertex>();
+		Import::LoadGLTFMesh(filename, mesh, model, *vertexDesc, indices, mainTexture);
+		this->vertexDesc = vertexDesc;
+		VulkanImpl::CreateVertexBuffer(*this);
+		VulkanImpl::CreateIndexBuffer(*this);
+		VulkanImpl::UpdateDescriptorSets(
+			descriptorPoolID,
+			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
+			this->mainTexture.initialized ? 
+				Vector<Graphics::TextureID>
+				{
+					this->mainTexture.textureID
+				} 
+				:
+				Vector<Graphics::TextureID>{}
+		);
+	}
+	
+	GLTFSkinnedMesh::GLTFSkinnedMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model)
+		: Geometry(basicUniform, Texture())
+	{
+		auto vertexDesc = MakeShared<SkinnedVertex>();
+		Import::LoadGLTFSkinnedMesh(filename, mesh, model, *vertexDesc, indices, mainTexture);
+		this->vertexDesc = vertexDesc;
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 		VulkanImpl::UpdateDescriptorSets(
