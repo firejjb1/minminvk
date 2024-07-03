@@ -16,6 +16,7 @@ namespace Graphics
 	struct BasicUniformBuffer;
 	struct GLTFMesh;
 	struct SkinnedVertex;
+	struct GLTFSkinnedMesh;
 
 	struct Import
 	{
@@ -25,7 +26,7 @@ namespace Graphics
 
 		static void LoadGLTFMesh(const String filename, tinygltf::Mesh& mesh, tinygltf::Model& model, Graphics::BasicVertex& vertices, Vector<u16>& indices, Texture& mainTexture);
 
-		static void LoadGLTF(const String& filename, NodeManager& nodeManager, int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Vector<SharedPtr<GLTFMesh>>& newMeshes);
+		static void LoadGLTF(const String& filename, NodeManager& nodeManager, int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>>& newSkinnedMeshes);
 
 		static void LoadGLTFSkinnedMesh(const String filename, tinygltf::Mesh& mesh, tinygltf::Model& model, Graphics::SkinnedVertex& vertices, Vector<u16>& indices, Texture& mainTexture);
 	};

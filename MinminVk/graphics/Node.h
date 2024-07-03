@@ -15,7 +15,7 @@ namespace Graphics
 
 	struct Node
 	{
-		enum NodeType { EMPTY_NODE, MESH_NODE, CAMERA_NODE, BONE_NODE, ROOT_NODE };
+		enum NodeType { EMPTY_NODE, MESH_NODE, CAMERA_NODE, BONE_NODE, ROOT_NODE, SKINNED_MESH_NODE };
 		NodeType nodeType = EMPTY_NODE;
 		
 		NodeID nodeID;
@@ -29,6 +29,9 @@ namespace Graphics
 		bool isDirty = true;
 
 		Vector<SharedPtr<Animation>> animations;
+
+		// only for import
+		i32 gltfID = 0;
 	
 		void Update(f32 deltaTime, NodeManager& nodeManager);
 	};

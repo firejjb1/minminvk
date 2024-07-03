@@ -171,14 +171,170 @@ namespace Graphics
 
 	void Import::LoadGLTFSkinnedMesh(const String filename, tinygltf::Mesh & mesh, tinygltf::Model & model, Graphics::SkinnedVertex & vertices, Vector<u16>&indices, Texture & mainTexture)
 	{
-		// TODO
+		tinygltf::Accessor positionAccessor;
+		tinygltf::Accessor normalAccessor;
+		tinygltf::Accessor uvAccessor;
+		tinygltf::Accessor weightsAccessor;
+		tinygltf::Accessor jointsAccessor;
+		auto indicesAccessor = model.accessors[mesh.primitives[0].indices];
+
+		if (model.materials[mesh.primitives[0].material].pbrMetallicRoughness.baseColorTexture.index > -1)
+		{
+			String mainTextureURI = model.images[model.textures[model.materials[mesh.primitives[0].material].pbrMetallicRoughness.baseColorTexture.index].source].uri;
+			if (mainTextureURI != "")
+			{
+				String texturePath;
+				texturePath.append(filename);
+				texturePath.append("/../");
+				texturePath.append(mainTextureURI);
+				Texture texture(texturePath);
+				mainTexture = texture;
+			}
+		}
+		for (auto& attrib : mesh.primitives[0].attributes)
+		{
+			if (attrib.first.compare("POSITION") == 0)
+			{
+				positionAccessor = model.accessors[attrib.second];
+				assert(positionAccessor.componentType == 5126);
+			}
+
+			if (attrib.first.compare("NORMAL") == 0)
+			{
+				normalAccessor = model.accessors[attrib.second];
+				assert(normalAccessor.componentType == 5126);
+			}
+			if (attrib.first.compare("TEXCOORD_0") == 0)
+			{
+				uvAccessor = model.accessors[attrib.second];
+				assert(uvAccessor.componentType == 5126);
+			}
+			if (attrib.first.compare("WEIGHTS_0") == 0)
+			{
+				weightsAccessor = model.accessors[attrib.second];
+				assert(weightsAccessor.componentType == 5126);
+			}
+			if (attrib.first.compare("JOINTS_0") == 0)
+			{
+				jointsAccessor = model.accessors[attrib.second];
+				assert(jointsAccessor.componentType == 5123);
+			}
+		}
+
+		assert(indicesAccessor.componentType == 5123);
+
+		vertices.vertices.resize(positionAccessor.count);
+
+		auto positionBufferView = model.bufferViews[positionAccessor.bufferView];
+		DebugPrint("Positions\n");
+
+		assert(positionAccessor.type == 3);
+		u32 startOfPositionBuffer = positionAccessor.byteOffset + positionBufferView.byteOffset;
+		u32 stridePositionBuffer = positionBufferView.byteStride == 0 ? sizeof(f32) * 3 : positionBufferView.byteStride;
+		for (int i = 0; i < positionAccessor.count; ++i)
+		{
+			u32 index = (startOfPositionBuffer + stridePositionBuffer * i);
+			vertices.vertices[i].pos.x = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[index / sizeof(f32)]);
+			vertices.vertices[i].pos.y = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+			vertices.vertices[i].pos.z = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
+
+		}
+
+		auto normalBufferView = model.bufferViews[normalAccessor.bufferView];
+		DebugPrint("Normals\n");
+		u32 startOfNormalBuffer = normalAccessor.byteOffset + normalBufferView.byteOffset;
+		u32 strideNormalBuffer = normalBufferView.byteStride == 0 ? sizeof(f32) * 3 : normalBufferView.byteStride;
+
+		for (int i = 0; i < normalAccessor.count; ++i)
+		{
+			u32 index = (startOfNormalBuffer + strideNormalBuffer * i);
+			vertices.vertices[i].normal.x = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[index / sizeof(f32)]);
+			vertices.vertices[i].normal.y = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+			vertices.vertices[i].normal.z = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
+		}
+
+		if (uvAccessor.bufferView != -1)
+		{
+			auto uvBufferView = model.bufferViews[uvAccessor.bufferView];
+			DebugPrint("UV\n");
+
+			assert(uvAccessor.type == 2);
+			u32 startOfUVBuffer = uvAccessor.byteOffset + uvBufferView.byteOffset;
+			u32 strideUVBuffer = uvBufferView.byteStride == 0 ? sizeof(f32) * 2 : uvBufferView.byteStride;
+
+			for (int i = 0; i < uvAccessor.count; ++i)
+			{
+				u32 index = (startOfUVBuffer + strideUVBuffer * i);
+				vertices.vertices[i].texCoord.x = static_cast<f32>(((f32*)model.buffers[uvBufferView.buffer].data.data())[index / sizeof(f32)]);
+				vertices.vertices[i].texCoord.y = static_cast<f32>(((f32*)model.buffers[uvBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+				// convert from -1,1 to 0,1
+				vertices.vertices[i].texCoord = vertices.vertices[i].texCoord * 0.5f + vec2(0.5f);
+
+			}
+		}
+
+		if (weightsAccessor.bufferView != -1)
+		{
+			auto weightsBufferView = model.bufferViews[weightsAccessor.bufferView];
+			DebugPrint("Weights\n");
+
+			assert(weightsAccessor.type == 4);
+			u32 startOfWeightsBuffer = weightsAccessor.byteOffset + weightsBufferView.byteOffset;
+			u32 strideWeightsBuffer = weightsBufferView.byteStride == 0 ? sizeof(f32) * 4 : weightsBufferView.byteStride;
+
+			for (int i = 0; i < weightsAccessor.count; ++i)
+			{
+				u32 index = (startOfWeightsBuffer + strideWeightsBuffer * i);
+				vertices.vertices[i].weights.x = static_cast<f32>(((f32*)model.buffers[weightsBufferView.buffer].data.data())[index / sizeof(f32)]);
+				vertices.vertices[i].weights.y = static_cast<f32>(((f32*)model.buffers[weightsBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+				vertices.vertices[i].weights.z = static_cast<f32>(((f32*)model.buffers[weightsBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
+				vertices.vertices[i].weights.w = static_cast<f32>(((f32*)model.buffers[weightsBufferView.buffer].data.data())[(index + sizeof(f32) * 3) / sizeof(f32)]);
+
+			}
+		}
+		
+		if (jointsAccessor.bufferView != -1)
+		{
+			auto jointsBufferView = model.bufferViews[jointsAccessor.bufferView];
+			DebugPrint("Joints\n");
+
+			assert(jointsAccessor.type == 4);
+			u32 startOfJointsBuffer = jointsAccessor.byteOffset + jointsBufferView.byteOffset;
+			u32 strideJointsBuffer = jointsBufferView.byteStride == 0 ? sizeof(u16) * 4 : jointsBufferView.byteStride;
+
+			for (int i = 0; i < jointsAccessor.count; ++i)
+			{
+				u32 index = (startOfJointsBuffer + strideJointsBuffer * i);
+				vertices.vertices[i].joints.x = static_cast<u32>(((u16*)model.buffers[jointsBufferView.buffer].data.data())[index / sizeof(u16)]);
+				vertices.vertices[i].joints.y = static_cast<u32>(((u16*)model.buffers[jointsBufferView.buffer].data.data())[(index + sizeof(u16)) / sizeof(u16)]);
+				vertices.vertices[i].joints.z = static_cast<u32>(((u16*)model.buffers[jointsBufferView.buffer].data.data())[(index + sizeof(u16) * 2) / sizeof(u16)]);
+				vertices.vertices[i].joints.w = static_cast<u32>(((u16*)model.buffers[jointsBufferView.buffer].data.data())[(index + sizeof(u16) * 3) / sizeof(u16)]);
+
+			}
+		}
+
+
+		DebugPrint("Indices\n");
+		auto indicesBufferView = model.bufferViews[indicesAccessor.bufferView];
+		u32 startOfIndicesBuffer = indicesAccessor.byteOffset + indicesBufferView.byteOffset;
+		u32 strideIndicesBuffer = indicesBufferView.byteStride == 0 ? sizeof(u16) : indicesBufferView.byteStride;
+
+		for (int i = 0; i < indicesAccessor.count; ++i)
+		{
+			u32 index = (startOfIndicesBuffer + strideIndicesBuffer * i);
+			u16 val = static_cast<u16>(((u16*)model.buffers[indicesBufferView.buffer].data.data())[index / sizeof(u16)]);
+			indices.push_back(val);
+		}
+
+
 	}
 
 
-	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Vector<SharedPtr<GLTFMesh>>& newMeshes)
+	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>> &newSkinnedMeshes)
 	{
 		tinygltf::Model model;
 		Util::IO::ReadGLTF(model, filename);
+		Vector<std::pair<SharedPtr<GLTFSkinnedMesh>, Vector<int>>> nodeToJoints;
 
 		for (auto& scene : model.scenes)
 		{
@@ -274,19 +430,61 @@ namespace Graphics
 				Node::NodeType nodeType = Node::NodeType::EMPTY_NODE;
 				if (node.camera >= 0)
 					nodeType = Node::NodeType::CAMERA_NODE;
+				else if (node.skin >= 0)
+					nodeType = Node::NodeType::SKINNED_MESH_NODE;
 				else if (node.mesh >= 0)
 					nodeType = Node::NodeType::MESH_NODE;
-				else if (node.skin >= 0)
-					nodeType = Node::NodeType::BONE_NODE;
+			
 
 				auto newNode = nodeManager.AddNode(modelMatrix, parentID, nodeType);
 
 				if (nodeType == Node::MESH_NODE)
 				{
 					auto& gltfMesh = model.meshes[node.mesh];
+					// TODO check and create skinned mesh
 					auto geometry = MakeShared<GLTFMesh>(descriptorPoolID, basicUniform, filename, gltfMesh, model);
 					geometry->node = newNode;
 					newMeshes.push_back(geometry);
+				}
+				else if (nodeType == Node::SKINNED_MESH_NODE)
+				{
+					auto& gltfSkinnedMesh = model.meshes[node.mesh];
+					auto geometry = MakeShared<GLTFSkinnedMesh>(descriptorPoolID, basicUniform, filename, gltfSkinnedMesh, model);
+					geometry->node = newNode;
+					newSkinnedMeshes.push_back(geometry);
+					// get inverse bind matrices
+					auto inverseBindMatAccessor = model.accessors[model.skins[node.skin].inverseBindMatrices];
+					auto inverseBindBufferView = model.bufferViews[inverseBindMatAccessor.bufferView];
+					Vector<mat4> invBindMatrices;
+					u32 startOfInvBindBuffer = inverseBindMatAccessor.byteOffset + inverseBindBufferView.byteOffset;
+					u32 strideOfinvBindBuffer = inverseBindBufferView.byteStride == 0 ? sizeof(f32) * 16 : inverseBindBufferView.byteStride;
+					for (int j = 0; j < inverseBindMatAccessor.count; ++j)
+					{
+						u32 index = (startOfInvBindBuffer + strideOfinvBindBuffer * j);
+						mat4 matrix(
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[index / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 3) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 4) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 5) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 6) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 7) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 8) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 9) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 10) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 11) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 12) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 13) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 14) / sizeof(f32)]),
+							static_cast<f32>(((f32*)model.buffers[inverseBindBufferView.buffer].data.data())[(index + sizeof(f32) * 15) / sizeof(f32)])
+						);
+						invBindMatrices.push_back(matrix);
+					}
+					geometry->SetInverseBindMatrices(invBindMatrices);
+
+					// prepare joint vectors
+					nodeToJoints.push_back(std::make_pair(geometry, model.skins[node.skin].joints));
 				}
 
 				for (auto& child : node.children)
@@ -295,11 +493,30 @@ namespace Graphics
 				}
 
 				newNode->animations = animationToNodes[nodeFront.first];
-
+				newNode->gltfID = nodeFront.first;
 			}
 		}
+
+		for (auto res : nodeToJoints)
+		{
+			SharedPtr<GLTFSkinnedMesh> node = res.first;
+			Vector<int> jointIDs = res.second;
+			Vector<SharedPtr<Node>> joints;
+
+			for (int i = 0; i < nodeManager.cyclicIndex; ++i)
+			{
+				auto n = nodeManager.nodes[i];
+				auto nodeFound = std::find(jointIDs.begin(), jointIDs.end(), n->gltfID);
+				if (nodeFound != jointIDs.end())
+				{
+					joints.push_back(n);
+				}
+			}
+
+			node->SetJoints(joints);
+		}
 		// reading first mesh only
-		//auto& mesh = model.meshes[0];
+		auto& mesh = model.meshes[0];
 
 		//LoadGLTFMesh(mesh, model, vertices, indices, mainTextureURI);
 		

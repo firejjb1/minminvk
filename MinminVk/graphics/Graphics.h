@@ -9,6 +9,8 @@
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
+#define SKINNED_VERTEX_SHADER "skinnedmeshvert.spv"
+#define SKINNED_FRAG_SHADER "skinnedmeshfrag.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
 #define PARTICLE_COMP_LSC_SHADER "particlelsc.spv"
 #define PARTICLE_COMP_ELC_WIND_SHADER "particleelcwind.spv"
@@ -86,11 +88,14 @@ namespace Graphics
 	SharedPtr<GraphicsPipeline> forwardPipeline;
 	SharedPtr<RenderPass> forwardPass;
 	SharedPtr<RenderPass> forwardParticlePass;
+	SharedPtr<GraphicsPipeline> forwardSkinnedPipeline;
+	SharedPtr<RenderPass> forwardSkinnedPass;
 	SharedPtr<UIRender> uiRender;
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
 	SharedPtr<OBJMesh> headMesh;
 	Vector<SharedPtr<GLTFMesh>> gltfMeshes;
+	Vector<SharedPtr<GLTFSkinnedMesh>> gltfSkinnedMeshes;
 	SharedPtr<StructuredBuffer> particleBuffer;
 	SharedPtr<StructuredBuffer> particleBufferPrev;
 	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
@@ -157,6 +162,17 @@ namespace Graphics
 	
 			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
 
+			forwardSkinnedPipeline = MakeShared<GraphicsPipeline>(
+				MakeShared<Shader>(concat_str(SHADERS_DIR, SKINNED_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
+				MakeShared<Shader>(concat_str(SHADERS_DIR, SKINNED_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
+				MakeShared<SkinnedVertex>(),
+				uniformBuffer,
+				Vector<Texture>{texture},
+				Vector<SharedPtr<Buffer>>{}
+			);
+
+			forwardSkinnedPass = MakeShared<RenderPass>(forwardSkinnedPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
+
 			quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
 
 			// OBJ
@@ -165,7 +181,7 @@ namespace Graphics
 			headMesh = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
 			headMesh->node->worldMatrix = Math::Translate(mat4(1), vec3(0, 0, 9));
 			// GLTF
-			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, gltfMeshes);
+			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, gltfMeshes, gltfSkinnedMeshes);
 
 		}
 
@@ -285,6 +301,11 @@ namespace Graphics
 				vikingRoom->Update(fixedDeltaTime);
 				nodeManager->Update(fixedDeltaTime);
 
+				for (auto& skinnedMesh : gltfSkinnedMeshes)
+				{
+					skinnedMesh->Update(fixedDeltaTime);
+				}
+
 			}
 		}
 	}
@@ -297,7 +318,7 @@ namespace Graphics
 		Update(fixedDeltaTime);
 		// forward passes
 		{
-			// pass 1
+			// pass 1 - meshes
 			renderContext.renderPass = forwardPass;
 			bool success = device->BeginRecording(renderContext);
 			if (!success)
@@ -322,6 +343,7 @@ namespace Graphics
 				vikingRoom->Draw(renderContext);
 				*/
 
+				// non-skinned 
 				for (auto& mesh : gltfMeshes)
 				{
 					mesh->Draw(renderContext);
@@ -333,7 +355,18 @@ namespace Graphics
 			}
 			device->EndRenderPass(renderContext);
 
-			// pass 2
+			// pass 2 - skinned meshes
+			renderContext.renderPass = forwardSkinnedPass;
+			device->BeginRenderPass(renderContext);
+			{
+				for (auto& mesh : gltfSkinnedMeshes)
+				{
+					mesh->Draw(renderContext);
+				}
+			}
+			device->EndRenderPass(renderContext);
+
+			// pass 3 - hair
 			renderContext.renderPass = forwardParticlePass;
 			device->BeginRenderPass(renderContext);
 

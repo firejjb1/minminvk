@@ -1101,6 +1101,12 @@ namespace VulkanImpl
 				attributeDescVK.format = VK_FORMAT_R32G32B32_SFLOAT;
 			else if (attribute.vertexFormatType == Graphics::VertexAttribute::VertexFormatType::VEC4)
 				attributeDescVK.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+			else if (attribute.vertexFormatType == Graphics::VertexAttribute::VertexFormatType::UVEC2)
+				attributeDescVK.format = VK_FORMAT_R32G32_UINT;
+			else if (attribute.vertexFormatType == Graphics::VertexAttribute::VertexFormatType::UVEC3)
+				attributeDescVK.format = VK_FORMAT_R32G32B32_UINT;
+			else if (attribute.vertexFormatType == Graphics::VertexAttribute::VertexFormatType::UVEC4)
+				attributeDescVK.format = VK_FORMAT_R32G32B32A32_UINT;
 		}
 		vertexInputInfo.vertexBindingDescriptionCount = 1;
 		vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptionsVK.size());

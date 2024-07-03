@@ -26,7 +26,7 @@ namespace Graphics
 		u32 binding = 0;
 		u32 location = 0;
 		u32 offset = 0;
-		enum class VertexFormatType { FLOAT, VEC2, VEC3, VEC4 };
+		enum class VertexFormatType { FLOAT, VEC2, VEC3, VEC4, UVEC2, UVEC3, UVEC4 };
 		VertexFormatType vertexFormatType;
 
 	};
@@ -169,7 +169,7 @@ namespace Graphics
 			jointsAttribute.binding = 0;
 			jointsAttribute.location = 4;
 			jointsAttribute.offset = offsetof(Vertex, joints);
-			jointsAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC4;
+			jointsAttribute.vertexFormatType = VertexAttribute::VertexFormatType::UVEC4;
 
 			return Vector<VertexAttribute>{ posAttribute, uvAttribute, normalAttribute, weightsAttribute, jointsAttribute };
 		}
@@ -304,8 +304,6 @@ namespace Graphics
 		GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
 		void Update(f32 deltaTime) override
 		{
-			//node->modelMatrix = Math::Rotate(node->modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
-			//modelMatrix = Math::Translate(modelMatrix, vec3(0., 0.1, 0));
 			mat4 newrot(1);
 			mat4 newscale(1);
 			mat4 newtrans(1);
@@ -336,17 +334,60 @@ namespace Graphics
 
 	struct GLTFSkinnedMesh : Geometry
 	{
-
-
 	protected:
-		Vector<SharedPtr<Node>> armature;
+		Vector<SharedPtr<Node>> joints;
+		Vector<mat4> inverseBindMatrices;
 
+		Vector<mat4> jointMatrices;
 
 	public:
 		GLTFSkinnedMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
 
+		void SetInverseBindMatrices(Vector<mat4>& inverseBindMatrices)
+		{
+			this->inverseBindMatrices = inverseBindMatrices;
+		}
+
+		void SetJoints(Vector<SharedPtr<Node>>& joints)
+		{
+			this->joints = joints;
+		}
+
 		void Update(f32 deltaTime) override
 		{
+			mat4 newrot(1);
+			mat4 newscale(1);
+			mat4 newtrans(1);
+			for (auto& anim : node->animations)
+			{
+				if (anim->animationType == Animation::AnimationType::ROTATION)
+				{
+					vec4 rot = anim->Sample(deltaTime);
+					quat quatRot(rot);
+					newrot = Math::RotateQuat(quatRot);
+				}
+				if (anim->animationType == Animation::AnimationType::SCALE)
+				{
+					vec3 scale = anim->Sample(deltaTime);
+					newscale = Math::Scale(mat4(1), scale);
+				}
+				if (anim->animationType == Animation::AnimationType::TRANSLATION)
+				{
+					vec3 trans = anim->Sample(deltaTime);
+					newtrans = Math::Translate(mat4(1), trans);
+				}
+
+			}
+			mat4 newModel = newtrans * newrot * newscale;
+			node->modelMatrix = newModel;
+
+			mat4 invWorld = Math::Inverse(node->worldMatrix);
+			for (int i = 0; i < joints.size(); ++i)
+			{
+				auto joint = joints[i];
+				basicUniform->transformUniform.jointMatrices[i] = invWorld * joint->worldMatrix * inverseBindMatrices[i];
+			}
+			
 		}
 	};
 }

@@ -44,11 +44,14 @@ namespace Graphics
 
     struct BasicUniformBuffer : UniformBuffer
     {
+        static const u32 jointMatricesSize = 128;
+
         struct TransformUniform
         {
             alignas(16) mat4 model = mat4(1);
             alignas(16) mat4 view = mat4(1);
             alignas(16) mat4 proj = mat4(1);
+            alignas(16) mat4 jointMatrices[jointMatricesSize];
         };
 
         TransformUniform transformUniform;

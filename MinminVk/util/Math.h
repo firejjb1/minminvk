@@ -42,4 +42,9 @@ namespace Math
 	{
 		return glm::perspectiveLH(fovY, width / (f32)height, zNear, zFar);
 	}
+
+	inline mat4 Inverse(mat4 mat)
+	{
+		return glm::inverse(mat);
+	}
 }
