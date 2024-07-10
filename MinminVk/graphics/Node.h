@@ -101,7 +101,7 @@ namespace Graphics
 			timer += deltaTime;
 			if (timer > Animation::maxAnimationTime)
 				timer = 0;
-			for (auto node : nodes)
+			for (SharedPtr<Node> node : nodes)
 			{
 				if (node)
 					node->Update(deltaTime, *this);

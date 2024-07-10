@@ -424,6 +424,25 @@ namespace Graphics
 					modelMatrix = mat4(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5], matrix[6], matrix[7], matrix[8], matrix[9], matrix[10], matrix[11], matrix[12], matrix[13], matrix[14], matrix[15]);
 				}
 
+				mat4 newrot(1);
+				mat4 newscale(1);
+				mat4 newtrans(1);
+
+				if (node.translation.size() == 3)
+				{
+					newtrans = Math::Translate(mat4(1), vec3(node.translation[0], node.translation[1], node.translation[2]));
+				}
+				if (node.rotation.size() == 4)
+				{
+					quat quatRot(node.rotation[3], node.rotation[0], node.rotation[1], node.rotation[2]);
+					newrot = Math::RotateQuat(quatRot);
+				}
+				if (node.scale.size() == 3)
+				{
+					newscale = Math::Scale(mat4(1), vec3(node.scale[0], node.scale[1], node.scale[2]));
+				}
+				modelMatrix = newtrans * newrot * newscale * modelMatrix;
+
 				NodeID parentID;
 				parentID.id = parent;
 
@@ -503,13 +522,14 @@ namespace Graphics
 			Vector<int> jointIDs = res.second;
 			Vector<SharedPtr<Node>> joints;
 
-			for (int i = 0; i < nodeManager.cyclicIndex; ++i)
+			for (int jointID : jointIDs)
 			{
-				auto n = nodeManager.nodes[i];
-				auto nodeFound = std::find(jointIDs.begin(), jointIDs.end(), n->gltfID);
-				if (nodeFound != jointIDs.end())
+				for (auto n : nodeManager.nodes)
 				{
-					joints.push_back(n);
+					if (n && n->gltfID == jointID)
+					{
+						joints.push_back(n);
+					}
 				}
 			}
 

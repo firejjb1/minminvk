@@ -26,8 +26,10 @@
 
 //#define CUBE_GLTF "Cube/Cube.gltf"
 //#define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
-//#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
-#define CUBE_GLTF "RiggedSimple/RiggedSimple.gltf"
+#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
+//#define CUBE_GLTF "RiggedSimple/RiggedSimple.gltf"
+//#define CUBE_GLTF "RiggedFigure/RiggedFigure.gltf"
+//#define CUBE_GLTF "CesiumMan/CesiumMan.gltf"
 
 namespace Graphics
 {
@@ -179,7 +181,7 @@ namespace Graphics
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
 			vikingRoom->node->worldMatrix = Math::Translate(vikingRoom->node->worldMatrix, vec3(0, -1.5f, -50));
 			headMesh = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
-			headMesh->node->worldMatrix = Math::Translate(mat4(1), vec3(0, 0, 9));
+			headMesh->node->modelMatrix = Math::Rotate(mat4(1), Math::PI, vec3(0,0,1));
 			// GLTF
 			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, gltfMeshes, gltfSkinnedMeshes);
 
@@ -259,7 +261,7 @@ namespace Graphics
 				// particle compute passes
 				{
 					vec3 keyboardMovement(0);
-					keyboardMovement.x += Input::A.pressed ? fixedDeltaTime : Input::D.pressed ? -fixedDeltaTime : 0;
+					keyboardMovement.x += Input::D.pressed ? fixedDeltaTime : Input::A.pressed ? -fixedDeltaTime : 0;
 					keyboardMovement.y += Input::S.pressed ? fixedDeltaTime : Input::W.pressed ? -fixedDeltaTime : 0;
 
 
@@ -328,7 +330,7 @@ namespace Graphics
 			{
 				// view projection
 				{
-					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(UI::cameraPosition, UI::cameraPosition + UI::cameraLookDirection, vec3(0.0f, -1.0f, 0.0f));
+					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(UI::cameraPosition, UI::cameraPosition + UI::cameraLookDirection, vec3(0.0f, 1.0f, 0.0f));
 					i32 width = presentation->swapChainDetails.width;
 					i32 height = presentation->swapChainDetails.height;
 					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 1000.0f);

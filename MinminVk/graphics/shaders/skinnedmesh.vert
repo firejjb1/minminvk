@@ -22,14 +22,16 @@ layout(location = 1) out vec3 fragNormal;
 
 void main() {
     //gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
-
     mat4 skinMatrix = 
-        inWeights.x * ubo.jointMatrices[inJoints.x] +
-        inWeights.y * ubo.jointMatrices[inJoints.y] +
-        inWeights.z * ubo.jointMatrices[inJoints.z] +
-        inWeights.w * ubo.jointMatrices[inJoints.w];
-
-    gl_Position = ubo.proj * ubo.view * pushConst.modelMatrix * skinMatrix * vec4(inPosition, 1.0);
+        inWeights.x * ubo.jointMatrices[int(inJoints.x)] +
+        inWeights.y * ubo.jointMatrices[int(inJoints.y)] +
+        inWeights.z * ubo.jointMatrices[int(inJoints.z)] +
+        inWeights.w * ubo.jointMatrices[int(inJoints.w)];
+    
+    gl_Position = ubo.proj * ubo.view * pushConst.modelMatrix
+        * skinMatrix
+        * vec4(inPosition, 1.0);
+    
     fragTexCoord = inTexCoord;
     fragNormal = inNormal;
 }

@@ -293,7 +293,7 @@ namespace Graphics
 		OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> uboTransform, String filename);
 		void Update(f32 deltaTime) override
 		{
-			node->modelMatrix = Math::Rotate(node->modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
+			//node->modelMatrix = Math::Rotate(node->modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
 			//modelMatrix = Math::Translate(modelMatrix, vec3(0., 0.1, 0));
 		}
 	};
@@ -304,31 +304,7 @@ namespace Graphics
 		GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
 		void Update(f32 deltaTime) override
 		{
-			mat4 newrot(1);
-			mat4 newscale(1);
-			mat4 newtrans(1);
-			for (auto& anim : node->animations)
-			{
-				if (anim->animationType == Animation::AnimationType::ROTATION)
-				{
-					vec4 rot = anim->Sample(deltaTime);
-					quat quatRot(rot);
-					newrot = Math::RotateQuat(quatRot);
-				}
-				if (anim->animationType == Animation::AnimationType::SCALE)
-				{
-					vec3 scale = anim->Sample(deltaTime);
-					newscale = Math::Scale(mat4(1), scale);
-				}
-				if (anim->animationType == Animation::AnimationType::TRANSLATION)
-				{
-					vec3 trans = anim->Sample(deltaTime);
-					newtrans = Math::Translate(mat4(1), trans);
-				}
 
-			}
-			mat4 newModel = newtrans * newrot * newscale;
-			node->modelMatrix = newModel;
 		}
 	};
 
@@ -338,8 +314,6 @@ namespace Graphics
 		Vector<SharedPtr<Node>> joints;
 		Vector<mat4> inverseBindMatrices;
 
-		Vector<mat4> jointMatrices;
-
 	public:
 		GLTFSkinnedMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
 
@@ -348,46 +322,20 @@ namespace Graphics
 			this->inverseBindMatrices = inverseBindMatrices;
 		}
 
-		void SetJoints(Vector<SharedPtr<Node>>& joints)
+		void SetJoints(Vector<SharedPtr<Node>> joints)
 		{
 			this->joints = joints;
 		}
 
 		void Update(f32 deltaTime) override
 		{
-			mat4 newrot(1);
-			mat4 newscale(1);
-			mat4 newtrans(1);
-			for (auto& anim : node->animations)
-			{
-				if (anim->animationType == Animation::AnimationType::ROTATION)
-				{
-					vec4 rot = anim->Sample(deltaTime);
-					quat quatRot(rot);
-					newrot = Math::RotateQuat(quatRot);
-				}
-				if (anim->animationType == Animation::AnimationType::SCALE)
-				{
-					vec3 scale = anim->Sample(deltaTime);
-					newscale = Math::Scale(mat4(1), scale);
-				}
-				if (anim->animationType == Animation::AnimationType::TRANSLATION)
-				{
-					vec3 trans = anim->Sample(deltaTime);
-					newtrans = Math::Translate(mat4(1), trans);
-				}
-
-			}
-			mat4 newModel = newtrans * newrot * newscale;
-			node->modelMatrix = newModel;
 
 			mat4 invWorld = Math::Inverse(node->worldMatrix);
 			for (int i = 0; i < joints.size(); ++i)
 			{
 				auto joint = joints[i];
-				basicUniform->transformUniform.jointMatrices[i] = invWorld * joint->worldMatrix * inverseBindMatrices[i];
+				basicUniform->transformUniform.jointMatrices[i] = (invWorld * joint->worldMatrix * inverseBindMatrices[i]);
 			}
-			
 		}
 	};
 }

@@ -31,8 +31,9 @@ namespace Graphics
 				isDirty = true;
 			}
 		}
-
-		mat4 newModel = newtrans * newrot * newscale * modelMatrix;
+		mat4 newModel = newtrans * newrot * newscale;
+		if (animations.size() == 0)
+			newModel = modelMatrix;
 		if (isDirty)
 		{
 			worldMatrix = parentModelMatrix * newModel;
