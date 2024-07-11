@@ -150,7 +150,7 @@ void main()
     
     vec4 prevRootPos = ubo.prevHead * vec4(particleRoot.position.xyz, 1);
     vec4 curRootPos = ubo.curHead * vec4(particleRoot.position.xyz, 1);
-    vec3 shock = (prevRootPos - curRootPos).xyz;
+    vec3 shock = (curRootPos - prevRootPos).xyz;
 
     float vertexMultiplier = float(localVertexIndex) / float(ubo.numVertexPerStrand);
     bool isMovable = IsMovable(particleIn.position);

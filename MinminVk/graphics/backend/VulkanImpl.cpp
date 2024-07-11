@@ -1212,12 +1212,15 @@ namespace VulkanImpl
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = 0; // Optional
 		pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
-		VkPushConstantRange pushConstantRange{};
-		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // Accessible in vertex shader
-		pushConstantRange.offset = 0; // Start offset
-		pushConstantRange.size = sizeof(mat4);
-		pipelineLayoutInfo.pushConstantRangeCount = 1; // Optional
-		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange; // Optional
+		VkPushConstantRange pushConstantRanges[2];
+		pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // world matrix
+		pushConstantRanges[0].offset = 0; // Start offset
+		pushConstantRanges[0].size = sizeof(mat4);
+		pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; // texture index
+		pushConstantRanges[1].offset = pushConstantRanges[0].size; // Start offset
+		pushConstantRanges[1].size = sizeof(u32);
+		pipelineLayoutInfo.pushConstantRangeCount = 2; // Optional
+		pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges; // Optional
 
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = 1;
@@ -1571,6 +1574,7 @@ namespace VulkanImpl
 		geometry.basicUniform->transformUniform.model = geometry.node->worldMatrix;
 		UpdateUniformBuffer(geometry.basicUniform->GetData(), geometry.basicUniform->GetBufferSize(), *geometry.basicUniform, swapID);
 		vkCmdPushConstants(commandBuffer, pipelineLayouts[geometry.basicUniform->layoutID], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.node->worldMatrix);
+		vkCmdPushConstants(commandBuffer, pipelineLayouts[geometry.basicUniform->layoutID], VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(mat4), sizeof(u32), &geometry.mainTexture.textureID.id);
 
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
@@ -1748,7 +1752,6 @@ namespace VulkanImpl
 			bindings.push_back(bufferLayoutBinding);
 		}
 		// textures
-		for (u32 i = 0; i < textures.size(); ++i)
 		for (const auto &texture : textures)
 		{
 			VkDescriptorSetLayoutBinding samplerLayoutBinding{};
@@ -1805,7 +1808,7 @@ namespace VulkanImpl
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		poolInfo.poolSizeCount = poolSizes.size();
 		poolInfo.pPoolSizes = poolSizes.data();
-		poolInfo.maxSets = poolSizes.size();
+		poolInfo.maxSets = numUniforms + numTextures + numStorageBuffers;
 
 		auto & descriptorPool = descriptorPools.emplace_back();
 		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
@@ -2657,7 +2660,7 @@ namespace Graphics
 		);
 	}
 
-	OBJMesh::OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture, String filename)
+	OBJMesh::OBJMesh(SharedPtr<GraphicsPipeline> pipeline, SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture, String filename)
 		: Geometry(basicUniform, mainTexture)
 	{
 		auto vertexDesc = MakeShared<BasicVertex>();
@@ -2665,9 +2668,9 @@ namespace Graphics
 		this->vertexDesc = vertexDesc;
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
-		// TODO replace with new function
+		pipeline->textures.push_back(mainTexture);
 		VulkanImpl::UpdateDescriptorSets(
-			descriptorPoolID,
+			pipeline->descriptorPoolID.id,
 			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
 			Vector<Graphics::TextureID>{
 				// add more textures in future
@@ -2676,7 +2679,7 @@ namespace Graphics
 		);
 	}
 	
-	OBJMesh::OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename)
+	OBJMesh::OBJMesh(SharedPtr<GraphicsPipeline> pipeline, SharedPtr<BasicUniformBuffer> basicUniform, String filename)
 		: Geometry(basicUniform, Texture())
 	{
 		auto vertexDesc = MakeShared<BasicVertex>();
@@ -2686,7 +2689,7 @@ namespace Graphics
 		VulkanImpl::CreateIndexBuffer(*this);
 		// TODO replace with new function
 		VulkanImpl::UpdateDescriptorSets(
-			descriptorPoolID,
+			pipeline->descriptorPoolID.id,
 			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
 			Vector<Graphics::TextureID>{}
 		);
@@ -2724,13 +2727,13 @@ namespace Graphics
 		VulkanImpl::UpdateDescriptorSets(
 			descriptorPoolID,
 			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
-			this->mainTexture.initialized ? 
+			//this->mainTexture.initialized ? 
 				Vector<Graphics::TextureID>
 				{
 					this->mainTexture.textureID
 				} 
-				:
-				Vector<Graphics::TextureID>{}
+			//	:
+			//	Vector<Graphics::TextureID>{}
 		);
 	}
 
@@ -2738,6 +2741,7 @@ namespace Graphics
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);
+
 		VulkanImpl::Draw(commandList, *this, context.renderPass->pso->pipelineID, context.renderPass->pso->descriptorPoolID, swapID);
 	}
 

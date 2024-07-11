@@ -257,7 +257,7 @@ namespace Graphics
 		{
 			auto uvBufferView = model.bufferViews[uvAccessor.bufferView];
 			DebugPrint("UV\n");
-
+			
 			assert(uvAccessor.type == 2);
 			u32 startOfUVBuffer = uvAccessor.byteOffset + uvBufferView.byteOffset;
 			u32 strideUVBuffer = uvBufferView.byteStride == 0 ? sizeof(f32) * 2 : uvBufferView.byteStride;
@@ -267,8 +267,11 @@ namespace Graphics
 				u32 index = (startOfUVBuffer + strideUVBuffer * i);
 				vertices.vertices[i].texCoord.x = static_cast<f32>(((f32*)model.buffers[uvBufferView.buffer].data.data())[index / sizeof(f32)]);
 				vertices.vertices[i].texCoord.y = static_cast<f32>(((f32*)model.buffers[uvBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+				assert(vertices.vertices[i].texCoord.x <= uvAccessor.maxValues[0] && vertices.vertices[i].texCoord.x >= uvAccessor.minValues[0]);
+				assert(vertices.vertices[i].texCoord.y <= uvAccessor.maxValues[1] && vertices.vertices[i].texCoord.y >= uvAccessor.minValues[1]);
 				// convert from -1,1 to 0,1
-				vertices.vertices[i].texCoord = vertices.vertices[i].texCoord * 0.5f + vec2(0.5f);
+				if (uvAccessor.minValues[0] < 0.f)
+					vertices.vertices[i].texCoord = vertices.vertices[i].texCoord * 0.5f + vec2(0.5f);
 
 			}
 		}
@@ -330,7 +333,7 @@ namespace Graphics
 	}
 
 
-	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>> &newSkinnedMeshes)
+	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, int forwardDescriptorPoolID, int skinnedDescriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>> &newSkinnedMeshes)
 	{
 		tinygltf::Model model;
 		Util::IO::ReadGLTF(model, filename);
@@ -461,14 +464,14 @@ namespace Graphics
 				{
 					auto& gltfMesh = model.meshes[node.mesh];
 					// TODO check and create skinned mesh
-					auto geometry = MakeShared<GLTFMesh>(descriptorPoolID, basicUniform, filename, gltfMesh, model);
+					auto geometry = MakeShared<GLTFMesh>(forwardDescriptorPoolID, basicUniform, filename, gltfMesh, model);
 					geometry->node = newNode;
 					newMeshes.push_back(geometry);
 				}
 				else if (nodeType == Node::SKINNED_MESH_NODE)
 				{
 					auto& gltfSkinnedMesh = model.meshes[node.mesh];
-					auto geometry = MakeShared<GLTFSkinnedMesh>(descriptorPoolID, basicUniform, filename, gltfSkinnedMesh, model);
+					auto geometry = MakeShared<GLTFSkinnedMesh>(skinnedDescriptorPoolID, basicUniform, filename, gltfSkinnedMesh, model);
 					geometry->node = newNode;
 					newSkinnedMeshes.push_back(geometry);
 					// get inverse bind matrices

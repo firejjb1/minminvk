@@ -78,7 +78,7 @@ namespace Graphics
 
 		Texture(String filename, bool autoMipChain = false);
 
-		Texture(){}
+		Texture() { }
 	};
 
 }

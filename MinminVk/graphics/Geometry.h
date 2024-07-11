@@ -13,6 +13,8 @@ namespace Graphics
 {
 	struct RenderContext;
 
+	struct GraphicsPipeline;
+
 	struct VertexBinding
 	{
 		u32 stride = 0;
@@ -289,8 +291,8 @@ namespace Graphics
 	struct OBJMesh : public Geometry
 	{
 	public:
-		OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture, String filename);
-		OBJMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> uboTransform, String filename);
+		OBJMesh(SharedPtr<GraphicsPipeline>, SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture, String filename);
+		OBJMesh(SharedPtr<GraphicsPipeline>, SharedPtr<BasicUniformBuffer> uboTransform, String filename);
 		void Update(f32 deltaTime) override
 		{
 			//node->modelMatrix = Math::Rotate(node->modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
