@@ -26,10 +26,10 @@
 
 //#define CUBE_GLTF "Cube/Cube.gltf"
 //#define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
-//#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
+#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
 //#define CUBE_GLTF "RiggedSimple/RiggedSimple.gltf"
 //#define CUBE_GLTF "RiggedFigure/RiggedFigure.gltf"
-#define CUBE_GLTF "CesiumMan/CesiumMan.gltf"
+//#define CUBE_GLTF "CesiumMan/CesiumMan.gltf"
 
 namespace Graphics
 {
@@ -175,15 +175,15 @@ namespace Graphics
 
 			forwardSkinnedPass = MakeShared<RenderPass>(forwardSkinnedPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 
-			quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
+			quad = MakeShared<Quad>(forwardPipeline, forwardPipeline->uniformDesc, texture);
 
 			// OBJ
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
-			vikingRoom->node->worldMatrix = Math::Translate(vikingRoom->node->worldMatrix, vec3(0, -1.5f, -5));
+			vikingRoom->node->worldMatrix = Math::Translate(vikingRoom->node->worldMatrix, vec3(0, -2.5f, -5));
 			headMesh = MakeShared<OBJMesh>(forwardPipeline, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
 			headMesh->node->worldMatrix = Math::Rotate(mat4(1), Math::PI, vec3(0,0,1));
 			// GLTF
-			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline->descriptorPoolID.id, forwardSkinnedPipeline->descriptorPoolID.id, forwardSkinnedPipeline->uniformDesc, gltfMeshes, gltfSkinnedMeshes);
+			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline, forwardSkinnedPipeline, forwardSkinnedPipeline->uniformDesc, gltfMeshes, gltfSkinnedMeshes);
 
 		}
 
@@ -344,7 +344,6 @@ namespace Graphics
 				vikingRoom->Update(deltaTime);
 				vikingRoom->Draw(renderContext);
 				
-
 				// non-skinned 
 				for (auto& mesh : gltfMeshes)
 				{

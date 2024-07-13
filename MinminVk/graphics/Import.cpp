@@ -333,7 +333,7 @@ namespace Graphics
 	}
 
 
-	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, int forwardDescriptorPoolID, int skinnedDescriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>> &newSkinnedMeshes)
+	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardSkinnedPipeline, SharedPtr<BasicUniformBuffer> basicUniform, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>> &newSkinnedMeshes)
 	{
 		tinygltf::Model model;
 		Util::IO::ReadGLTF(model, filename);
@@ -463,15 +463,14 @@ namespace Graphics
 				if (nodeType == Node::MESH_NODE)
 				{
 					auto& gltfMesh = model.meshes[node.mesh];
-					// TODO check and create skinned mesh
-					auto geometry = MakeShared<GLTFMesh>(forwardDescriptorPoolID, basicUniform, filename, gltfMesh, model);
+					auto geometry = MakeShared<GLTFMesh>(forwardPipeline, basicUniform, filename, gltfMesh, model);
 					geometry->node = newNode;
 					newMeshes.push_back(geometry);
 				}
 				else if (nodeType == Node::SKINNED_MESH_NODE)
 				{
 					auto& gltfSkinnedMesh = model.meshes[node.mesh];
-					auto geometry = MakeShared<GLTFSkinnedMesh>(skinnedDescriptorPoolID, basicUniform, filename, gltfSkinnedMesh, model);
+					auto geometry = MakeShared<GLTFSkinnedMesh>(forwardSkinnedPipeline, basicUniform, filename, gltfSkinnedMesh, model);
 					geometry->node = newNode;
 					newSkinnedMeshes.push_back(geometry);
 					// get inverse bind matrices

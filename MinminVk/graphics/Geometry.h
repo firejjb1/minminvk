@@ -237,7 +237,7 @@ namespace Graphics
 		}
 	};
 
-	struct GeometryID { u32 vertexBufferID = 0; u32 indexBufferID = 0; };
+	struct GeometryID { u32 vertexBufferID = 0; u32 indexBufferID = 0; u32 setID; };
 
 	struct Geometry
 	{
@@ -276,7 +276,7 @@ namespace Graphics
 	public:
 
 
-		Quad(int descriptorPool, SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture);
+		Quad(SharedPtr<GraphicsPipeline>, SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture);
 
 		SharedPtr<VertexDesc> GetVertexData() override { return vertexDesc; }
 		Vector<u16>& GetIndicesData() override { return indices; }
@@ -303,7 +303,7 @@ namespace Graphics
 	struct GLTFMesh : public Geometry
 	{
 	public:
-		GLTFMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
+		GLTFMesh(SharedPtr<GraphicsPipeline>, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
 		void Update(f32 deltaTime) override
 		{
 
@@ -317,7 +317,7 @@ namespace Graphics
 		Vector<mat4> inverseBindMatrices;
 
 	public:
-		GLTFSkinnedMesh(int descriptorPoolID, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
+		GLTFSkinnedMesh(SharedPtr<GraphicsPipeline>, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
 
 		void SetInverseBindMatrices(Vector<mat4>& inverseBindMatrices)
 		{

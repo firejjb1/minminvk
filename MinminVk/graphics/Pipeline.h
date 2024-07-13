@@ -125,13 +125,21 @@ namespace Graphics
 		bool stencilTestEnable = false;
 
 		SharedPtr<VertexDesc> vertexDesc;
+		// per pass data
 		SharedPtr<BasicUniformBuffer> uniformDesc;
+		Vector<Texture> textures;
+		Vector<SharedPtr<Buffer>> buffers;
 
 		// auto reduced if device doesn't support
 		u32 msaaSamples = 8;
 
-		Vector<Texture> textures;
-		Vector<SharedPtr<Buffer>> buffers;
+		// up to 5 textures for each mesh (base color, metallic, normal, occlusion, emissive)
+		u32 numTexPerMesh = 5;
+
+		// up to 100 meshes (to set descriptor sets limit)
+		u32 maxNumMeshes = 100;
+		u32 currentMeshCount = 0;
+		u32 perMeshLayoutID;
 
 		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShader, SharedPtr<VertexDesc> vertexDesc, 
 			SharedPtr<BasicUniformBuffer> uniformDesc, Vector<Texture> textures, Vector<SharedPtr<Buffer>> buffers)

@@ -5,12 +5,16 @@ layout(location = 1) in vec3 fragNormal;
 
 layout(location = 0) out vec4 outColor;
 
-layout(binding = 1) uniform sampler2D texSampler;
+layout(set = 1, binding = 0) uniform sampler2D texColor;
+layout(set = 1, binding = 1) uniform sampler2D texMetallic;
+layout(set = 1, binding = 2) uniform sampler2D texNormal;
+layout(set = 1, binding = 3) uniform sampler2D texOcclusion;
+layout(set = 1, binding = 4) uniform sampler2D texEmissive;
 
 void main() {
     //outColor = vec4(fragTexCoord, 0, 1);
     //outColor = vec4(fragNormal, 1);
     //outColor = vec4(1);
-    outColor = vec4(vec3(0.1f, 0.1f, 0.1f) + texture(texSampler, fragTexCoord).xyz, 1);
+    outColor = vec4(vec3(0.1f, 0.1f, 0.1f) + texture(texColor, fragTexCoord).xyz, 1);
 
 }
