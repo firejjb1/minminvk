@@ -18,6 +18,8 @@ include_directories(external/tinyobjloader)
 # STB (header only library): Load images
 include_directories(external/stbImage)
 
+include_directories(external/tinygltf)
+
 if (NOT CMAKE_VERSION VERSION_LESS 3.7.0)
 	message(STATUS "Using module to find Vulkan")
 	find_package(Vulkan)
@@ -122,6 +124,7 @@ set(SOURCE_FILES
 	"graphics/backend/VulkanImpl.cpp"
 	"util/IO.cpp"
 	"graphics/Import.cpp"
+	"graphics/Node.cpp"
 )
 
 set(HEADER_FILES 
@@ -141,6 +144,8 @@ set(HEADER_FILES
 	"graphics/Import.h"
 	"graphics/Resource.h"
 	"graphics/UIRender.h"
+	"graphics/Node.h"
+	"graphics/Animation.h"
 )
 
 IF(WIN32)
@@ -165,12 +170,13 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC SHADERS_DIR="${CMAKE_CURRENT_S
 target_compile_definitions(${PROJECT_NAME} PUBLIC IMAGES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/images/")
 target_compile_definitions(${PROJECT_NAME} PUBLIC OBJ_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/obj/")
 target_compile_definitions(${PROJECT_NAME} PUBLIC HAIR_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/hair/")
+target_compile_definitions(${PROJECT_NAME} PUBLIC GLTF_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/gltf/")
+
 # disable validation layers, etc
-# target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
+#target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
 
 # define vulkan implementation. only supports vulkan for now
 target_compile_definitions(${PROJECT_NAME} PUBLIC VULKAN_IMPL)
-
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 

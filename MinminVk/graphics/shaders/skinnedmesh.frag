@@ -1,8 +1,7 @@
 #version 450
 
-layout(location = 0) in vec3 fragColor;
-layout(location = 1) in vec2 fragTexCoord;
-layout(location = 2) in vec3 fragNormal;
+layout(location = 0) in vec2 fragTexCoord;
+layout(location = 1) in vec3 fragNormal;
 
 layout(location = 0) out vec4 outColor;
 
@@ -14,8 +13,8 @@ layout(set = 1, binding = 4) uniform sampler2D texEmissive;
 
 void main() {
     //outColor = vec4(fragTexCoord, 0, 1);
-    //outColor = vec4(fragColor, 1);
     //outColor = vec4(fragNormal, 1);
-    outColor = vec4(texture(texColor, fragTexCoord).xyz, 1);
+    //outColor = vec4(1);
+    outColor = vec4(vec3(0.1f, 0.1f, 0.1f) + texture(texColor, fragTexCoord).xyz, 1);
 
 }

@@ -70,13 +70,15 @@ namespace Graphics
 
 		bool autoMipChain = false;
 
+		bool initialized = false;
+		
 		u32 mipLevels = 1;
 
 		u32 depth = 1;
 
 		Texture(String filename, bool autoMipChain = false);
 
-		Texture(){}
+		Texture() { }
 	};
 
 }

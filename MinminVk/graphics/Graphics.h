@@ -9,6 +9,8 @@
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
+#define SKINNED_VERTEX_SHADER "skinnedmeshvert.spv"
+#define SKINNED_FRAG_SHADER "skinnedmeshfrag.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
 #define PARTICLE_COMP_LSC_SHADER "particlelsc.spv"
 #define PARTICLE_COMP_ELC_WIND_SHADER "particleelcwind.spv"
@@ -21,6 +23,13 @@
 #define VIKING_MODEL "viking_room.obj"
 #define HEAD_MODEL "head.obj"
 #define HAIR_DATA_FILE "hairdata.txt"
+
+//#define CUBE_GLTF "Cube/Cube.gltf"
+//#define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
+#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
+//#define CUBE_GLTF "RiggedSimple/RiggedSimple.gltf"
+//#define CUBE_GLTF "RiggedFigure/RiggedFigure.gltf"
+//#define CUBE_GLTF "CesiumMan/CesiumMan.gltf"
 
 namespace Graphics
 {
@@ -74,16 +83,21 @@ namespace Graphics
 	};
 
 	SharedPtr<Device> device;
+	SharedPtr<NodeManager> nodeManager;
 	RenderContext renderContext;
 	ComputeContext computeContext;
 	SharedPtr<Presentation> presentation;
 	SharedPtr<GraphicsPipeline> forwardPipeline;
 	SharedPtr<RenderPass> forwardPass;
 	SharedPtr<RenderPass> forwardParticlePass;
+	SharedPtr<GraphicsPipeline> forwardSkinnedPipeline;
+	SharedPtr<RenderPass> forwardSkinnedPass;
 	SharedPtr<UIRender> uiRender;
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
 	SharedPtr<OBJMesh> headMesh;
+	Vector<SharedPtr<GLTFMesh>> gltfMeshes;
+	Vector<SharedPtr<GLTFSkinnedMesh>> gltfSkinnedMeshes;
 	SharedPtr<StructuredBuffer> particleBuffer;
 	SharedPtr<StructuredBuffer> particleBufferPrev;
 	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
@@ -94,7 +108,11 @@ namespace Graphics
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
 	u32 numVertexPerStrand = 16;
-	vec3 eyePosition(0.01f, -1.5f, 1.0f);
+
+	const f32 fixedDeltaTime = 0.016f;
+	f32 updateTimeAccumulator = 0.f;
+	const u32 maxUpdateStepsPerFrame = 5;
+	u32 physicsFrameID = 0;
 
 	//  4f position 4f color. can optimize later
 	// careful about alignment
@@ -112,8 +130,11 @@ namespace Graphics
 
 	void InitGraphics(void * window)
 	{
+		nodeManager = MakeShared<NodeManager>(10000);
+
 		presentation = MakeShared<Presentation>();
 		device = MakeShared<Device>();
+		presentation->swapChainDetails.mode = Presentation::SwapChainDetails::ModeType::MAILBOX;
 
 		presentation->Init(window);
 		device->Init();
@@ -143,11 +164,26 @@ namespace Graphics
 	
 			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
 
-			quad = MakeShared<Quad>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture);
+			forwardSkinnedPipeline = MakeShared<GraphicsPipeline>(
+				MakeShared<Shader>(concat_str(SHADERS_DIR, SKINNED_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
+				MakeShared<Shader>(concat_str(SHADERS_DIR, SKINNED_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
+				MakeShared<SkinnedVertex>(),
+				uniformBuffer,
+				Vector<Texture>{texture},
+				Vector<SharedPtr<Buffer>>{}
+			);
 
-			vikingRoom = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
+			forwardSkinnedPass = MakeShared<RenderPass>(forwardSkinnedPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 
-			headMesh = MakeShared<OBJMesh>(forwardPipeline->descriptorPoolID.id, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
+			quad = MakeShared<Quad>(forwardPipeline, forwardPipeline->uniformDesc, texture);
+
+			// OBJ
+			vikingRoom = MakeShared<OBJMesh>(forwardPipeline, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
+			vikingRoom->node->worldMatrix = Math::Translate(vikingRoom->node->worldMatrix, vec3(0, -2.5f, -5));
+			headMesh = MakeShared<OBJMesh>(forwardPipeline, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
+			headMesh->node->worldMatrix = Math::Rotate(mat4(1), Math::PI, vec3(0,0,1));
+			// GLTF
+			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline, forwardSkinnedPipeline, forwardSkinnedPipeline->uniformDesc, gltfMeshes, gltfSkinnedMeshes);
 
 		}
 
@@ -202,57 +238,89 @@ namespace Graphics
 			particleRenderPipeline->depthWriteEnable = false;
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 			
-			// sync
-			particleRenderPipeline->Wait(particleELCWindComputePipeline->pipelineID);
+			// TODO async compute
+			// particleRenderPipeline->Wait(particleELCWindComputePipeline->pipelineID);
 
+		}
+	}
+
+	void Update(const f32 fixedDeltaTime)
+	{
+		u32 curSteps = 0;
+		while (updateTimeAccumulator > fixedDeltaTime)
+		{
+			updateTimeAccumulator -= fixedDeltaTime;
+			curSteps++;
+			physicsFrameID++;
+			computeContext.frameID = physicsFrameID;
+
+			if (curSteps > maxUpdateStepsPerFrame)
+				break;
+			// all the fixed updates
+			{
+				// particle compute passes
+				{
+					vec3 keyboardMovement(0);
+					keyboardMovement.x += Input::D.pressed ? fixedDeltaTime : Input::A.pressed ? -fixedDeltaTime : 0;
+					keyboardMovement.y += Input::S.pressed ? fixedDeltaTime : Input::W.pressed ? -fixedDeltaTime : 0;
+
+
+					particleUniformBuffer->uniform.windStrength = UI::windStrength;
+					particleUniformBuffer->uniform.windDirection = vec4(UI::windDirection, 0);
+					particleUniformBuffer->uniform.shockStrength = UI::shockStrength;
+					particleUniformBuffer->uniform.elcIteration = UI::elcIteration;
+					particleUniformBuffer->uniform.stiffnessLocal = UI::stiffnessLocal;
+					particleUniformBuffer->uniform.stiffnessGlobal = UI::stiffnessGlobal;
+					particleUniformBuffer->uniform.effectiveRangeGlobal = UI::effectiveRangeGlobal;
+					particleUniformBuffer->uniform.capsuleRadius = UI::capsuleRadius;
+
+					particleUniformBuffer->uniform.prevHead = headMesh->node->worldMatrix;
+
+					headMesh->node->worldMatrix = glm::translate(headMesh->node->worldMatrix, keyboardMovement);
+					if (UI::rotateHead)
+						headMesh->Update(fixedDeltaTime);
+					if (UI::resetHeadPos)
+						headMesh->node->worldMatrix = mat4(1);
+
+					particleUniformBuffer->uniform.curHead = headMesh->node->worldMatrix;
+
+					particleUniformBuffer->uniform.deltaTime = fixedDeltaTime;
+					particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
+					particleUniformBuffer->uniform.frame = physicsFrameID;
+					particleUniformBuffer->UpdateUniformBuffer(physicsFrameID);
+
+					computeContext.computePipeline = particleComputePipeline;
+					device->BeginRecording(computeContext);
+					particleComputePipeline->Dispatch(computeContext);
+					computeContext.computePipeline = particleLSCComputePipeline;
+					particleLSCComputePipeline->Dispatch(computeContext);
+					computeContext.computePipeline = particleELCWindComputePipeline;
+					particleELCWindComputePipeline->Dispatch(computeContext);
+
+					device->EndRecording(computeContext);
+				}
+
+				vikingRoom->Update(fixedDeltaTime);
+				nodeManager->Update(fixedDeltaTime);
+
+				for (auto& skinnedMesh : gltfSkinnedMeshes)
+				{
+					skinnedMesh->Update(fixedDeltaTime);
+				}
+
+			}
 		}
 	}
 
 	void MainRender(const u32 frameID, const f32 deltaTime)
 	{
 		renderContext.frameID = frameID;
-		computeContext.frameID = frameID;
 
-		vec3 keyboardMovement(0);
-		keyboardMovement.x += Input::A.pressed ? deltaTime : Input::D.pressed ? -deltaTime : 0;
-		keyboardMovement.y += Input::S.pressed ? deltaTime : Input::W.pressed ? -deltaTime : 0;
-
-		// particle compute passes
-		{
-			particleUniformBuffer->uniform.windStrength = UI::windStrength;
-			particleUniformBuffer->uniform.windDirection = vec4(UI::windDirection, 0);
-			particleUniformBuffer->uniform.shockStrength = UI::shockStrength;
-			particleUniformBuffer->uniform.elcIteration = UI::elcIteration;
-			particleUniformBuffer->uniform.stiffnessLocal = UI::stiffnessLocal;
-			particleUniformBuffer->uniform.stiffnessGlobal = UI::stiffnessGlobal;
-			particleUniformBuffer->uniform.effectiveRangeGlobal = UI::effectiveRangeGlobal;
-			particleUniformBuffer->uniform.capsuleRadius = UI::capsuleRadius;
-
-			particleUniformBuffer->uniform.prevHead = headMesh->modelMatrix;
-			headMesh->modelMatrix = glm::translate(headMesh->modelMatrix, keyboardMovement);
-			if (UI::rotateHead)
-				headMesh->Update(deltaTime);
-			particleUniformBuffer->uniform.curHead = headMesh->modelMatrix;
-
-			particleUniformBuffer->uniform.deltaTime = deltaTime;
-			particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
-			particleUniformBuffer->uniform.frame = frameID;
-			particleUniformBuffer->UpdateUniformBuffer(frameID);
-			
-			computeContext.computePipeline = particleComputePipeline;
-			device->BeginRecording(computeContext);
-			particleComputePipeline->Dispatch(computeContext);
-			computeContext.computePipeline = particleLSCComputePipeline;
-			particleLSCComputePipeline->Dispatch(computeContext);
-			computeContext.computePipeline = particleELCWindComputePipeline;
-			particleELCWindComputePipeline->Dispatch(computeContext);
-
-			device->EndRecording(computeContext);
-		}
-
+		updateTimeAccumulator += deltaTime;
+		Update(fixedDeltaTime);
 		// forward passes
 		{
-			// pass 1
+			// pass 1 - meshes
 			renderContext.renderPass = forwardPass;
 			bool success = device->BeginRecording(renderContext);
 			if (!success)
@@ -262,29 +330,48 @@ namespace Graphics
 			{
 				// view projection
 				{
-					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(eyePosition, eyePosition + vec3(0.0f, 0.f, -1.0f), vec3(0.0f, -1.0f, 0.0f));
+					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(UI::cameraPosition, UI::cameraPosition + UI::cameraLookDirection, vec3(0.0f, 1.0f, 0.0f));
 					i32 width = presentation->swapChainDetails.width;
 					i32 height = presentation->swapChainDetails.height;
-					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 10.0f);
+					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 1000.0f);
 					forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
 
 					particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
 					particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
 				}
 
-				//vikingRoom->Update(deltaTime);
-				//vikingRoom->Draw(renderContext);
+				
+				vikingRoom->Update(deltaTime);
+				vikingRoom->Draw(renderContext);
+				
+				// non-skinned 
+				for (auto& mesh : gltfMeshes)
+				{
+					mesh->Draw(renderContext);
+				}
 
+				// TODO make texture apply per object draw
 				headMesh->Draw(renderContext);
 
 			}
 			device->EndRenderPass(renderContext);
 
-			// pass 2
+			// pass 2 - skinned meshes
+			renderContext.renderPass = forwardSkinnedPass;
+			device->BeginRenderPass(renderContext);
+			{
+				for (auto& mesh : gltfSkinnedMeshes)
+				{
+					mesh->Draw(renderContext);
+				}
+			}
+			device->EndRenderPass(renderContext);
+
+			// pass 3 - hair
 			renderContext.renderPass = forwardParticlePass;
 			device->BeginRenderPass(renderContext);
 
-			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->modelMatrix;
+			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->node->worldMatrix;
 			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
 			device->EndRenderPass(renderContext);

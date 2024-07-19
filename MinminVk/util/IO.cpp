@@ -1,8 +1,9 @@
 #include "IO.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define TINYGLTF_IMPLEMENTATION
+#include <tiny_gltf.h>
 namespace Util
 {
     
@@ -51,6 +52,31 @@ unsigned char* IO::ReadImage(i32& width, i32& height, const String& filename)
 	width = texWidth;
 	height = texHeight;
 	return data;
+}
+
+bool IO::ReadGLTF(tinygltf::Model& model, const String& filename)
+{
+	// loadModel
+	tinygltf::TinyGLTF loader;
+	std::string err;
+	std::string warn;
+
+	bool res = loader.LoadASCIIFromFile(&model, &err, &warn, filename.c_str());
+
+	if (!warn.empty()) {
+		DebugPrint("WARN: %s\n", warn);
+	}
+
+	if (!err.empty()) {
+		DebugPrint("ERR: %s\n", err);
+	}
+
+	if (!res)
+		DebugPrint("Failed to load glTF: %s\n", filename.c_str());
+	else
+		DebugPrint("Loaded glTF: %s\n", filename.c_str());
+
+	return res;
 }
 
 }

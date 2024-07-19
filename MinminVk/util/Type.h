@@ -20,6 +20,7 @@
 
 typedef uint32_t u32;
 typedef uint16_t u16;
+typedef uint8_t u8;
 
 typedef float f32;
 typedef int32_t i32;
@@ -38,6 +39,8 @@ typedef glm::vec4 vec4;
 typedef glm::uvec2 vec2u;
 typedef glm::uvec3 vec3u;
 typedef glm::uvec4 vec4u;
+
+typedef glm::quat quat;
 
 typedef std::string String;
 

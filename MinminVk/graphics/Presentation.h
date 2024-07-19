@@ -19,7 +19,7 @@ namespace Graphics
 			enum class ColorSpaceType { SRGB_NOLINEAR };
 			ColorSpaceType colorSpace = ColorSpaceType::SRGB_NOLINEAR;
 			enum class ModeType { FIFO, FIFO_RELAXED, MAILBOX, IMMEDIATE };
-			ModeType mode = ModeType::FIFO;
+			ModeType mode = ModeType::FIFO_RELAXED;
 
 			//Vector<TextureID> textureIDs;
 		};

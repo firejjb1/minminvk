@@ -14,4 +14,7 @@ namespace UI
 	f32 effectiveRangeGlobal = 0.1f;
 	f32 capsuleRadius = 0.12f;
 	bool rotateHead = false;
+	bool resetHeadPos = false;
+	vec3 cameraPosition = vec3(0.01f, 0.0f, 5.0f);
+	vec3 cameraLookDirection = vec3(0.0f, 0.f, -1.0f);
 }
