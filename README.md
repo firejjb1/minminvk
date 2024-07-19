@@ -1,3 +1,10 @@
-### Minimalistic wrapper around Vulkan (WIP)
+### Wrapper around Vulkan and 3D renderer (WIP)
 
-see graphics/Graphics.h for example (hair simulation using compute shaders)
+#### Features
+- parse OBJ files
+- parse GLTF files (multi-primitives WIP)
+- support GLTF animation, including skinned animation
+- hair simulation shaders
+- forward PBR shaders (WIP)
+  
+see graphics/Graphics.h for example 
