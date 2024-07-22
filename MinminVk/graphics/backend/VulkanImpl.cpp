@@ -1783,7 +1783,7 @@ namespace VulkanImpl
 		return layoutID;
 	}
 
-	int CreateDescriptorPool(u32 numUniforms = 0, u32 numTextures = 0, u32 numStorageBuffers = 0, u32 extraSetsNum = 0)
+	int CreateDescriptorPool(u32 numUniforms = 1, u32 numTextures = 10, u32 numStorageBuffers = 0, u32 extraSetsNum = 0)
 	{
 		Vector<VkDescriptorPoolSize> poolSizes{};
 
@@ -2574,7 +2574,7 @@ namespace Graphics
 		for (auto buffer : this->buffers)
 			allBuffers.push_back(buffer);
 
-		int poolID = VulkanImpl::CreateDescriptorPool(VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->textures.size() * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->buffers.size() * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes);
+		int poolID = VulkanImpl::CreateDescriptorPool(VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->buffers.size() * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes);
 		this->descriptorPoolID.id = poolID;
 
 		// first set: per frame uniform
@@ -2799,12 +2799,12 @@ namespace Graphics
 		{
 			VkDescriptorPoolSize pool_sizes[] =
 			{
-				{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+				{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
 			};
 			VkDescriptorPoolCreateInfo pool_info = {};
 			pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 			pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-			pool_info.maxSets = 1;
+			pool_info.maxSets = 1000;
 			pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
 			pool_info.pPoolSizes = pool_sizes;
 			vkCreateDescriptorPool(VulkanImpl::device, &pool_info, nullptr, &VulkanImpl::uiDescriptorPool);

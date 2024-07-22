@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.7 FATAL_ERROR)
 project(MinMinVK)
 
-set (CMAKE_CSS_FLAGS "-std=c++17")
+set (CMAKE_CSS_FLAGS "-std=c++20")
+set(CMAKE_CXX_STANDARD 20)
 
 include_directories(external/glm)
 
@@ -186,6 +187,14 @@ if(WIN32)
 	add_custom_target(run_bat_file
 					  COMMAND "compile.bat"
 					  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/")
+
+	add_dependencies(${PROJECT_NAME} run_bat_file)
+endif()
+
+if (APPLE)
+	add_custom_target(run_bat_file
+	COMMAND "./compile.bat"
+	WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/")
 
 	add_dependencies(${PROJECT_NAME} run_bat_file)
 endif()

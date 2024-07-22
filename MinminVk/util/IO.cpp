@@ -64,11 +64,11 @@ bool IO::ReadGLTF(tinygltf::Model& model, const String& filename)
 	bool res = loader.LoadASCIIFromFile(&model, &err, &warn, filename.c_str());
 
 	if (!warn.empty()) {
-		DebugPrint("WARN: %s\n", warn);
+	//	DebugPrint("WARN: %s\n", warn);
 	}
 
 	if (!err.empty()) {
-		DebugPrint("ERR: %s\n", err);
+	//	DebugPrint("ERR: %s\n", err);
 	}
 
 	if (!res)

@@ -61,7 +61,7 @@ void ApplyDistanceConstraint(inout vec4 pos0, inout vec4 pos1, float targetDista
 {
     vec3 delta = pos1.xyz - pos0.xyz;
     float distanceNow = max(length(delta), 1e-7);
-    float stretching = 1 - targetDistance / distanceNow;
+    float stretching = 1.f - targetDistance / distanceNow;
     delta = stretching * delta;
     vec2 multiplier = ConstraintMultiplier(pos0, pos1);
 
@@ -141,6 +141,7 @@ bool CapsuleCollision(vec4 curPosition, vec4 oldPosition, inout vec3 newPosition
 layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main() 
 {
+   
     uint index = gl_GlobalInvocationID.x;  
 
     Particle particleIn = particlesIn[index];
@@ -164,7 +165,7 @@ void main()
         vec3 W = magnitudeWind * ubo.windDirection.xyz * ubo.windStrength;
          
         float shockStrength = ubo.shockStrength;
-        W += shock / ubo.deltaTime * shockStrength;
+        W += shockStrength * shock / ubo.deltaTime;
 
         W *= vertexMultiplier;
         
@@ -172,14 +173,14 @@ void main()
         particlesOut[index].position = vec4(oldPos, localVertexIndex) + vec4(F * ubo.deltaTime * ubo.deltaTime, 0);
 
     }
-    
+  
     groupMemoryBarrier();
     
     //----------------------------
     // Enforce length constraints
     //----------------------------
-    uint a = uint(floor(ubo.numVertexPerStrand));
-    uint b = uint(floor(ubo.numVertexPerStrand-1));
+    uint a = uint(floor(ubo.numVertexPerStrand / 2.f));
+    uint b = uint(floor((ubo.numVertexPerStrand-1) / 2.f));
 
     uint numOfStrandsPerThreadGroup = 1;
     uint nLengthContraintIterations = ubo.elcIteration;
@@ -188,25 +189,31 @@ void main()
 
     for ( uint iterationE=0; iterationE < nLengthContraintIterations; iterationE++ )
     {
-
+   
         if( localVertexIndex < a )
         {
-            float initialLength = distance(particlesInitial[index].position.xyz, particlesInitial[index + 1].position.xyz);
-            ApplyDistanceConstraint(particlesOut[index].position, particlesOut[index + 1].position, initialLength, stiffness);
+            uint index0 = index + localVertexIndex;
+            uint index1 = index + localVertexIndex + 1;
+            float initialLength = distance(particlesInitial[index0].position.xyz, particlesInitial[index1].position.xyz);
+            ApplyDistanceConstraint(particlesOut[index0].position, particlesOut[index1].position, initialLength, stiffness);
         }
 
         groupMemoryBarrier();
 
         if( localVertexIndex < b )
         {
-            float initialLength = distance(particlesInitial[index + 1].position.xyz, particlesInitial[index + 2].position.xyz);
-            ApplyDistanceConstraint(particlesOut[index + 1].position, particlesOut[index + 2].position, initialLength, stiffness);
+            uint index0 = index + localVertexIndex + 1;
+            uint index1 = index + localVertexIndex + 2;
+            float initialLength = distance(particlesInitial[index0].position.xyz, particlesInitial[index1].position.xyz);
+            ApplyDistanceConstraint(particlesOut[index0].position, particlesOut[index1].position, initialLength, stiffness);
         }
 
         groupMemoryBarrier();
+  
     }
 
     // collision 
+ 
     vec3 newPosition;
     CollisionCapsule cc;
     cc.p0 = vec4(0.f, -1.39f, 0.f, ubo.capsuleRadius);
@@ -215,5 +222,6 @@ void main()
     bool res = CapsuleCollision(particlesOut[index].position, vec4(oldPos, 1), newPosition, cc);
     if (res)
         particlesOut[index].position.xyz = newPosition;
-    
+
+  
 }

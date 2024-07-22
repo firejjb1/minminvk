@@ -26,10 +26,10 @@
 
 //#define CUBE_GLTF "Cube/Cube.gltf"
 //#define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
-#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
+//#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
 //#define CUBE_GLTF "RiggedSimple/RiggedSimple.gltf"
 //#define CUBE_GLTF "RiggedFigure/RiggedFigure.gltf"
-//#define CUBE_GLTF "CesiumMan/CesiumMan.gltf"
+#define CUBE_GLTF "CesiumMan/CesiumMan.gltf"
 
 namespace Graphics
 {
