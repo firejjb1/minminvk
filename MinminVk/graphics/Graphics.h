@@ -10,7 +10,6 @@
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
 #define SKINNED_VERTEX_SHADER "skinnedmeshvert.spv"
-#define SKINNED_FRAG_SHADER "skinnedmeshfrag.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
 #define PARTICLE_COMP_LSC_SHADER "particlelsc.spv"
 #define PARTICLE_COMP_ELC_WIND_SHADER "particleelcwind.spv"
@@ -166,7 +165,7 @@ namespace Graphics
 
 			forwardSkinnedPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, SKINNED_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
-				MakeShared<Shader>(concat_str(SHADERS_DIR, SKINNED_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
+				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
 				MakeShared<SkinnedVertex>(),
 				uniformBuffer,
 				Vector<Texture>{texture},

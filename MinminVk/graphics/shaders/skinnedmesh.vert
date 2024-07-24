@@ -17,8 +17,10 @@ layout(location = 2) in vec3 inNormal;
 layout(location = 3) in vec4 inWeights;
 layout(location = 4) in uvec4 inJoints;
 
-layout(location = 0) out vec2 fragTexCoord;
-layout(location = 1) out vec3 fragNormal;
+layout(location = 0) out vec3 fragColor;
+layout(location = 1) out vec2 fragTexCoord;
+layout(location = 2) out vec3 fragNormal;
+layout(location = 3) out vec3 fragPosWS;
 
 void main() {
     //gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
@@ -28,10 +30,12 @@ void main() {
         inWeights.z * ubo.jointMatrices[int(inJoints.z)] +
         inWeights.w * ubo.jointMatrices[int(inJoints.w)];
     
-    gl_Position = ubo.proj * ubo.view * pushConst.modelMatrix
-        * skinMatrix
-        * vec4(inPosition, 1.0);
+    fragPosWS = vec3(pushConst.modelMatrix * skinMatrix * vec4(inPosition, 1.0));
+
+    gl_Position = ubo.proj * ubo.view
+        * vec4(fragPosWS, 1.0);
     
     fragTexCoord = inTexCoord;
-    fragNormal = inNormal;
+    fragNormal = normalize(transpose(inverse(pushConst.modelMatrix  * skinMatrix)) * vec4(inNormal, 0)).xyz;
+
 }

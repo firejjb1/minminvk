@@ -78,7 +78,7 @@ namespace Application
                     f32 shockStrength = 1;
                     ImGui::SliderFloat("Shock Strength", &UI::shockStrength, 0, 100);
                     int elc = UI::elcIteration;
-                    ImGui::SliderInt("Edge Length Constraint Iteration", &elc, 0, 20);
+                    ImGui::SliderInt("Edge Length Constraint Iteration", &elc, 0, 40);
                     UI::elcIteration = elc;
                     f32 stiffnessLocal = 0.5f;
                     ImGui::SliderFloat("Stiffness Local", &UI::stiffnessLocal, 0, 1);

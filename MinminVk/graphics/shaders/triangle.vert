@@ -18,11 +18,13 @@ layout(location = 3) in vec3 inNormal;
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 fragNormal;
+layout(location = 3) out vec3 fragPosWS;
 
 void main() {
     //gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
-    gl_Position = ubo.proj * ubo.view * pushConst.modelMatrix * vec4(inPosition, 1.0);
+    fragPosWS = vec3(pushConst.modelMatrix * vec4(inPosition, 1.0));
+    gl_Position = ubo.proj * ubo.view * vec4(fragPosWS, 1.0);
     fragColor = inColor;
     fragTexCoord = inTexCoord;
-    fragNormal = inNormal;
+    fragNormal = normalize(transpose(inverse(pushConst.modelMatrix)) * vec4(inNormal, 0)).xyz;
 }

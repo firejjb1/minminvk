@@ -48,7 +48,7 @@ namespace Graphics
 			vec3 pos;
 			vec3 color = vec3(1);
 			vec2 texCoord;
-			vec3 normal;
+			vec3 normal = vec3(0,0,1);
 
 			bool operator==(const Vertex& other) const {
 				return pos == other.pos && color == other.color && texCoord == other.texCoord;
