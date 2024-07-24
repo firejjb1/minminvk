@@ -5,6 +5,7 @@
 #include <graphics/Buffer.h>
 #include <graphics/Node.h>
 #include <graphics/Animation.h>
+#include <graphics/Material.h>
 #include <util/Math.h>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
@@ -243,6 +244,7 @@ namespace Graphics
 	{
 
 		SharedPtr<Node> node;
+		SharedPtr<Material> material;
 		GeometryID geometryID;
 		SharedPtr<BasicUniformBuffer> basicUniform;
 		Texture mainTexture;

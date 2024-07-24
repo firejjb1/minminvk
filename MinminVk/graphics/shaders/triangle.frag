@@ -236,6 +236,15 @@ vec3 BRDF_specularSheen(vec3 sheenColor, float sheenRoughness, float NdotL, floa
 
 void main() {
 
+// inputs needed:
+// light intensity 
+// metallic, roughness 
+// has metallic roughness texture 
+// light direction 
+// camera position 
+// basecolorfactor
+// emissivefactor 
+
     float lightIntensity = 1; // TODO
     vec3 l_metal_brdf = vec3(0.0);
     float metallic = 0; // TODO

@@ -127,6 +127,8 @@ namespace Graphics
 		SharedPtr<VertexDesc> vertexDesc;
 		// per pass data
 		SharedPtr<BasicUniformBuffer> uniformDesc;
+		// per material
+		SharedPtr<UniformBuffer> materialUniform;
 		Vector<Texture> textures;
 		Vector<SharedPtr<Buffer>> buffers;
 

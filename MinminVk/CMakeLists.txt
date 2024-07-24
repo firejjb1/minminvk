@@ -147,6 +147,7 @@ set(HEADER_FILES
 	"graphics/UIRender.h"
 	"graphics/Node.h"
 	"graphics/Animation.h"
+	"graphics/Material.h"
 )
 
 IF(WIN32)
