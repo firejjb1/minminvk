@@ -244,9 +244,8 @@ namespace Graphics
 	{
 
 		SharedPtr<Node> node;
-		SharedPtr<Material> material;
+		SharedPtr<PBRMaterial> material;
 		GeometryID geometryID;
-		SharedPtr<BasicUniformBuffer> basicUniform;
 		Texture mainTexture;
 
 	protected:
@@ -258,7 +257,7 @@ namespace Graphics
 		virtual void Draw(RenderContext&);
 		virtual void Update(f32 deltaTime) {};
 
-		Geometry(SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture);
+		Geometry(Texture mainTexture);
 
 		Geometry() {
 			vertexDesc = MakeShared<BasicVertex>();
@@ -278,7 +277,7 @@ namespace Graphics
 	public:
 
 
-		Quad(SharedPtr<GraphicsPipeline>, SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture);
+		Quad(SharedPtr<GraphicsPipeline>, Texture mainTexture);
 
 		SharedPtr<VertexDesc> GetVertexData() override { return vertexDesc; }
 		Vector<u16>& GetIndicesData() override { return indices; }
@@ -293,8 +292,8 @@ namespace Graphics
 	struct OBJMesh : public Geometry
 	{
 	public:
-		OBJMesh(SharedPtr<GraphicsPipeline>, SharedPtr<BasicUniformBuffer> uboTransform, Texture mainTexture, String filename);
-		OBJMesh(SharedPtr<GraphicsPipeline>, SharedPtr<BasicUniformBuffer> uboTransform, String filename);
+		OBJMesh(SharedPtr<GraphicsPipeline>, Texture mainTexture, String filename);
+		OBJMesh(SharedPtr<GraphicsPipeline>, String filename);
 		void Update(f32 deltaTime) override
 		{
 			//node->modelMatrix = Math::Rotate(node->modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
@@ -305,7 +304,7 @@ namespace Graphics
 	struct GLTFMesh : public Geometry
 	{
 	public:
-		GLTFMesh(SharedPtr<GraphicsPipeline>, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
+		GLTFMesh(SharedPtr<GraphicsPipeline>, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
 		void Update(f32 deltaTime) override
 		{
 
@@ -317,9 +316,10 @@ namespace Graphics
 	protected:
 		Vector<SharedPtr<Node>> joints;
 		Vector<mat4> inverseBindMatrices;
+		SharedPtr<GraphicsPipeline> pipeline;
 
 	public:
-		GLTFSkinnedMesh(SharedPtr<GraphicsPipeline>, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
+		GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
 
 		void SetInverseBindMatrices(Vector<mat4>& inverseBindMatrices)
 		{
@@ -331,16 +331,7 @@ namespace Graphics
 			this->joints = joints;
 		}
 
-		void Update(f32 deltaTime) override
-		{
-
-			mat4 invWorld = Math::Inverse(node->worldMatrix);
-			for (int i = 0; i < joints.size(); ++i)
-			{
-				auto joint = joints[i];
-				basicUniform->transformUniform.jointMatrices[i] = (invWorld * joint->worldMatrix * inverseBindMatrices[i]);
-			}
-		}
+		void Update(f32 deltaTime) override;
 	};
 }
 

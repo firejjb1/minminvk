@@ -6,7 +6,7 @@ namespace Graphics
 {
     struct Material
     {
-        virtual size_t GetDataSize() = 0;
+        virtual const u32 GetDataSize() = 0;
         virtual void* GetData() = 0;
     };
 
@@ -14,14 +14,27 @@ namespace Graphics
     {
         struct MaterialData
         {
-            vec4 baseColor;
-            vec4 metallicRoughness;
+            vec4 baseColor = vec4(1);
+            vec4 emissiveColor = vec4(0);
+            f32 metallic = 0.f;
+            f32 roughness = 0.5f;
+            u32 hasAlbedoTex = 0;
+            u32 hasMetallicRoughnessTex = 0;
+            u32 hasNormalTex = 0;
+            u32 hasOcclusionTex = 0;
+            u32 hasEmissiveTex = 0;
+            f32 padding;
         };
         UniquePtr<MaterialData> material;
-        
-        size_t GetDataSize() override
+
+        PBRMaterial()
         {
-            return sizeof(PBRMaterial);
+            material = MakeUnique<MaterialData>();
+        }
+        
+        const u32 GetDataSize() override
+        {
+            return sizeof(MaterialData);
         }
 
         void* GetData() override 

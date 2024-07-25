@@ -1211,7 +1211,7 @@ namespace VulkanImpl
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = 2;
-		VkDescriptorSetLayout layouts[] = { descriptorSetLayouts[pipeline->uniformDesc->layoutID], descriptorSetLayouts[pipeline->perMeshLayoutID] };
+		VkDescriptorSetLayout layouts[] = { descriptorSetLayouts[pipeline->layoutID], descriptorSetLayouts[pipeline->perMeshLayoutID] };
 		pipelineLayoutInfo.pSetLayouts = layouts;
 
 		VkPushConstantRange pushConstantRanges[1];
@@ -1559,9 +1559,10 @@ namespace VulkanImpl
 		return commandLists;
 	}
 
-	void Draw(Graphics::CommandList commandList, Graphics::Geometry& geometry, Graphics::PipeLineID pipelineID, Graphics::DescriptorPoolID descriptorPoolID, int swapID)
+	void Draw(Graphics::CommandList commandList, Graphics::Geometry& geometry, SharedPtr<Graphics::GraphicsPipeline> pipeline, Graphics::DescriptorPoolID descriptorPoolID, int swapID)
 	{
-		auto& graphicsPipeline = pipelines[pipelineID.id];
+		auto pipelineID = pipeline->pipelineID.id;
+		auto& graphicsPipeline = pipelines[pipelineID];
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -1569,9 +1570,17 @@ namespace VulkanImpl
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 
-		geometry.basicUniform->transformUniform.model = geometry.node->worldMatrix;
-		UpdateUniformBuffer(geometry.basicUniform->GetData(), geometry.basicUniform->GetBufferSize(), *geometry.basicUniform, swapID);
-		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID.id], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.node->worldMatrix);
+		if (geometry.material)
+		{
+			pipeline->materialUniform->pbrMaterial = geometry.material.get();
+			UpdateUniformBuffer(pipeline->materialUniform->GetData(), pipeline->materialUniform->GetBufferSize(), *pipeline->materialUniform, swapID);
+		}
+		else
+		{
+			pipeline->materialUniform->pbrMaterial = &pipeline->materialUniform->defaultPBRMaterial;
+			UpdateUniformBuffer(pipeline->materialUniform->GetData(), pipeline->materialUniform->GetBufferSize(), *pipeline->materialUniform, swapID);
+		}
+		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.node->worldMatrix);
 		//vkCmdPushConstants(commandBuffer, pipelineLayouts[geometry.basicUniform->layoutID], VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(mat4), sizeof(u32), &geometry.mainTexture.textureID.id);
 
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
@@ -1580,7 +1589,7 @@ namespace VulkanImpl
 		auto perMeshDescriptorSet = descriptorSetsPerPool[descriptorPoolID.id][geometry.geometryID.setID];
 		VkDescriptorSet descriptorSets[] = { uniformDescriptorSet, perMeshDescriptorSet };
 
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[pipelineID.id], 0, 2, descriptorSets, 0, nullptr);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[pipelineID], 0, 2, descriptorSets, 0, nullptr);
 
 		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(geometry.GetIndicesData().size()), 1, 0, 0, 0);
 	}
@@ -1618,7 +1627,7 @@ namespace VulkanImpl
 		}
 	}
 
-	void BeginRenderPass(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID)
+	void BeginRenderPass(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID, SharedPtr<Graphics::BasicUniformBuffer> basicUniform, u32 swapID)
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 		VkRenderPassBeginInfo renderPassInfo{};
@@ -1653,6 +1662,8 @@ namespace VulkanImpl
 		scissor.offset = { 0, 0 };
 		scissor.extent = swapChainExtent;
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+		UpdateUniformBuffer(basicUniform->GetData(), basicUniform->GetBufferSize(), *basicUniform, swapID);
 	}
 
 	void EndRenderPass(Graphics::CommandList commandList)
@@ -2438,8 +2449,8 @@ namespace Graphics
 		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto pipelineID = context.renderPass->pso->pipelineID.id;
 		auto& commandList = GetCommandList(swapID);
-
-		VulkanImpl::BeginRenderPass(commandList, renderPass->renderPassID, renderPass->pso->pipelineID);
+	
+		VulkanImpl::BeginRenderPass(commandList, renderPass->renderPassID, renderPass->pso->pipelineID, context.renderPass->pso->uniformDesc, swapID);
 	}
 
 	void Device::EndRenderPass(Graphics::RenderContext& context)
@@ -2570,16 +2581,16 @@ namespace Graphics
 
 	void GraphicsPipeline::Init(Graphics::RenderPassID renderPassID)
 	{
-		Vector<SharedPtr<Graphics::Buffer>> allBuffers { this->uniformDesc };
+		Vector<SharedPtr<Graphics::Buffer>> allBuffers { this->uniformDesc, this->materialUniform };
 		for (auto buffer : this->buffers)
 			allBuffers.push_back(buffer);
 
-		int poolID = VulkanImpl::CreateDescriptorPool(VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->buffers.size() * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes);
+		int poolID = VulkanImpl::CreateDescriptorPool(this->buffers.size() * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->buffers.size() * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes);
 		this->descriptorPoolID.id = poolID;
 
 		// first set: per frame uniform
 		int layoutID = VulkanImpl::CreateDescriptorSetLayout(allBuffers, this->textures);
-		this->uniformDesc->layoutID = layoutID;
+		this->layoutID = layoutID;
 		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, allBuffers);
 
 		// second set layout: per mesh material textures
@@ -2655,15 +2666,15 @@ namespace Graphics
 		renderPassID = VulkanImpl::CreateRenderPass(this);
 	}
 
-	Geometry::Geometry(SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture)
-		: basicUniform{basicUniform}, mainTexture{mainTexture}
+	Geometry::Geometry(Texture mainTexture)
+		: mainTexture{mainTexture}
 	{
 		node = MakeShared<Node>();
 		vertexDesc = MakeShared<BasicVertex>();
 	}
 
-	Quad::Quad(SharedPtr<GraphicsPipeline> pipeline, SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture)
-		: Geometry( basicUniform, mainTexture ) 
+	Quad::Quad(SharedPtr<GraphicsPipeline> pipeline, Texture mainTexture)
+		: Geometry(mainTexture ) 
 	{
 		vertexDesc = MakeShared<BasicVertex>( std::move(Vector<BasicVertex::Vertex>{
 			{ {-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.f, 0.f, 1.f}},
@@ -2674,20 +2685,14 @@ namespace Graphics
 		);
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
-		// TODO replace with new function
 
-		VulkanImpl::UpdateDescriptorSets(
-			pipeline->descriptorPoolID.id,
-			Vector<SharedPtr<Graphics::Buffer>>{basicUniform},
-			Vector<Graphics::TextureID>{
-				// add more textures in future
-				this->mainTexture.textureID
-			}
+		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<SharedPtr<Graphics::Buffer>>{},
+			Vector<Graphics::Texture>{ this->mainTexture}
 		);
 	}
 
-	OBJMesh::OBJMesh(SharedPtr<GraphicsPipeline> pipeline, SharedPtr<BasicUniformBuffer> basicUniform, Texture mainTexture, String filename)
-		: Geometry(basicUniform, mainTexture)
+	OBJMesh::OBJMesh(SharedPtr<GraphicsPipeline> pipeline, Texture mainTexture, String filename)
+		: Geometry(mainTexture)
 	{
 		auto vertexDesc = MakeShared<BasicVertex>();
 		Import::LoadOBJ(*vertexDesc, indices, filename);
@@ -2700,8 +2705,8 @@ namespace Graphics
 		);
 	}
 	
-	OBJMesh::OBJMesh(SharedPtr<GraphicsPipeline> pipeline, SharedPtr<BasicUniformBuffer> basicUniform, String filename)
-		: Geometry(basicUniform, Texture())
+	OBJMesh::OBJMesh(SharedPtr<GraphicsPipeline> pipeline, String filename)
+		: Geometry(Texture())
 	{
 		auto vertexDesc = MakeShared<BasicVertex>();
 		Import::LoadOBJ(*vertexDesc, indices, filename);
@@ -2714,8 +2719,8 @@ namespace Graphics
 		);
 	}
 
-	GLTFMesh::GLTFMesh(SharedPtr<GraphicsPipeline> pipeline, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model)
-		: Geometry(basicUniform, Texture())
+	GLTFMesh::GLTFMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model)
+		: Geometry(Texture())
 	{
 		auto vertexDesc = MakeShared<BasicVertex>();
 		Import::LoadGLTFMesh(filename, mesh, model, *vertexDesc, indices, mainTexture);
@@ -2728,8 +2733,8 @@ namespace Graphics
 		);
 	}
 	
-	GLTFSkinnedMesh::GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, SharedPtr<BasicUniformBuffer> basicUniform, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model)
-		: Geometry(basicUniform, Texture())
+	GLTFSkinnedMesh::GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model)
+		: Geometry(Texture()), pipeline{pipeline}
 	{
 		auto vertexDesc = MakeShared<SkinnedVertex>();
 		Import::LoadGLTFSkinnedMesh(filename, mesh, model, *vertexDesc, indices, mainTexture);
@@ -2742,12 +2747,23 @@ namespace Graphics
 		);
 	}
 
+	void GLTFSkinnedMesh::Update(f32 deltaTime)
+	{
+
+		mat4 invWorld = Math::Inverse(node->worldMatrix);
+		for (int i = 0; i < joints.size(); ++i)
+		{
+			auto joint = joints[i];
+			pipeline->uniformDesc->transformUniform.jointMatrices[i] = (invWorld * joint->worldMatrix * inverseBindMatrices[i]);
+		}
+	}
+
 	void Geometry::Draw(RenderContext& context)
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);
 
-		VulkanImpl::Draw(commandList, *this, context.renderPass->pso->pipelineID, context.renderPass->pso->descriptorPoolID, swapID);
+		VulkanImpl::Draw(commandList, *this, context.renderPass->pso, context.renderPass->pso->descriptorPoolID, swapID);
 	}
 
 	Texture::Texture(String filename, bool autoMipchain)

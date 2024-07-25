@@ -333,11 +333,12 @@ namespace Graphics
 	}
 
 
-	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardSkinnedPipeline, SharedPtr<BasicUniformBuffer> basicUniform, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>> &newSkinnedMeshes)
+	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardSkinnedPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>> &newSkinnedMeshes)
 	{
 		tinygltf::Model model;
 		Util::IO::ReadGLTF(model, filename);
 		Vector<std::pair<SharedPtr<GLTFSkinnedMesh>, Vector<int>>> nodeToJoints;
+		Vector<SharedPtr<PBRMaterial>> pbrMaterials;
 
 		for (auto& scene : model.scenes)
 		{
@@ -348,6 +349,29 @@ namespace Graphics
 			for (auto& node : scene.nodes)
 			{
 				nodesStack.push_back(std::make_pair<u32, u32>(node, 0));
+			}
+
+			for (auto& material : model.materials)
+			{
+				f32 metallic = material.pbrMetallicRoughness.metallicFactor;
+				f32 roughness = material.pbrMetallicRoughness.roughnessFactor;
+				auto colorVec = material.pbrMetallicRoughness.baseColorFactor;
+				auto emissiveVec = material.emissiveFactor;
+	
+				vec4 baseColor = vec4(colorVec[0], colorVec[1], colorVec[2], colorVec[3]);
+				auto pbr = MakeShared<PBRMaterial>();
+				pbr->material->baseColor = baseColor;
+				pbr->material->metallic = metallic;
+				pbr->material->roughness = roughness;
+				pbr->material->emissiveColor = vec4(emissiveVec[0], emissiveVec[1], emissiveVec[2], 0);
+				pbr->material->hasAlbedoTex = material.pbrMetallicRoughness.baseColorTexture.index >= 0;
+				pbr->material->hasNormalTex = material.normalTexture.index >= 0;
+				pbr->material->hasOcclusionTex = material.occlusionTexture.index >= 0;
+				pbr->material->hasMetallicRoughnessTex = material.pbrMetallicRoughness.metallicRoughnessTexture.index >= 0;
+				pbr->material->hasOcclusionTex = material.occlusionTexture.index >= 0;
+				pbr->material->hasEmissiveTex = material.emissiveTexture.index >= 0;
+
+				pbrMaterials.push_back(pbr);
 			}
 
 			// create animations and add them to nodes
@@ -463,15 +487,19 @@ namespace Graphics
 				if (nodeType == Node::MESH_NODE)
 				{
 					auto& gltfMesh = model.meshes[node.mesh];
-					auto geometry = MakeShared<GLTFMesh>(forwardPipeline, basicUniform, filename, gltfMesh, model);
+					auto geometry = MakeShared<GLTFMesh>(forwardPipeline, filename, gltfMesh, model);
 					geometry->node = newNode;
+					if (gltfMesh.primitives[0].material >= 0)
+						geometry->material = pbrMaterials[gltfMesh.primitives[0].material]; // TODO fix for multiple prims
 					newMeshes.push_back(geometry);
 				}
 				else if (nodeType == Node::SKINNED_MESH_NODE)
 				{
 					auto& gltfSkinnedMesh = model.meshes[node.mesh];
-					auto geometry = MakeShared<GLTFSkinnedMesh>(forwardSkinnedPipeline, basicUniform, filename, gltfSkinnedMesh, model);
+					auto geometry = MakeShared<GLTFSkinnedMesh>(forwardSkinnedPipeline, filename, gltfSkinnedMesh, model);
 					geometry->node = newNode;
+					if (gltfSkinnedMesh.primitives[0].material >= 0)
+						geometry->material = pbrMaterials[gltfSkinnedMesh.primitives[0].material]; // TODO fix for multiple prims
 					newSkinnedMeshes.push_back(geometry);
 					// get inverse bind matrices
 					auto inverseBindMatAccessor = model.accessors[model.skins[node.skin].inverseBindMatrices];

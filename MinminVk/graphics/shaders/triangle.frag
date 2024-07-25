@@ -1,5 +1,17 @@
 #version 450
 
+layout(binding = 1) uniform UniformBufferObject {
+    vec4 baseColor;
+    vec4 emissiveColor;
+    float metallic;
+    float roughness;
+    uint hasAlbedoTex;
+    uint hasMetallicRoughnessTex;
+    uint hasNormalTex;
+    uint hasOcclusionTex;
+    uint hasEmissiveTex;
+} uboMat;
+
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
@@ -247,10 +259,10 @@ void main() {
 
     float lightIntensity = 1; // TODO
     vec3 l_metal_brdf = vec3(0.0);
-    float metallic = 0; // TODO
-    float roughness = 0.5f; // TODO
+    float metallic = uboMat.metallic; 
+    float roughness = uboMat.roughness; 
     float intensity = 1; // TODO (light attenuation)
-    vec3 albedo = texture(texColor, fragTexCoord).rgb;
+    vec3 albedo = uboMat.baseColor.xyz * texture(texColor, fragTexCoord).rgb;
     vec3 n = normalize(fragNormal);
     vec3 l = normalize(vec3(1, 0, 1)); // TODO
     vec3 v = normalize(vec3(0.01f, 0.0f, 5.0f)  - fragPosWS); // TODO

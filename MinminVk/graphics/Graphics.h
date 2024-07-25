@@ -152,12 +152,14 @@ namespace Graphics
 		// forward pass
 		{
 			auto uniformBuffer = MakeShared<BasicUniformBuffer>();
+			auto materialUniformBuffer = MakeShared<PBRUniformBuffer>();
 			forwardPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
 				MakeShared<BasicVertex>(),
 				uniformBuffer,
-				Vector<Texture>{texture},
+				materialUniformBuffer,
+				Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{}
 			);
 	
@@ -168,21 +170,22 @@ namespace Graphics
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
 				MakeShared<SkinnedVertex>(),
 				uniformBuffer,
-				Vector<Texture>{texture},
+				materialUniformBuffer,
+				Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{}
 			);
 
 			forwardSkinnedPass = MakeShared<RenderPass>(forwardSkinnedPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 
-			quad = MakeShared<Quad>(forwardPipeline, forwardPipeline->uniformDesc, texture);
+			quad = MakeShared<Quad>(forwardPipeline, texture);
 
 			// OBJ
-			vikingRoom = MakeShared<OBJMesh>(forwardPipeline, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
+			vikingRoom = MakeShared<OBJMesh>(forwardPipeline, texture, concat_str(OBJ_DIR, VIKING_MODEL));
 			vikingRoom->node->worldMatrix = Math::Translate(vikingRoom->node->worldMatrix, vec3(0, -2.5f, -5));
-			headMesh = MakeShared<OBJMesh>(forwardPipeline, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
+			headMesh = MakeShared<OBJMesh>(forwardPipeline, concat_str(HAIR_DIR, HEAD_MODEL));
 			headMesh->node->worldMatrix = Math::Rotate(mat4(1), Math::PI, vec3(0,0,1));
 			// GLTF
-			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline, forwardSkinnedPipeline, forwardSkinnedPipeline->uniformDesc, gltfMeshes, gltfSkinnedMeshes);
+			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline, forwardSkinnedPipeline, gltfMeshes, gltfSkinnedMeshes);
 
 		}
 
@@ -228,7 +231,7 @@ namespace Graphics
 
 			auto vertShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_VERT_SHADER), Shader::ShaderType::SHADER_VERTEX, "main");
 			auto fragShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main");
-			particleRenderPipeline = MakeShared<GraphicsPipeline>(vertShader, fragShader, MakeShared<ParticleVertex>(), MakeShared<BasicUniformBuffer>(), Vector<Texture>{},
+			particleRenderPipeline = MakeShared<GraphicsPipeline>(vertShader, fragShader, MakeShared<ParticleVertex>(), MakeShared<BasicUniformBuffer>(), MakeShared<PBRUniformBuffer>(), Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{});
 
 			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_LINE_STRIP;
