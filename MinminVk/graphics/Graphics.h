@@ -146,19 +146,17 @@ namespace Graphics
 		
 		Sampler linearClampSampler;
 		Texture texture(concat_str(IMAGES_DIR, VIKING_IMAGE));
-		texture.binding.binding = 1;
+		texture.binding.binding = 0;
 		texture.binding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
 		
 		// forward pass
 		{
 			auto uniformBuffer = MakeShared<BasicUniformBuffer>();
-			auto materialUniformBuffer = MakeShared<PBRUniformBuffer>();
 			forwardPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
 				MakeShared<BasicVertex>(),
 				uniformBuffer,
-				materialUniformBuffer,
 				Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{}
 			);
@@ -170,7 +168,6 @@ namespace Graphics
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
 				MakeShared<SkinnedVertex>(),
 				uniformBuffer,
-				materialUniformBuffer,
 				Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{}
 			);
@@ -231,7 +228,7 @@ namespace Graphics
 
 			auto vertShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_VERT_SHADER), Shader::ShaderType::SHADER_VERTEX, "main");
 			auto fragShader = MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main");
-			particleRenderPipeline = MakeShared<GraphicsPipeline>(vertShader, fragShader, MakeShared<ParticleVertex>(), MakeShared<BasicUniformBuffer>(), MakeShared<PBRUniformBuffer>(), Vector<Texture>{},
+			particleRenderPipeline = MakeShared<GraphicsPipeline>(vertShader, fragShader, MakeShared<ParticleVertex>(), MakeShared<BasicUniformBuffer>(), Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{});
 
 			particleRenderPipeline->topologyType = Graphics::GraphicsPipeline::TopologyType::TOPO_LINE_STRIP;

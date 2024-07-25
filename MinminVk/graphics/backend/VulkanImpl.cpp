@@ -1570,16 +1570,8 @@ namespace VulkanImpl
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 
-		if (geometry.material)
-		{
-			pipeline->materialUniform->pbrMaterial = geometry.material.get();
-			UpdateUniformBuffer(pipeline->materialUniform->GetData(), pipeline->materialUniform->GetBufferSize(), *pipeline->materialUniform, swapID);
-		}
-		else
-		{
-			pipeline->materialUniform->pbrMaterial = &pipeline->materialUniform->defaultPBRMaterial;
-			UpdateUniformBuffer(pipeline->materialUniform->GetData(), pipeline->materialUniform->GetBufferSize(), *pipeline->materialUniform, swapID);
-		}
+		UpdateUniformBuffer(geometry.materialUniformBuffer.GetData(), geometry.materialUniformBuffer.GetBufferSize(), geometry.materialUniformBuffer, swapID);
+
 		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.node->worldMatrix);
 		//vkCmdPushConstants(commandBuffer, pipelineLayouts[geometry.basicUniform->layoutID], VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(mat4), sizeof(u32), &geometry.mainTexture.textureID.id);
 
@@ -1746,7 +1738,7 @@ namespace VulkanImpl
 		vkDestroySwapchainKHR(device, swapChain, nullptr);
 	}
 
-	int CreateDescriptorSetLayout(const Vector<SharedPtr<Graphics::Buffer>>& buffers, const Vector<Graphics::Texture>& textures)
+	int CreateDescriptorSetLayout(const Vector<Graphics::Buffer*> buffers, const Vector<Graphics::Texture>& textures)
 	{
 		Vector<VkDescriptorSetLayoutBinding> bindings;
 		// buffers
@@ -1830,11 +1822,10 @@ namespace VulkanImpl
 		return descriptorPools.size() - 1;
 	}
 
-	void UpdateDescriptorSets(int descriptorPoolID, Vector<SharedPtr<Graphics::Buffer>> buffers = {}, Vector<Graphics::TextureID> textureIDs = {}, u32 startSetIndex = 0)
+	void UpdateDescriptorSets(int descriptorPoolID, Vector<Graphics::Buffer*> buffers = {}, Vector<Graphics::Texture> textures = {}, u32 startSetIndex = 0, u32 numDescriptorToUpdate = 1)
 	{
 		auto& descriptorSets = descriptorSetsPerPool[descriptorPoolID];
-		u32 setsSize = descriptorSets.size();
-		for (size_t i = startSetIndex; i < setsSize; i++)
+		for (size_t i = startSetIndex; i < startSetIndex + numDescriptorToUpdate; i++)
 		{
 			Vector<VkWriteDescriptorSet> descriptorWrites;
 
@@ -1846,7 +1837,7 @@ namespace VulkanImpl
 				{
 					auto& bufferInfo = bufferInfos.emplace_back();
 					const auto& buffer = buffers[bufferIndex];
-					bufferInfo.buffer = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? uniformBuffers[buffer->extendedBufferIDs[i]] : shaderStorageBuffers[buffer->extendedBufferIDs[i]];
+					bufferInfo.buffer = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? uniformBuffers[buffer->extendedBufferIDs[i-startSetIndex]] : shaderStorageBuffers[buffer->extendedBufferIDs[i - startSetIndex]];
 					bufferInfo.offset = 0;
 					bufferInfo.range = buffer->GetBufferSize();
 				}
@@ -1857,7 +1848,7 @@ namespace VulkanImpl
 					const auto& buffer = buffers[bufferIndex];
 					descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 					descriptorWrite.dstSet = descriptorSets[i];
-					descriptorWrite.dstBinding = bufferIndex;
+					descriptorWrite.dstBinding = buffer->GetBinding().binding;
 					descriptorWrite.dstArrayElement = 0;
 					descriptorWrite.descriptorType = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 					descriptorWrite.descriptorCount = 1;
@@ -1868,15 +1859,15 @@ namespace VulkanImpl
 				}
 			}
 			Vector<VkDescriptorImageInfo> imageInfos;
-			if (textureIDs.size() > 0)
+			if (textures.size() > 0)
 			{
 				// TODO
-				for (auto& textureID : textureIDs)
+				for (auto& texture : textures)
 				{
 					VkDescriptorImageInfo& imageInfo = imageInfos.emplace_back();
 					imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-					imageInfo.imageView = textureImageViews[textureID.viewID];
-					imageInfo.sampler = textureSamplers[textureID.samplerID];
+					imageInfo.imageView = textureImageViews[texture.textureID.viewID];
+					imageInfo.sampler = textureSamplers[texture.textureID.samplerID];
 				}
 				u32 imageIndex = 0;
 				for (auto& imageInfo : imageInfos)
@@ -1884,7 +1875,7 @@ namespace VulkanImpl
 					auto& texDescriptorWrite = descriptorWrites.emplace_back();
 					texDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 					texDescriptorWrite.dstSet = descriptorSets[i];
-					texDescriptorWrite.dstBinding = buffers.size() + imageIndex;
+					texDescriptorWrite.dstBinding = textures[imageIndex].binding.binding;
 					imageIndex++;
 					texDescriptorWrite.dstArrayElement = 0;
 					texDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1898,7 +1889,7 @@ namespace VulkanImpl
 
 	}
 
-	int CreateDescriptorSets(int layoutID, int descriptorsetCount, int descriptorPoolID, Vector<SharedPtr<Graphics::Buffer>> allBuffers = {}, Vector<Graphics::Texture> allTextures = {})
+	int CreateDescriptorSets(int layoutID, int descriptorsetCount, int descriptorPoolID, Vector<Graphics::Buffer*> allBuffers = {}, Vector<Graphics::Texture> allTextures = {})
 	{
 		Vector<VkDescriptorSetLayout> layouts(descriptorsetCount, descriptorSetLayouts[layoutID]);
 
@@ -1921,11 +1912,8 @@ namespace VulkanImpl
 		{
 			descriptorSetsPerPool[descriptorPoolID].push_back(set);
 		}
-		Vector<Graphics::TextureID> allTexturesIDs;
-		for (const auto &texture : allTextures)
-			allTexturesIDs.push_back(texture.textureID);
 
-		UpdateDescriptorSets(descriptorPoolID, allBuffers, allTexturesIDs, startNewSetsIndex);
+		UpdateDescriptorSets(descriptorPoolID, allBuffers, allTextures, startNewSetsIndex, descriptorsetCount);
 		return startNewSetsIndex;
 	}
 
@@ -2581,9 +2569,9 @@ namespace Graphics
 
 	void GraphicsPipeline::Init(Graphics::RenderPassID renderPassID)
 	{
-		Vector<SharedPtr<Graphics::Buffer>> allBuffers { this->uniformDesc, this->materialUniform };
+		Vector<Graphics::Buffer*> allBuffers { this->uniformDesc.get()};
 		for (auto buffer : this->buffers)
-			allBuffers.push_back(buffer);
+			allBuffers.push_back(buffer.get());
 
 		int poolID = VulkanImpl::CreateDescriptorPool(this->buffers.size() * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->buffers.size() * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes);
 		this->descriptorPoolID.id = poolID;
@@ -2604,7 +2592,8 @@ namespace Graphics
 		occlusion.binding.binding = 3;
 		Texture emissive;
 		emissive.binding.binding = 4;
-		this->perMeshLayoutID = VulkanImpl::CreateDescriptorSetLayout(Vector<SharedPtr<Graphics::Buffer>>{}, Vector<Graphics::Texture>{baseColor, metallic, normal, occlusion, emissive});
+		PBRUniformBuffer materialUniform;
+		this->perMeshLayoutID = VulkanImpl::CreateDescriptorSetLayout(Vector<Graphics::Buffer*>{&materialUniform}, Vector<Graphics::Texture>{baseColor, metallic, normal, occlusion, emissive});
 
 		pipelineID = VulkanImpl::CreateGraphicsPipeline(vertexShader, fragmentShader, this, renderPassID);
 
@@ -2612,7 +2601,10 @@ namespace Graphics
 
 	void ComputePipeline::Init()
 	{
-		int layoutID = VulkanImpl::CreateDescriptorSetLayout(this->buffers, this->textures);
+		Vector<Graphics::Buffer*> allBuffers{ };
+		for (auto buffer : this->buffers)
+			allBuffers.push_back(buffer.get());
+		int layoutID = VulkanImpl::CreateDescriptorSetLayout(allBuffers, this->textures);
 		this->layoutID = layoutID;
 		pipelineID = VulkanImpl::CreateComputePipeline(computeShader, this, layoutID);
 
@@ -2632,17 +2624,16 @@ namespace Graphics
 		int poolID = VulkanImpl::CreateDescriptorPool(VulkanImpl::MAX_FRAMES_IN_FLIGHT * numUniform, numTex, VulkanImpl::MAX_FRAMES_IN_FLIGHT * numSSBO);
 		this->descriptorPoolID.id = poolID;
 		// create descriptor sets
-		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, this->buffers, this->textures);
+		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, allBuffers, this->textures);
 	}
 
 	void ComputePipeline::UpdateResources(Vector<SharedPtr<Buffer>>& buffers, Vector<Texture>& textures)
 	{
-		Vector<Graphics::TextureID> textureIDs;
-		for (auto& texture : textures)
-		{
-			textureIDs.push_back(texture.textureID);
-		}
-		VulkanImpl::UpdateDescriptorSets(this->descriptorPoolID.id, buffers, textureIDs);
+		Vector<Graphics::Buffer*> allBuffers{ };
+		for (auto buffer : this->buffers)
+			allBuffers.push_back(buffer.get());
+
+		VulkanImpl::UpdateDescriptorSets(this->descriptorPoolID.id, allBuffers, textures);
 	}
 
 	void ComputePipeline::Dispatch(ComputeContext& context)
@@ -2686,7 +2677,7 @@ namespace Graphics
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 
-		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<SharedPtr<Graphics::Buffer>>{},
+		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			Vector<Graphics::Texture>{ this->mainTexture}
 		);
 	}
@@ -2700,7 +2691,7 @@ namespace Graphics
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 
-		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<SharedPtr<Graphics::Buffer>>{},
+		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			Vector<Graphics::Texture>{ this->mainTexture}
 		);
 	}
@@ -2714,7 +2705,7 @@ namespace Graphics
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 
-		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<SharedPtr<Graphics::Buffer>>{},
+		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			Vector<Graphics::Texture>{ this->mainTexture}
 		);
 	}
@@ -2728,7 +2719,7 @@ namespace Graphics
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 
-		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<SharedPtr<Graphics::Buffer>>{},
+		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			Vector<Graphics::Texture>{ this->mainTexture}
 		);
 	}
@@ -2742,7 +2733,7 @@ namespace Graphics
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 
-		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<SharedPtr<Graphics::Buffer>>{},
+		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			Vector<Graphics::Texture>{ this->mainTexture}
 		);
 	}

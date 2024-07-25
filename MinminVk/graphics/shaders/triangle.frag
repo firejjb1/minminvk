@@ -1,17 +1,5 @@
 #version 450
 
-layout(binding = 1) uniform UniformBufferObject {
-    vec4 baseColor;
-    vec4 emissiveColor;
-    float metallic;
-    float roughness;
-    uint hasAlbedoTex;
-    uint hasMetallicRoughnessTex;
-    uint hasNormalTex;
-    uint hasOcclusionTex;
-    uint hasEmissiveTex;
-} uboMat;
-
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
@@ -24,6 +12,17 @@ layout(set = 1, binding = 1) uniform sampler2D texMetallic;
 layout(set = 1, binding = 2) uniform sampler2D texNormal;
 layout(set = 1, binding = 3) uniform sampler2D texOcclusion;
 layout(set = 1, binding = 4) uniform sampler2D texEmissive;
+layout(set = 1, binding = 5) uniform UniformBufferObject {
+    vec4 baseColor;
+    vec4 emissiveColor;
+    float metallic;
+    float roughness;
+    uint hasAlbedoTex;
+    uint hasMetallicRoughnessTex;
+    uint hasNormalTex;
+    uint hasOcclusionTex;
+    uint hasEmissiveTex;
+} uboMat;
 
 // From https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/brdf.glsl
 //

@@ -247,6 +247,7 @@ namespace Graphics
 		SharedPtr<PBRMaterial> material;
 		GeometryID geometryID;
 		Texture mainTexture;
+		PBRUniformBuffer materialUniformBuffer;
 
 	protected:
 		SharedPtr<VertexDesc> vertexDesc;

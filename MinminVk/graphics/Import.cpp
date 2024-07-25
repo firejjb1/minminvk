@@ -490,7 +490,10 @@ namespace Graphics
 					auto geometry = MakeShared<GLTFMesh>(forwardPipeline, filename, gltfMesh, model);
 					geometry->node = newNode;
 					if (gltfMesh.primitives[0].material >= 0)
+					{
 						geometry->material = pbrMaterials[gltfMesh.primitives[0].material]; // TODO fix for multiple prims
+						geometry->materialUniformBuffer.pbrMaterial = geometry->material.get();
+					}
 					newMeshes.push_back(geometry);
 				}
 				else if (nodeType == Node::SKINNED_MESH_NODE)
@@ -499,7 +502,10 @@ namespace Graphics
 					auto geometry = MakeShared<GLTFSkinnedMesh>(forwardSkinnedPipeline, filename, gltfSkinnedMesh, model);
 					geometry->node = newNode;
 					if (gltfSkinnedMesh.primitives[0].material >= 0)
+					{
 						geometry->material = pbrMaterials[gltfSkinnedMesh.primitives[0].material]; // TODO fix for multiple prims
+						geometry->materialUniformBuffer.pbrMaterial = geometry->material.get();
+					}
 					newSkinnedMeshes.push_back(geometry);
 					// get inverse bind matrices
 					auto inverseBindMatAccessor = model.accessors[model.skins[node.skin].inverseBindMatrices];

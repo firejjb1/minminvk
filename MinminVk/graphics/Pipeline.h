@@ -128,7 +128,6 @@ namespace Graphics
 		// per pass data
 		SharedPtr<BasicUniformBuffer> uniformDesc;
 		// per material
-		SharedPtr<PBRUniformBuffer> materialUniform;
 		Vector<Texture> textures;
 		Vector<SharedPtr<Buffer>> buffers;
 
@@ -146,8 +145,8 @@ namespace Graphics
 		u32 layoutID;
 
 		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShader, SharedPtr<VertexDesc> vertexDesc, 
-			SharedPtr<BasicUniformBuffer> uniformDesc, SharedPtr<PBRUniformBuffer> materialUniform, Vector<Texture> textures, Vector<SharedPtr<Buffer>> buffers)
-			: vertexShader{ vertexShader }, fragmentShader{ fragmentShader }, vertexDesc{ vertexDesc }, uniformDesc{ uniformDesc }, materialUniform{ materialUniform }, textures {
+			SharedPtr<BasicUniformBuffer> uniformDesc, Vector<Texture> textures, Vector<SharedPtr<Buffer>> buffers)
+			: vertexShader{ vertexShader }, fragmentShader{ fragmentShader }, vertexDesc{ vertexDesc }, uniformDesc{ uniformDesc }, textures {
 			textures
 		}, buffers{ buffers } {}
 

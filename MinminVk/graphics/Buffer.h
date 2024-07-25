@@ -99,7 +99,7 @@ namespace Graphics
         const ResourceBinding GetBinding() const override
         {
             ResourceBinding uboBinding;
-            uboBinding.binding = 1;
+            uboBinding.binding = 5;
             uboBinding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
             return uboBinding;
         }
@@ -124,7 +124,11 @@ namespace Graphics
             return Buffer::BufferUsageType::BUFFER_UNIFORM;
         }
 
-        PBRUniformBuffer() { Init(); }
+        PBRUniformBuffer() 
+        {
+            Init(); 
+            pbrMaterial = &defaultPBRMaterial;
+        }
 
     };
 
