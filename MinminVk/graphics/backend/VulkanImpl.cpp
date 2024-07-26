@@ -2573,7 +2573,7 @@ namespace Graphics
 		for (auto buffer : this->buffers)
 			allBuffers.push_back(buffer.get());
 
-		int poolID = VulkanImpl::CreateDescriptorPool(this->buffers.size() * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->buffers.size() * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes);
+		int poolID = VulkanImpl::CreateDescriptorPool(this->maxNumMeshes * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->buffers.size() * VulkanImpl::MAX_FRAMES_IN_FLIGHT, this->numTexPerMesh * this->maxNumMeshes);
 		this->descriptorPoolID.id = poolID;
 
 		// first set: per frame uniform

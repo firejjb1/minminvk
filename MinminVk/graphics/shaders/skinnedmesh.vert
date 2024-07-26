@@ -4,6 +4,9 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
     mat4 view;
     mat4 proj;
+    vec4 lightDirection;
+    vec4 cameraPosition;
+    vec4 lightIntensity;
     mat4 jointMatrices[128]; 
 } ubo;
 

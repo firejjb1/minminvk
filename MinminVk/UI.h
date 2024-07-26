@@ -17,4 +17,6 @@ namespace UI
 	bool resetHeadPos = false;
 	vec3 cameraPosition = vec3(0.01f, 0.0f, 5.0f);
 	vec3 cameraLookDirection = vec3(0.0f, 0.f, -1.0f);
+	vec3 lightDirection = vec3(0.f, 0.f, 1.f);
+	vec3 lightIntensity = vec3(1.f, 1.f, 1.f);
 }

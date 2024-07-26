@@ -4,6 +4,9 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
     mat4 view;
     mat4 proj;
+    vec4 lightDirection;
+    vec4 cameraPosition;
+    vec4 lightIntensity;
 } ubo;
 
 layout(push_constant) uniform PushConstants {

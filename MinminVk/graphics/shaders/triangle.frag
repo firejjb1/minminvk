@@ -7,12 +7,21 @@ layout(location = 3) in vec3 fragPosWS;
 
 layout(location = 0) out vec4 outColor;
 
+layout(binding = 0) uniform UniformBufferPass {
+    mat4 model;
+    mat4 view;
+    mat4 proj;
+    vec4 lightDirection;
+    vec4 cameraPosition;
+    vec4 lightIntensity;
+} uboPass;
+
 layout(set = 1, binding = 0) uniform sampler2D texColor;
 layout(set = 1, binding = 1) uniform sampler2D texMetallic;
 layout(set = 1, binding = 2) uniform sampler2D texNormal;
 layout(set = 1, binding = 3) uniform sampler2D texOcclusion;
 layout(set = 1, binding = 4) uniform sampler2D texEmissive;
-layout(set = 1, binding = 5) uniform UniformBufferObject {
+layout(set = 1, binding = 5) uniform UniformBufferMat {
     vec4 baseColor;
     vec4 emissiveColor;
     float metallic;
@@ -256,22 +265,22 @@ void main() {
 // basecolorfactor
 // emissivefactor 
 
-    float lightIntensity = 1; // TODO
+    vec3 lightIntensity = vec3(uboPass.lightIntensity);
     vec3 l_metal_brdf = vec3(0.0);
     float metallic = uboMat.metallic; 
     float roughness = uboMat.roughness; 
     float intensity = 1; // TODO (light attenuation)
     vec3 albedo = uboMat.baseColor.xyz * texture(texColor, fragTexCoord).rgb;
     vec3 n = normalize(fragNormal);
-    vec3 l = normalize(vec3(1, 0, 1)); // TODO
-    vec3 v = normalize(vec3(0.01f, 0.0f, 5.0f)  - fragPosWS); // TODO
+    vec3 l = normalize(uboPass.lightDirection.xyz);
+    vec3 v = normalize(uboPass.cameraPosition.xyz - fragPosWS); 
     vec3 h = normalize(l + v);         
     float NdotV = clampedDot(n, v);
     float NdotH = clampedDot(n, h);
     float LdotH = clampedDot(l, h);
     float VdotH = clampedDot(v, h);
     float NdotL = clampedDot(n, l);
-    vec3 l_diffuse = lightIntensity * NdotL * BRDF_lambertian(albedo);
+    vec3 l_diffuse = NdotL * lightIntensity * BRDF_lambertian(albedo);
     vec3 l_specular_dielectric = vec3(0.0);
     vec3 l_specular_metal = vec3(0.0);
     vec3 l_dielectric_brdf = vec3(0.0);

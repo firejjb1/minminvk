@@ -51,6 +51,9 @@ namespace Graphics
             alignas(16) mat4 model = mat4(1);
             alignas(16) mat4 view = mat4(1);
             alignas(16) mat4 proj = mat4(1);
+            vec4 lightDirection = vec4(1);
+            vec4 cameraPosition;
+            vec4 lightIntensity = vec4(1);
             alignas(16) mat4 jointMatrices[jointMatricesSize];
         };
 
@@ -65,7 +68,7 @@ namespace Graphics
         {
             ResourceBinding uboBinding;
             uboBinding.binding = 0;
-            uboBinding.shaderStageType = ResourceBinding::ShaderStageType::VERTEX;
+            uboBinding.shaderStageType = ResourceBinding::ShaderStageType::ALL_GRAPHICS;
             return uboBinding;
         }
 
