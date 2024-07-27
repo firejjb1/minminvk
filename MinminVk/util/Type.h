@@ -52,6 +52,14 @@ auto MakeShared(Args&&... args) -> decltype(std::make_shared<T>(std::forward<Arg
 	return std::make_shared<T>(std::forward<Args>(args)...);
 }
 
+template <class T>
+using UniquePtr = std::unique_ptr<T>;
+template <class T, class... Args>
+auto MakeUnique(Args&&... args) -> decltype(std::make_unique<T>(std::forward<Args>(args)...))
+{
+	return std::make_unique<T>(std::forward<Args>(args)...);
+}
+
 template<class T>
 using Vector = std::vector<T>; 
 

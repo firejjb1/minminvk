@@ -10,7 +10,6 @@
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
 #define SKINNED_VERTEX_SHADER "skinnedmeshvert.spv"
-#define SKINNED_FRAG_SHADER "skinnedmeshfrag.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
 #define PARTICLE_COMP_LSC_SHADER "particlelsc.spv"
 #define PARTICLE_COMP_ELC_WIND_SHADER "particleelcwind.spv"
@@ -30,6 +29,7 @@
 //#define CUBE_GLTF "RiggedSimple/RiggedSimple.gltf"
 //#define CUBE_GLTF "RiggedFigure/RiggedFigure.gltf"
 #define CUBE_GLTF "CesiumMan/CesiumMan.gltf"
+//#define CUBE_GLTF "CesiumMilkTruck/CesiumMilkTruck.gltf"
 
 namespace Graphics
 {
@@ -147,7 +147,7 @@ namespace Graphics
 		
 		Sampler linearClampSampler;
 		Texture texture(concat_str(IMAGES_DIR, VIKING_IMAGE));
-		texture.binding.binding = 1;
+		texture.binding.binding = 0;
 		texture.binding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
 		
 		// forward pass
@@ -158,7 +158,7 @@ namespace Graphics
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
 				MakeShared<BasicVertex>(),
 				uniformBuffer,
-				Vector<Texture>{texture},
+				Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{}
 			);
 	
@@ -166,24 +166,24 @@ namespace Graphics
 
 			forwardSkinnedPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, SKINNED_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
-				MakeShared<Shader>(concat_str(SHADERS_DIR, SKINNED_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
+				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
 				MakeShared<SkinnedVertex>(),
 				uniformBuffer,
-				Vector<Texture>{texture},
+				Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{}
 			);
 
 			forwardSkinnedPass = MakeShared<RenderPass>(forwardSkinnedPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 
-			quad = MakeShared<Quad>(forwardPipeline, forwardPipeline->uniformDesc, texture);
+			quad = MakeShared<Quad>(forwardPipeline, texture);
 
 			// OBJ
-			vikingRoom = MakeShared<OBJMesh>(forwardPipeline, forwardPipeline->uniformDesc, texture, concat_str(OBJ_DIR, VIKING_MODEL));
+			vikingRoom = MakeShared<OBJMesh>(forwardPipeline, texture, concat_str(OBJ_DIR, VIKING_MODEL));
 			vikingRoom->node->worldMatrix = Math::Translate(vikingRoom->node->worldMatrix, vec3(0, -2.5f, -5));
-			headMesh = MakeShared<OBJMesh>(forwardPipeline, forwardPipeline->uniformDesc, concat_str(HAIR_DIR, HEAD_MODEL));
+			headMesh = MakeShared<OBJMesh>(forwardPipeline, concat_str(HAIR_DIR, HEAD_MODEL));
 			headMesh->node->worldMatrix = Math::Rotate(mat4(1), Math::PI, vec3(0,0,1));
 			// GLTF
-			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline, forwardSkinnedPipeline, forwardSkinnedPipeline->uniformDesc, gltfMeshes, gltfSkinnedMeshes);
+			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline, forwardSkinnedPipeline, gltfMeshes, gltfSkinnedMeshes);
 
 		}
 
@@ -335,6 +335,9 @@ namespace Graphics
 					i32 height = presentation->swapChainDetails.height;
 					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 1000.0f);
 					forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
+					forwardPipeline->uniformDesc->transformUniform.cameraPosition = vec4(UI::cameraPosition, 1);
+					forwardPipeline->uniformDesc->transformUniform.lightDirection = vec4(UI::lightDirection, 0);
+					forwardPipeline->uniformDesc->transformUniform.lightIntensity = vec4(UI::lightIntensity, 1);
 
 					particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
 					particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;

@@ -2,6 +2,7 @@
 
 #include <util/Type.h>
 #include <graphics/Resource.h>
+#include <graphics/Material.h>
 
 namespace Graphics
 {
@@ -21,7 +22,6 @@ namespace Graphics
             BUFFER_UNIFORM = 32
         };
         enum class AccessType { READONLY, WRITE };
-        u32 layoutID = 0;
         // sometimes a buffer is needed for each frame in flight. don't want to declare multiple buffers for each, managed by backend
         Vector<u32> extendedBufferIDs;
         virtual const ResourceBinding GetBinding() const = 0;
@@ -51,12 +51,15 @@ namespace Graphics
             alignas(16) mat4 model = mat4(1);
             alignas(16) mat4 view = mat4(1);
             alignas(16) mat4 proj = mat4(1);
+            vec4 lightDirection = vec4(1);
+            vec4 cameraPosition;
+            vec4 lightIntensity = vec4(1);
             alignas(16) mat4 jointMatrices[jointMatricesSize];
         };
 
         TransformUniform transformUniform;
 
-        void* GetData() override
+        void *GetData() override
         {
             return (void*)&transformUniform;
         }
@@ -65,7 +68,7 @@ namespace Graphics
         {
             ResourceBinding uboBinding;
             uboBinding.binding = 0;
-            uboBinding.shaderStageType = ResourceBinding::ShaderStageType::VERTEX;
+            uboBinding.shaderStageType = ResourceBinding::ShaderStageType::ALL_GRAPHICS;
             return uboBinding;
         }
 
@@ -80,6 +83,55 @@ namespace Graphics
         }
 
         BasicUniformBuffer() { Init(); }
+
+    };
+
+    struct PBRUniformBuffer : UniformBuffer
+    {
+      
+        PBRMaterial* pbrMaterial;
+        PBRMaterial defaultPBRMaterial;
+
+        void* GetData() override
+        {
+            if (!pbrMaterial)
+                return (void*)defaultPBRMaterial.GetData();
+            return pbrMaterial->GetData();
+        }
+
+        const ResourceBinding GetBinding() const override
+        {
+            ResourceBinding uboBinding;
+            uboBinding.binding = 5;
+            uboBinding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
+            return uboBinding;
+        }
+
+        const BufferType GetBufferType() const override 
+        {
+            return Buffer::BufferType::UNIFORM;
+        }
+
+        const AccessType GetAccessType() const override
+        {
+            return AccessType::READONLY;
+        }
+
+        const u32 GetBufferSize() const override 
+        { 
+            return sizeof(PBRMaterial::MaterialData);
+        }
+
+        const BufferUsageType GetUsageType() const override 
+        {
+            return Buffer::BufferUsageType::BUFFER_UNIFORM;
+        }
+
+        PBRUniformBuffer() 
+        {
+            Init(); 
+            pbrMaterial = &defaultPBRMaterial;
+        }
 
     };
 

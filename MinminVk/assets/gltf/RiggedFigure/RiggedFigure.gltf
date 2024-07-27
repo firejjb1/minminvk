@@ -2577,7 +2577,7 @@
                     0.800000011920929,
                     1.0
                 ],
-                "metallicFactor": 0.0
+                "metallicFactor": 1.0
             },
             "emissiveFactor": [
                 0.0,

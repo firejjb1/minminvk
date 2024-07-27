@@ -7,8 +7,8 @@ namespace UI
 	// Hair parameters
 	f32 windStrength = 3;
 	vec3 windDirection = vec3(-1.f, -0.f, 0.f);
-	f32 shockStrength = 50;
-	u32 elcIteration = 10;
+	f32 shockStrength = 25;
+	u32 elcIteration = 20;
 	f32 stiffnessLocal = 0.5f;
 	f32 stiffnessGlobal = 0.1f;
 	f32 effectiveRangeGlobal = 0.1f;
@@ -17,4 +17,6 @@ namespace UI
 	bool resetHeadPos = false;
 	vec3 cameraPosition = vec3(0.01f, 0.0f, 5.0f);
 	vec3 cameraLookDirection = vec3(0.0f, 0.f, -1.0f);
+	vec3 lightDirection = vec3(0.f, 0.f, 1.f);
+	vec3 lightIntensity = vec3(1.f, 1.f, 1.f);
 }

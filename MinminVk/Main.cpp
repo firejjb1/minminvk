@@ -64,21 +64,27 @@ namespace Application
                 {
                     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
                     ImGui::Separator();
+
                     ImGui::Text("Camera");
                     ImGui::InputFloat3("Camera Position", glm::value_ptr(UI::cameraPosition));
                     ImGui::InputFloat3("Camera Direction", glm::value_ptr(UI::cameraLookDirection));
                     ImGui::Separator();
+                    
+                    ImGui::Text("Light");
+                    ImGui::InputFloat3("Light Direction", glm::value_ptr(UI::lightDirection));
+                    ImGui::InputFloat3("Light Intensity", glm::value_ptr(UI::lightIntensity));
+                    ImGui::Separator();
+                    
                     ImGui::Text("Hair Parameters");
                     bool resetHead = ImGui::Button("Reset Head Position");
                     UI::resetHeadPos = resetHead;
                     ImGui::Checkbox("Rotate Head", &UI::rotateHead);
-
                     ImGui::SliderFloat("Wind Strength", &UI::windStrength, 0, 100);
                     ImGui::InputFloat3("Wind Direction", glm::value_ptr(UI::windDirection));
                     f32 shockStrength = 1;
                     ImGui::SliderFloat("Shock Strength", &UI::shockStrength, 0, 100);
                     int elc = UI::elcIteration;
-                    ImGui::SliderInt("Edge Length Constraint Iteration", &elc, 0, 20);
+                    ImGui::SliderInt("Edge Length Constraint Iteration", &elc, 0, 40);
                     UI::elcIteration = elc;
                     f32 stiffnessLocal = 0.5f;
                     ImGui::SliderFloat("Stiffness Local", &UI::stiffnessLocal, 0, 1);
