@@ -295,7 +295,7 @@ void main() {
     vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, metallic);
 
 
-    outColor = vec4(l_color, 1);
+    //outColor = vec4(l_color, 1);
     //outColor = vec4(fragTexCoord, 0, 1);
     //outColor = vec4(fragColor, 1);
     //outColor = vec4(fragNormal, 1);

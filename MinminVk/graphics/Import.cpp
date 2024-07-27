@@ -581,7 +581,7 @@ namespace Graphics
 			node->SetJoints(joints);
 		}
 		// reading first mesh only
-		auto& mesh = model.meshes[0];
+		//auto& mesh = model.meshes[0];
 
 		//LoadGLTFMesh(mesh, model, vertices, indices, mainTextureURI);
 		
