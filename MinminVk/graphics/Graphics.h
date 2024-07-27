@@ -29,6 +29,7 @@
 //#define CUBE_GLTF "RiggedSimple/RiggedSimple.gltf"
 //#define CUBE_GLTF "RiggedFigure/RiggedFigure.gltf"
 #define CUBE_GLTF "CesiumMan/CesiumMan.gltf"
+//#define CUBE_GLTF "CesiumMilkTruck/CesiumMilkTruck.gltf"
 
 namespace Graphics
 {

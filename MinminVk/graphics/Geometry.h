@@ -305,7 +305,7 @@ namespace Graphics
 	struct GLTFMesh : public Geometry
 	{
 	public:
-		GLTFMesh(SharedPtr<GraphicsPipeline>, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
+		GLTFMesh(SharedPtr<GraphicsPipeline>, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model);
 		void Update(f32 deltaTime) override
 		{
 
@@ -320,7 +320,7 @@ namespace Graphics
 		SharedPtr<GraphicsPipeline> pipeline;
 
 	public:
-		GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model);
+		GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model);
 
 		void SetInverseBindMatrices(Vector<mat4>& inverseBindMatrices)
 		{

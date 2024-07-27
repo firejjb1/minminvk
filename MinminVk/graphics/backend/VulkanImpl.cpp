@@ -2710,7 +2710,7 @@ namespace Graphics
 		);
 	}
 
-	GLTFMesh::GLTFMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model)
+	GLTFMesh::GLTFMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model)
 		: Geometry(Texture())
 	{
 		auto vertexDesc = MakeShared<BasicVertex>();
@@ -2724,7 +2724,7 @@ namespace Graphics
 		);
 	}
 	
-	GLTFSkinnedMesh::GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Mesh& mesh, tinygltf::Model& model)
+	GLTFSkinnedMesh::GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model)
 		: Geometry(Texture()), pipeline{pipeline}
 	{
 		auto vertexDesc = MakeShared<SkinnedVertex>();
