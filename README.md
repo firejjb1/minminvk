@@ -22,6 +22,7 @@ The project is built using CMake.
 - PBR
 
 #### TODO
+- normal mapping
 - get a better model (skinned, good hair, cloth)
 - cloth simulation
 - hair rendering
