@@ -20,10 +20,11 @@ The project is built using CMake.
 - support GLTF animation, including skinned animation
 - hair simulation shaders
 - PBR
+- normal mapping
 
 #### TODO
-- normal mapping
-- get a better model (skinned, good hair, cloth)
+- keyboard and mouse controlled camera
+- get a nice GLTF model (skinned, hair, cloth)
 - cloth simulation
 - hair rendering
 - skin rendering

@@ -47,4 +47,9 @@ namespace Math
 	{
 		return glm::inverse(mat);
 	}
+
+	inline mat4 InverseTranspose(mat4 mat)
+	{
+		return glm::transpose(glm::inverse(mat));
+	}
 }

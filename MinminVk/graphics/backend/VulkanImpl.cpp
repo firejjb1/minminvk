@@ -516,6 +516,8 @@ namespace VulkanImpl
 			return VK_FORMAT_R8G8B8A8_UNORM;
 		if (format == Graphics::Texture::FormatType::BGRA_SRGB)
 			return VK_FORMAT_B8G8R8A8_SRGB;
+		if (format == Graphics::Texture::FormatType::RGB8_UNORM)
+			return VK_FORMAT_R8G8B8_UNORM;
 		return VK_FORMAT_B8G8R8A8_SRGB;
 	}
 
@@ -1217,7 +1219,7 @@ namespace VulkanImpl
 		VkPushConstantRange pushConstantRanges[1];
 		pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // world matrix
 		pushConstantRanges[0].offset = 0; // Start offset
-		pushConstantRanges[0].size = sizeof(mat4);
+		pushConstantRanges[0].size = sizeof(mat4) * 2;
 		//pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; // texture index
 		//pushConstantRanges[1].offset = pushConstantRanges[0].size; // Start offset
 		//pushConstantRanges[1].size = sizeof(u32);
@@ -1573,6 +1575,8 @@ namespace VulkanImpl
 		UpdateUniformBuffer(geometry.materialUniformBuffer.GetData(), geometry.materialUniformBuffer.GetBufferSize(), geometry.materialUniformBuffer, swapID);
 
 		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.node->worldMatrix);
+		glm::mat4 invTModel = Math::InverseTranspose(geometry.node->worldMatrix);
+		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID], VK_SHADER_STAGE_VERTEX_BIT, sizeof(mat4), sizeof(mat4), &invTModel);
 		//vkCmdPushConstants(commandBuffer, pipelineLayouts[geometry.basicUniform->layoutID], VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(mat4), sizeof(u32), &geometry.mainTexture.textureID.id);
 
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
@@ -2798,12 +2802,13 @@ namespace Graphics
 		VulkanImpl::Draw(commandList, *this, context.renderPass->pso, context.renderPass->pso->descriptorPoolID, swapID);
 	}
 
-	Texture::Texture(String filename, bool autoMipchain)
+	Texture::Texture(String filename, FormatType formatType, bool autoMipchain)
 		: autoMipChain{autoMipChain}
 	{
 		i32 width = -1;
 		i32 height = -1;
 		stbi_uc* data = Util::IO::ReadImage(width, height, filename);
+		this->formatType = formatType;
 		if (autoMipChain)
 		{
 			mipLevels = static_cast<u32>(std::floor(std::log2(Max(width, height))) + 1);

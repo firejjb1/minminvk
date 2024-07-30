@@ -6,6 +6,7 @@ layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
 layout(location = 3) in vec3 fragPosWS;
+layout(location = 4) in mat3 fragTBN;
 
 layout(location = 0) out vec4 outColor;
 
@@ -273,14 +274,15 @@ void main() {
 
     if (uboMat.hasMetallicRoughnessTex > 0)
     {
-        vec2 mr = texture(texMetallic, fragTexCoord).xy;
-        metallic = mr.x;
-        roughness = mr.y;
-    
+        vec3 mr = texture(texMetallic, fragTexCoord).rgb;
+        metallic = mr.b;
+        roughness = mr.g;
     }
     if (uboMat.hasNormalTex > 0)
     {
-        //n = normalize(2.f * vec3(texture(texNormal, fragTexCoord)) - vec3(1.f));
+        vec3 normalTex = texture(texNormal, fragTexCoord).rgb;
+        n = normalize(normalTex * 2. - vec3(1.));
+        n = normalize(fragTBN * n);
     }
     
     float intensity = 1; // TODO (light attenuation)
@@ -305,10 +307,9 @@ void main() {
     l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel);
     vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, metallic);
 
-
     outColor = vec4(l_color, 1);
     //outColor = vec4(fragTexCoord, 0, 1);
     //outColor = vec4(fragColor, 1);
     //outColor = vec4(n, 1);
-
+    //outColor = vec4(roughness,0,0, 1);
 }

@@ -50,9 +50,10 @@ namespace Graphics
 			vec3 color = vec3(1);
 			vec2 texCoord;
 			vec3 normal = vec3(0,0,1);
+			vec4 tangent = vec4(0);
 
 			bool operator==(const Vertex& other) const {
-				return pos == other.pos && color == other.color && texCoord == other.texCoord;
+				return pos == other.pos && color == other.color && texCoord == other.texCoord && tangent == other.tangent && normal == other.normal;
 			}
 
 		};
@@ -97,7 +98,13 @@ namespace Graphics
 			normalAttribute.offset = offsetof(Vertex, normal);
 			normalAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
 
-			return Vector<VertexAttribute>{ posAttribute, colorAttribute, uvAttribute, normalAttribute };
+			VertexAttribute tangentAttribute;
+			tangentAttribute.binding = 0;
+			tangentAttribute.location = 4;
+			tangentAttribute.offset = offsetof(Vertex, tangent);
+			tangentAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC4;
+
+			return Vector<VertexAttribute>{ posAttribute, colorAttribute, uvAttribute, normalAttribute, tangentAttribute };
 		}
 
 		u8* GetVertices() override
@@ -117,12 +124,13 @@ namespace Graphics
 		{
 			vec3 pos;
 			vec2 texCoord;
-			vec3 normal;
-			vec4 weights;
+			vec3 normal = vec3(0,0,1);
+			vec4 weights = vec4(0,0,0,0);
 			vec4u joints;
+			vec4 tangent = vec4(1, 0, 0, 1);
 
 			bool operator==(const Vertex& other) const {
-				return pos == other.pos && weights == other.weights && texCoord == other.texCoord && joints == other.joints && normal == other.normal;
+				return pos == other.pos && weights == other.weights && texCoord == other.texCoord && joints == other.joints && normal == other.normal && tangent == other.tangent;
 			}
 
 		};
@@ -174,7 +182,13 @@ namespace Graphics
 			jointsAttribute.offset = offsetof(Vertex, joints);
 			jointsAttribute.vertexFormatType = VertexAttribute::VertexFormatType::UVEC4;
 
-			return Vector<VertexAttribute>{ posAttribute, uvAttribute, normalAttribute, weightsAttribute, jointsAttribute };
+			VertexAttribute tangentAttribute;
+			tangentAttribute.binding = 0;
+			tangentAttribute.location = 5;
+			tangentAttribute.offset = offsetof(Vertex, tangent);
+			tangentAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC4;
+
+			return Vector<VertexAttribute>{ posAttribute, uvAttribute, normalAttribute, weightsAttribute, jointsAttribute, tangentAttribute };
 		}
 
 		u8* GetVertices() override

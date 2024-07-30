@@ -87,7 +87,7 @@ namespace Graphics
 				texturePath.append(filename);
 				texturePath.append("/../");
 				texturePath.append(metallicTextureURI);
-				Texture texture(texturePath);
+				Texture texture(texturePath, Texture::FormatType::RGBA8_UNORM);
 				texture.binding.binding = 1;
 				metallic = texture;
 			}
@@ -101,7 +101,7 @@ namespace Graphics
 				texturePath.append(filename);
 				texturePath.append("/../");
 				texturePath.append(normalTexURI);
-				Texture texture(texturePath);
+				Texture texture(texturePath, Texture::FormatType::RGBA8_UNORM);
 				texture.binding.binding = 2;
 				normal = texture;
 			}
@@ -115,7 +115,7 @@ namespace Graphics
 				texturePath.append(filename);
 				texturePath.append("/../");
 				texturePath.append(occlusionTexURI);
-				Texture texture(texturePath);
+				Texture texture(texturePath, Texture::FormatType::RGBA8_UNORM);
 				texture.binding.binding = 3;
 				occlusion = texture;
 			}
@@ -141,6 +141,8 @@ namespace Graphics
 		tinygltf::Accessor positionAccessor;
 		tinygltf::Accessor normalAccessor;
 		tinygltf::Accessor uvAccessor;
+		tinygltf::Accessor tangentAccessor;
+
 		auto indicesAccessor = model.accessors[mesh.indices];
 
 		LoadTextures(filename, mesh, model, mainTexture, metallic, normal, occlusion, emissive);
@@ -162,6 +164,12 @@ namespace Graphics
 			{
 				uvAccessor = model.accessors[attrib.second];
 				assert(uvAccessor.componentType == 5126);
+			}
+			if (attrib.first.compare("TANGENT") == 0)
+			{
+				tangentAccessor = model.accessors[attrib.second];
+				assert(tangentAccessor.componentType == 5126);
+
 			}
 		}
 		// only support f32 types for now
@@ -220,6 +228,23 @@ namespace Graphics
 
 		}
 
+		if (tangentAccessor.bufferView != -1)
+		{
+			auto tangentBufferView = model.bufferViews[tangentAccessor.bufferView];
+			DebugPrint("Tangent\n");
+			assert(tangentAccessor.type == 4);
+			u32 startOfTangentBuffer = tangentAccessor.byteOffset + tangentBufferView.byteOffset;
+			u32 strideTangentBuffer = tangentBufferView.byteStride == 0 ? sizeof(f32) * 4 : tangentBufferView.byteStride;
+
+			for (int i = 0; i < tangentAccessor.count; ++i)
+			{
+				u32 index = (startOfTangentBuffer + strideTangentBuffer * i);
+				vertices.vertices[i].tangent.x = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[index / sizeof(f32)]);
+				vertices.vertices[i].tangent.y = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+				vertices.vertices[i].tangent.z = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
+				vertices.vertices[i].tangent.w = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32) * 3) / sizeof(f32)]);
+			}
+		}
 
 		DebugPrint("Indices\n");
 		auto indicesBufferView = model.bufferViews[indicesAccessor.bufferView];
@@ -241,6 +266,7 @@ namespace Graphics
 		tinygltf::Accessor uvAccessor;
 		tinygltf::Accessor weightsAccessor;
 		tinygltf::Accessor jointsAccessor;
+		tinygltf::Accessor tangentAccessor;
 		auto indicesAccessor = model.accessors[mesh.indices];
 
 		LoadTextures(filename, mesh, model, mainTexture, metallic, normal, occlusion, emissive);
@@ -272,6 +298,12 @@ namespace Graphics
 			{
 				jointsAccessor = model.accessors[attrib.second];
 				assert(jointsAccessor.componentType == 5123);
+			}
+			if (attrib.first.compare("TANGENT") == 0)
+			{
+				tangentAccessor = model.accessors[attrib.second];
+				assert(tangentAccessor.componentType == 5126);
+
 			}
 		}
 
@@ -366,6 +398,24 @@ namespace Graphics
 				vertices.vertices[i].joints.z = static_cast<u32>(((u16*)model.buffers[jointsBufferView.buffer].data.data())[(index + sizeof(u16) * 2) / sizeof(u16)]);
 				vertices.vertices[i].joints.w = static_cast<u32>(((u16*)model.buffers[jointsBufferView.buffer].data.data())[(index + sizeof(u16) * 3) / sizeof(u16)]);
 
+			}
+		}
+
+		if (tangentAccessor.bufferView != -1)
+		{
+			auto tangentBufferView = model.bufferViews[tangentAccessor.bufferView];
+			DebugPrint("Tangent\n");
+			assert(tangentAccessor.type == 4);
+			u32 startOfTangentBuffer = tangentAccessor.byteOffset + tangentBufferView.byteOffset;
+			u32 strideTangentBuffer = tangentBufferView.byteStride == 0 ? sizeof(f32) * 4 : tangentBufferView.byteStride;
+
+			for (int i = 0; i < tangentAccessor.count; ++i)
+			{
+				u32 index = (startOfTangentBuffer + strideTangentBuffer * i);
+				vertices.vertices[i].tangent.x = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[index / sizeof(f32)]);
+				vertices.vertices[i].tangent.y = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
+				vertices.vertices[i].tangent.z = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
+				vertices.vertices[i].tangent.w = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32) * 3) / sizeof(f32)]);
 			}
 		}
 

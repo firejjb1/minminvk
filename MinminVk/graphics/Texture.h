@@ -30,8 +30,8 @@ namespace Graphics
 	};
 	struct Texture
 	{
-		enum class FormatType { RGBA8_UNORM, RGBA8_SRGB, BGRA_SRGB, R10G10B10A2_UNORM_PACK32, COUNT };
-		FormatType formatType = FormatType::RGBA8_SRGB;
+		enum class FormatType { RGBA8_UNORM, RGBA8_SRGB, RGB8_UNORM, BGRA_SRGB, R10G10B10A2_UNORM_PACK32, COUNT };
+		FormatType formatType = FormatType::RGBA8_UNORM;
 		ResourceBinding binding;
 
 		enum class LayoutType { 
@@ -76,7 +76,7 @@ namespace Graphics
 
 		u32 depth = 1;
 
-		Texture(String filename, bool autoMipChain = false);
+		Texture(String filename, FormatType formatType = FormatType::RGBA8_SRGB, bool autoMipChain = false);
 
 		Texture() { }
 	};

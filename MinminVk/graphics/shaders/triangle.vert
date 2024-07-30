@@ -11,12 +11,14 @@ layout(binding = 0) uniform UniformBufferObject {
 
 layout(push_constant) uniform PushConstants {
     mat4 modelMatrix;
+    mat4 inverseTransposeModel;
 } pushConst;
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inColor;
 layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in vec3 inNormal;
+layout(location = 4) in vec4 inTangent;
 
 layout(set = 1, binding = 5) uniform UniformBufferMat {
     vec4 baseColor;
@@ -34,12 +36,20 @@ layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 fragNormal;
 layout(location = 3) out vec3 fragPosWS;
+layout(location = 4) out mat3 fragTBN;
 
 void main() { 
-    //gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
     fragPosWS = vec3(pushConst.modelMatrix * vec4(inPosition, 1.0));
     gl_Position = ubo.proj * ubo.view * vec4(fragPosWS, 1.0);
     fragColor = inColor;
     fragTexCoord = inTexCoord;
-    fragNormal = normalize(transpose(inverse(pushConst.modelMatrix)) * vec4(inNormal, 0)).xyz;
+
+    vec3 normalW = normalize(vec3(pushConst.inverseTransposeModel * vec4(normalize(inNormal), 0)));
+    fragNormal = normalW;
+    vec3 tangentW = normalize(vec3(pushConst.modelMatrix * vec4(normalize(inTangent.xyz), 0)));
+    //tangentW = normalize(tangentW - dot(tangentW, normalW) * normalW);
+    vec3 bitangentW = cross(normalW, tangentW) * inTangent.w;
+
+    fragTBN = mat3(tangentW, normalize(bitangentW), normalW);
+
 }
