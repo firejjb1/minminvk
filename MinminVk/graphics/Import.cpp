@@ -62,16 +62,12 @@ namespace Graphics
 		Util::IO::ReadFloats(vertices, filename);
 	}
 
-	void Import::LoadGLTFMesh(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Graphics::BasicVertex& vertices, Vector<u16>& indices, Texture& mainTexture)
+	void LoadTextures(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Texture& mainTexture, Texture& metallic, Texture& normal, Texture& occlusion, Texture& emissive)
 	{
-		tinygltf::Accessor positionAccessor;
-		tinygltf::Accessor normalAccessor;
-		tinygltf::Accessor uvAccessor;
-		auto indicesAccessor = model.accessors[mesh.indices];
-
-		if (model.materials[mesh.material].pbrMetallicRoughness.baseColorTexture.index > -1)
+		auto modelMat = model.materials[mesh.material];
+		if (modelMat.pbrMetallicRoughness.baseColorTexture.index > -1)
 		{
-			String mainTextureURI = model.images[model.textures[model.materials[mesh.material].pbrMetallicRoughness.baseColorTexture.index].source].uri;
+			String mainTextureURI = model.images[model.textures[modelMat.pbrMetallicRoughness.baseColorTexture.index].source].uri;
 			if (mainTextureURI != "")
 			{
 				String texturePath;
@@ -82,6 +78,73 @@ namespace Graphics
 				mainTexture = texture;
 			}
 		}
+		if (modelMat.pbrMetallicRoughness.metallicRoughnessTexture.index > -1)
+		{
+			String metallicTextureURI = model.images[model.textures[modelMat.pbrMetallicRoughness.metallicRoughnessTexture.index].source].uri;
+			if (metallicTextureURI != "")
+			{
+				String texturePath;
+				texturePath.append(filename);
+				texturePath.append("/../");
+				texturePath.append(metallicTextureURI);
+				Texture texture(texturePath);
+				texture.binding.binding = 1;
+				metallic = texture;
+			}
+		}
+		if (modelMat.normalTexture.index > -1)
+		{
+			String normalTexURI = model.images[model.textures[modelMat.normalTexture.index].source].uri;
+			if (normalTexURI != "")
+			{
+				String texturePath;
+				texturePath.append(filename);
+				texturePath.append("/../");
+				texturePath.append(normalTexURI);
+				Texture texture(texturePath);
+				texture.binding.binding = 2;
+				normal = texture;
+			}
+		}
+		if (modelMat.occlusionTexture.index > -1)
+		{
+			String occlusionTexURI = model.images[model.textures[modelMat.occlusionTexture.index].source].uri;
+			if (occlusionTexURI != "")
+			{
+				String texturePath;
+				texturePath.append(filename);
+				texturePath.append("/../");
+				texturePath.append(occlusionTexURI);
+				Texture texture(texturePath);
+				texture.binding.binding = 3;
+				occlusion = texture;
+			}
+		}
+		if (modelMat.emissiveTexture.index > -1)
+		{
+			String emissiveTexture = model.images[model.textures[modelMat.emissiveTexture.index].source].uri;
+			if (emissiveTexture != "")
+			{
+				String texturePath;
+				texturePath.append(filename);
+				texturePath.append("/../");
+				texturePath.append(emissiveTexture);
+				Texture texture(texturePath);
+				texture.binding.binding = 4;
+				emissive = texture;
+			}
+		}
+	}
+
+	void Import::LoadGLTFMesh(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Graphics::BasicVertex& vertices, Vector<u16>& indices, Texture& mainTexture, Texture& metallic, Texture& normal, Texture& occlusion, Texture& emissive)
+	{
+		tinygltf::Accessor positionAccessor;
+		tinygltf::Accessor normalAccessor;
+		tinygltf::Accessor uvAccessor;
+		auto indicesAccessor = model.accessors[mesh.indices];
+
+		LoadTextures(filename, mesh, model, mainTexture, metallic, normal, occlusion, emissive);
+
 		for (auto& attrib : mesh.attributes)
 		{
 			if (attrib.first.compare("POSITION") == 0)
@@ -171,7 +234,7 @@ namespace Graphics
 		}
 	}
 
-	void Import::LoadGLTFSkinnedMesh(const String filename, tinygltf::Primitive& mesh, tinygltf::Model & model, Graphics::SkinnedVertex & vertices, Vector<u16>&indices, Texture & mainTexture)
+	void Import::LoadGLTFSkinnedMesh(const String filename, tinygltf::Primitive& mesh, tinygltf::Model & model, Graphics::SkinnedVertex & vertices, Vector<u16>&indices, Texture & mainTexture, Texture& metallic, Texture& normal, Texture& occlusion, Texture& emissive)
 	{
 		tinygltf::Accessor positionAccessor;
 		tinygltf::Accessor normalAccessor;
@@ -180,19 +243,8 @@ namespace Graphics
 		tinygltf::Accessor jointsAccessor;
 		auto indicesAccessor = model.accessors[mesh.indices];
 
-		if (model.materials[mesh.material].pbrMetallicRoughness.baseColorTexture.index > -1)
-		{
-			String mainTextureURI = model.images[model.textures[model.materials[mesh.material].pbrMetallicRoughness.baseColorTexture.index].source].uri;
-			if (mainTextureURI != "")
-			{
-				String texturePath;
-				texturePath.append(filename);
-				texturePath.append("/../");
-				texturePath.append(mainTextureURI);
-				Texture texture(texturePath);
-				mainTexture = texture;
-			}
-		}
+		LoadTextures(filename, mesh, model, mainTexture, metallic, normal, occlusion, emissive);
+
 		for (auto& attrib : mesh.attributes)
 		{
 			if (attrib.first.compare("POSITION") == 0)
@@ -369,7 +421,6 @@ namespace Graphics
 				pbr->material->hasNormalTex = material.normalTexture.index >= 0;
 				pbr->material->hasOcclusionTex = material.occlusionTexture.index >= 0;
 				pbr->material->hasMetallicRoughnessTex = material.pbrMetallicRoughness.metallicRoughnessTexture.index >= 0;
-				pbr->material->hasOcclusionTex = material.occlusionTexture.index >= 0;
 				pbr->material->hasEmissiveTex = material.emissiveTexture.index >= 0;
 
 				pbrMaterials.push_back(pbr);
@@ -490,13 +541,9 @@ namespace Graphics
 					auto& gltfMesh = model.meshes[node.mesh];
 					for (auto primitive : gltfMesh.primitives)
 					{
-						auto geometry = MakeShared<GLTFMesh>(forwardPipeline, filename, primitive, model);
+						auto geometry = MakeShared<GLTFMesh>(forwardPipeline, filename, primitive, model, primitive.material >= 0 ? pbrMaterials[primitive.material] : nullptr);
 						geometry->node = newNode;
-						if (primitive.material >= 0)
-						{
-							geometry->material = pbrMaterials[primitive.material];
-							geometry->materialUniformBuffer.pbrMaterial = geometry->material.get();
-						}
+
 						newMeshes.push_back(geometry);
 
 					}
@@ -535,13 +582,9 @@ namespace Graphics
 					}
 					for (auto primitive : gltfSkinnedMesh.primitives)
 					{
-						auto geometry = MakeShared<GLTFSkinnedMesh>(forwardSkinnedPipeline, filename, primitive, model);
+						auto geometry = MakeShared<GLTFSkinnedMesh>(forwardSkinnedPipeline, filename, primitive, model, primitive.material >= 0 ? pbrMaterials[primitive.material] : nullptr);
 						geometry->node = newNode;
-						if (primitive.material >= 0)
-						{
-							geometry->material = pbrMaterials[primitive.material]; // TODO fix for multiple prims
-							geometry->materialUniformBuffer.pbrMaterial = geometry->material.get();
-						}
+
 						geometry->SetInverseBindMatrices(invBindMatrices);
 						nodeToJoints.push_back(std::make_pair(geometry, model.skins[node.skin].joints));
 						newSkinnedMeshes.push_back(geometry);

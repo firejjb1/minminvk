@@ -27,9 +27,20 @@ namespace Graphics
         };
         UniquePtr<MaterialData> material;
 
+        Texture albedoTexture;
+        Texture metallicTexture;
+        Texture normalTexture;
+        Texture occlusionTexture;
+        Texture emissiveTexture;
+
         PBRMaterial()
         {
             material = MakeUnique<MaterialData>();
+            albedoTexture.binding.binding = 0;
+            metallicTexture.binding.binding = 1;
+            normalTexture.binding.binding = 2;
+            occlusionTexture.binding.binding = 3;
+            emissiveTexture.binding.binding = 4;
         }
         
         const u32 GetDataSize() override

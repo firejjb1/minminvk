@@ -88,7 +88,7 @@ namespace Graphics
 		Set<RasterState> rasterStates =
 		{
 			RasterState::RASTER_POLYGON_MODE_FILL,
-			RasterState::RASTER_FRONT_FACE_CW,
+			RasterState::RASTER_FRONT_FACE_CCW,
 			RasterState::RASTER_CULL_MODE_BACK
 		};
 

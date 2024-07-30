@@ -1,11 +1,17 @@
 #version 450
 
+#extension GL_KHR_vulkan_glsl : enable 
+
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
 layout(location = 3) in vec3 fragPosWS;
 
 layout(location = 0) out vec4 outColor;
+
+layout(push_constant) uniform PushConstants {
+    mat4 modelMatrix;
+} pushConst;
 
 layout(binding = 0) uniform UniformBufferPass {
     mat4 model;
@@ -21,6 +27,7 @@ layout(set = 1, binding = 1) uniform sampler2D texMetallic;
 layout(set = 1, binding = 2) uniform sampler2D texNormal;
 layout(set = 1, binding = 3) uniform sampler2D texOcclusion;
 layout(set = 1, binding = 4) uniform sampler2D texEmissive;
+
 layout(set = 1, binding = 5) uniform UniformBufferMat {
     vec4 baseColor;
     vec4 emissiveColor;
@@ -255,26 +262,30 @@ vec3 BRDF_specularSheen(vec3 sheenColor, float sheenRoughness, float NdotL, floa
 }
 
 void main() {
-
-// inputs needed:
-// light intensity 
-// metallic, roughness 
-// has metallic roughness texture 
-// light direction 
-// camera position 
-// basecolorfactor
-// emissivefactor 
-
     vec3 lightIntensity = vec3(uboPass.lightIntensity);
     vec3 l_metal_brdf = vec3(0.0);
     float metallic = uboMat.metallic; 
     float roughness = uboMat.roughness; 
-    float intensity = 1; // TODO (light attenuation)
-    vec3 albedo = uboMat.baseColor.xyz * texture(texColor, fragTexCoord).rgb;
     vec3 n = normalize(fragNormal);
     vec3 l = normalize(uboPass.lightDirection.xyz);
     vec3 v = normalize(uboPass.cameraPosition.xyz - fragPosWS); 
     vec3 h = normalize(l + v);         
+
+    if (uboMat.hasMetallicRoughnessTex > 0)
+    {
+        vec2 mr = texture(texMetallic, fragTexCoord).xy;
+        metallic = mr.x;
+        roughness = mr.y;
+    
+    }
+    if (uboMat.hasNormalTex > 0)
+    {
+        n = normalize(2.f * vec3(texture(texNormal, fragTexCoord)) - vec3(1.f));
+    }
+    
+    float intensity = 1; // TODO (light attenuation)
+    vec3 albedo = uboMat.baseColor.xyz * texture(texColor, fragTexCoord).rgb;
+
     float NdotV = clampedDot(n, v);
     float NdotH = clampedDot(n, h);
     float LdotH = clampedDot(l, h);
@@ -298,5 +309,6 @@ void main() {
     //outColor = vec4(l_color, 1);
     //outColor = vec4(fragTexCoord, 0, 1);
     //outColor = vec4(fragColor, 1);
-    //outColor = vec4(fragNormal, 1);
+    outColor = vec4(n, 1);
+
 }

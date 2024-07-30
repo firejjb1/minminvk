@@ -2683,16 +2683,23 @@ namespace Graphics
 	}
 
 	OBJMesh::OBJMesh(SharedPtr<GraphicsPipeline> pipeline, Texture mainTexture, String filename)
-		: Geometry(mainTexture)
+		: Geometry(Texture())
 	{
 		auto vertexDesc = MakeShared<BasicVertex>();
 		Import::LoadOBJ(*vertexDesc, indices, filename);
 		this->vertexDesc = vertexDesc;
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
-
+		material = MakeShared<PBRMaterial>();
+		material->albedoTexture = mainTexture;
+		Vector<Graphics::Texture> textures{};
+		textures.push_back(material->albedoTexture);
+		textures.push_back(material->metallicTexture);
+		textures.push_back(material->normalTexture);
+		textures.push_back(material->occlusionTexture);
+		textures.push_back(material->emissiveTexture);
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
-			Vector<Graphics::Texture>{ this->mainTexture}
+			textures
 		);
 	}
 	
@@ -2704,37 +2711,71 @@ namespace Graphics
 		this->vertexDesc = vertexDesc;
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
-
+		material = MakeShared<PBRMaterial>();
+		material->albedoTexture = mainTexture;
+		Vector<Graphics::Texture> textures{};
+		textures.push_back(material->albedoTexture);
+		textures.push_back(material->metallicTexture);
+		textures.push_back(material->normalTexture);
+		textures.push_back(material->occlusionTexture);
+		textures.push_back(material->emissiveTexture);
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
-			Vector<Graphics::Texture>{ this->mainTexture}
+			textures
 		);
 	}
 
-	GLTFMesh::GLTFMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model)
+	GLTFMesh::GLTFMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial> pbrMat)
 		: Geometry(Texture())
 	{
+		if (pbrMat != nullptr)
+		{
+			material = pbrMat;
+			materialUniformBuffer.pbrMaterial = material.get();
+		}
 		auto vertexDesc = MakeShared<BasicVertex>();
-		Import::LoadGLTFMesh(filename, mesh, model, *vertexDesc, indices, mainTexture);
+		Import::LoadGLTFMesh(filename, mesh, model, *vertexDesc, indices, material->albedoTexture, material->metallicTexture, material->normalTexture, material->occlusionTexture, material->emissiveTexture);
 		this->vertexDesc = vertexDesc;
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 
+		Vector<Graphics::Texture> textures{};
+		textures.push_back(material->albedoTexture);
+		textures.push_back(material->metallicTexture);
+		textures.push_back(material->normalTexture);
+		textures.push_back(material->occlusionTexture);
+		textures.push_back(material->emissiveTexture);
+		
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
-			Vector<Graphics::Texture>{ this->mainTexture}
+			textures
 		);
+
+		// create descriptor sets for the other textures
+		
 	}
 	
-	GLTFSkinnedMesh::GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model)
+	GLTFSkinnedMesh::GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial> pbrMat)
 		: Geometry(Texture()), pipeline{pipeline}
 	{
+		if (pbrMat != nullptr)
+		{
+			material = pbrMat;
+			materialUniformBuffer.pbrMaterial = material.get();
+		}
 		auto vertexDesc = MakeShared<SkinnedVertex>();
-		Import::LoadGLTFSkinnedMesh(filename, mesh, model, *vertexDesc, indices, mainTexture);
+		Import::LoadGLTFSkinnedMesh(filename, mesh, model, *vertexDesc, indices, material->albedoTexture, material->metallicTexture, material->normalTexture, material->occlusionTexture, material->emissiveTexture);
 		this->vertexDesc = vertexDesc;
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 
+		Vector<Graphics::Texture> textures{};
+		textures.push_back(material->albedoTexture);
+		textures.push_back(material->metallicTexture);
+		textures.push_back(material->normalTexture);
+		textures.push_back(material->occlusionTexture);
+		textures.push_back(material->emissiveTexture);
+
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
-			Vector<Graphics::Texture>{ this->mainTexture}
+			textures
 		);
 	}
 

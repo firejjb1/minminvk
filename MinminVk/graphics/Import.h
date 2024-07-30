@@ -19,6 +19,7 @@ namespace Graphics
 	struct SkinnedVertex;
 	struct GLTFSkinnedMesh;
 	struct GraphicsPipeline;
+	struct PBRMaterial;
 
 	struct Import
 	{
@@ -26,10 +27,10 @@ namespace Graphics
 
 		static void LoadHairStrands(Vector<f32>& vertices, const String& filename);
 
-		static void LoadGLTFMesh(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Graphics::BasicVertex& vertices, Vector<u16>& indices, Texture& mainTexture);
+		static void LoadGLTFMesh(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Graphics::BasicVertex& vertices, Vector<u16>& indices, Texture& mainTexture, Texture& metallic, Texture& normal, Texture& occlusion, Texture& emissive);
 
 		static void LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardSkinnedPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>>& newSkinnedMeshes);
 
-		static void LoadGLTFSkinnedMesh(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Graphics::SkinnedVertex& vertices, Vector<u16>& indices, Texture& mainTexture);
+		static void LoadGLTFSkinnedMesh(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Graphics::SkinnedVertex& vertices, Vector<u16>& indices, Texture& mainTexture, Texture& metallic, Texture& normal, Texture& occlusion, Texture& emissive);
 	};
 }
