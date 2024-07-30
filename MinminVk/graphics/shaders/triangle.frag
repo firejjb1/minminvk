@@ -280,7 +280,7 @@ void main() {
     }
     if (uboMat.hasNormalTex > 0)
     {
-        n = normalize(2.f * vec3(texture(texNormal, fragTexCoord)) - vec3(1.f));
+        //n = normalize(2.f * vec3(texture(texNormal, fragTexCoord)) - vec3(1.f));
     }
     
     float intensity = 1; // TODO (light attenuation)
@@ -302,13 +302,13 @@ void main() {
     l_specular_dielectric = l_specular_metal;
      l_metal_brdf = metal_fresnel * l_specular_metal;
     vec3 dielectric_fresnel = F_Schlick(F0, abs(VdotH));
-    l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
+    l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel);
     vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, metallic);
 
 
-    //outColor = vec4(l_color, 1);
+    outColor = vec4(l_color, 1);
     //outColor = vec4(fragTexCoord, 0, 1);
     //outColor = vec4(fragColor, 1);
-    outColor = vec4(n, 1);
+    //outColor = vec4(n, 1);
 
 }
