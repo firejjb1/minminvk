@@ -4,6 +4,7 @@
 #include <graphics/Device.h>
 #include <graphics/Import.h>
 #include <graphics/UIRender.h>
+#include <graphics/Camera.h>
 #include <Input.h>
 #include <UI.h>
 
@@ -110,6 +111,7 @@ namespace Graphics
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
 	u32 numVertexPerStrand = 16;
+	SharedPtr<Camera> camera;
 
 	const f32 fixedDeltaTime = 0.016f;
 	f32 updateTimeAccumulator = 0.f;
@@ -152,6 +154,10 @@ namespace Graphics
 		texture.binding.binding = 0;
 		texture.binding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
 		
+		i32 width = presentation->swapChainDetails.width;
+		i32 height = presentation->swapChainDetails.height;
+		camera = MakeShared<Camera>(UI::cameraPosition, vec3(0.0f, 1.0f, 0.0f), UI::cameraLookDirection, 45, 0.1f, 1000.f, width, height);
+
 		// forward pass
 		{
 			auto uniformBuffer = MakeShared<BasicUniformBuffer>();
@@ -310,6 +316,7 @@ namespace Graphics
 					skinnedMesh->Update(fixedDeltaTime);
 				}
 
+				camera->Update(fixedDeltaTime);
 			}
 		}
 	}
@@ -332,12 +339,12 @@ namespace Graphics
 			{
 				// view projection
 				{
-					forwardPipeline->uniformDesc->transformUniform.view = Math::LookAt(UI::cameraPosition, UI::cameraPosition + UI::cameraLookDirection, vec3(0.0f, 1.0f, 0.0f));
+					forwardPipeline->uniformDesc->transformUniform.view = camera->GetCameraMatrix();
 					i32 width = presentation->swapChainDetails.width;
 					i32 height = presentation->swapChainDetails.height;
-					forwardPipeline->uniformDesc->transformUniform.proj = Math::Perspective(glm::radians(45.0f), width, height, 0.01f, 1000.0f);
+					forwardPipeline->uniformDesc->transformUniform.proj = camera->GetProjectionMatrix();
 					forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
-					forwardPipeline->uniformDesc->transformUniform.cameraPosition = vec4(UI::cameraPosition, 1);
+					forwardPipeline->uniformDesc->transformUniform.cameraPosition = vec4(camera->GetPosition(), 1);
 					forwardPipeline->uniformDesc->transformUniform.lightDirection = vec4(UI::lightDirection, 0);
 					forwardPipeline->uniformDesc->transformUniform.lightIntensity = vec4(UI::lightIntensity, 1);
 

@@ -27,6 +27,14 @@ namespace Application
         window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan window", nullptr, nullptr);
         glfwSetKeyCallback(window, Input::keyCallback);
 
+        glfwSetCursorPosCallback(window, [](GLFWwindow* window, double xpos, double ypos) {
+            Input::mousePosCallback(xpos, ypos);
+        });
+
+        glfwSetMouseButtonCallback(window, [](GLFWwindow* window, int button, int action, int mods) {
+           Input::mouseButtonCallback(button, action, mods);
+        });
+
         Graphics::InitGraphics(window);
 
         // IMGui init

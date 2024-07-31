@@ -21,9 +21,9 @@ The project is built using CMake.
 - hair simulation shaders
 - PBR
 - normal mapping
+- keyboard and mouse controlled camera
 
 #### TODO
-- keyboard and mouse controlled camera
 - get a nice GLTF model (skinned, hair, cloth)
 - cloth simulation
 - hair rendering

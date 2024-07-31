@@ -148,6 +148,7 @@ set(HEADER_FILES
 	"graphics/Node.h"
 	"graphics/Animation.h"
 	"graphics/Material.h"
+	"graphics/Camera.h"
 )
 
 IF(WIN32)
