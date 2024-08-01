@@ -39,6 +39,7 @@ typedef glm::vec4 vec4;
 typedef glm::uvec2 vec2u;
 typedef glm::uvec3 vec3u;
 typedef glm::uvec4 vec4u;
+typedef glm::u16vec4 vec4u16;
 
 typedef glm::quat quat;
 

@@ -286,7 +286,10 @@ void main() {
     }
     
     float intensity = 1; // TODO (light attenuation)
-    vec3 albedo = uboMat.baseColor.xyz * texture(texColor, fragTexCoord).rgb;
+    vec3 albedo = uboMat.baseColor.xyz * fragColor;
+    
+    if (uboMat.hasAlbedoTex > 0)
+        albedo *= texture(texColor, fragTexCoord).rgb;
 
     float NdotV = clampedDot(n, v);
     float NdotH = clampedDot(n, h);
@@ -308,8 +311,8 @@ void main() {
     vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, metallic);
 
     outColor = vec4(l_color, 1);
-    //outColor = vec4(fragTexCoord, 0, 1);
-    //outColor = vec4(fragColor, 1);
+    //outColor = vec4( texture(texColor, fragTexCoord).rgb, 1);
+    //outColor = vec4(uboMat.baseColor.xyz, 1);
     //outColor = vec4(n, 1);
     //outColor = vec4(roughness,0,0, 1);
 }

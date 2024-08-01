@@ -64,6 +64,8 @@ namespace Graphics
 
 	void LoadTextures(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Texture& mainTexture, Texture& metallic, Texture& normal, Texture& occlusion, Texture& emissive)
 	{
+		if (mesh.material < 0)
+			return;
 		auto modelMat = model.materials[mesh.material];
 		if (modelMat.pbrMetallicRoughness.baseColorTexture.index > -1)
 		{
@@ -136,12 +138,53 @@ namespace Graphics
 		}
 	}
 
+	vec2 ReadGLTFFloat2(u32 index, Vector<unsigned char>& data)
+	{
+		f32* ptr = (f32*)data.data();
+		auto sz = sizeof(f32);
+		return vec2{ ptr[index / sz], ptr[(index + sz) / sz] };
+	}
+
+	vec3 ReadGLTFFloat3(u32 index, Vector<unsigned char>& data)
+	{
+		f32* ptr = (f32*)data.data();
+		auto sz = sizeof(f32);
+		return vec3{ ptr[index / sz], ptr[(index + sz) / sz], ptr[(index + sz * 2) / sz] };
+	}
+	
+	vec4 ReadGLTFFloat4(u32 index, Vector<unsigned char>& data)
+	{
+		f32* ptr = (f32*)data.data();
+		auto sz = sizeof(f32);
+		return vec4{ ptr[index / sz], ptr[(index + sz) / sz], ptr[(index + sz * 2) / sz], ptr[(index + sz * 3) / sz] };
+	}
+
+	vec4u16 ReadGLTFU16x4(u32 index, Vector<unsigned char>& data)
+	{
+		u16* ptr = (u16*)data.data();
+		auto sz = sizeof(u16);
+		return vec4u16{ ptr[index / sz], ptr[(index + sz) / sz], ptr[(index + sz * 2) / sz], ptr[(index + sz * 3) / sz] };
+	}
+
+	template <typename T>
+	void ReadGLTFUVs(size_t uvCount, u32 startOfUVBuffer, u32 strideUVBuffer, T& vertices, tinygltf::Buffer& buffer)
+	{
+		for (int i = 0; i < uvCount; ++i)
+		{
+			u32 index = (startOfUVBuffer + strideUVBuffer * i);
+			vertices[i].texCoord = ReadGLTFFloat2(index, buffer.data);
+		}
+	}
+
+
+
 	void Import::LoadGLTFMesh(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Graphics::BasicVertex& vertices, Vector<u16>& indices, Texture& mainTexture, Texture& metallic, Texture& normal, Texture& occlusion, Texture& emissive)
 	{
 		tinygltf::Accessor positionAccessor;
 		tinygltf::Accessor normalAccessor;
 		tinygltf::Accessor uvAccessor;
 		tinygltf::Accessor tangentAccessor;
+		tinygltf::Accessor colorAccessor;
 
 		auto indicesAccessor = model.accessors[mesh.indices];
 
@@ -171,9 +214,14 @@ namespace Graphics
 				assert(tangentAccessor.componentType == 5126);
 
 			}
+			if (attrib.first.compare("COLOR_0") == 0)
+			{
+				colorAccessor = model.accessors[attrib.second];
+				assert(colorAccessor.componentType == 5126);
+
+			}
 		}
 		// only support f32 types for now
-
 		assert(indicesAccessor.componentType == 5123);
 
 		vertices.vertices.resize(positionAccessor.count);
@@ -187,10 +235,7 @@ namespace Graphics
 		for (int i = 0; i < positionAccessor.count; ++i)
 		{
 			u32 index = (startOfPositionBuffer + stridePositionBuffer * i);
-			vertices.vertices[i].pos.x = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[index / sizeof(f32)]);
-			vertices.vertices[i].pos.y = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
-			vertices.vertices[i].pos.z = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
-
+			vertices.vertices[i].pos = ReadGLTFFloat3(index, model.buffers[positionBufferView.buffer].data);
 		}
 
 		auto normalBufferView = model.bufferViews[normalAccessor.bufferView];
@@ -201,9 +246,7 @@ namespace Graphics
 		for (int i = 0; i < normalAccessor.count; ++i)
 		{
 			u32 index = (startOfNormalBuffer + strideNormalBuffer * i);
-			vertices.vertices[i].normal.x = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[index / sizeof(f32)]);
-			vertices.vertices[i].normal.y = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
-			vertices.vertices[i].normal.z = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
+			vertices.vertices[i].normal = ReadGLTFFloat3(index, model.buffers[normalBufferView.buffer].data);
 		}
 
 		if (uvAccessor.bufferView != -1)
@@ -215,16 +258,7 @@ namespace Graphics
 			u32 startOfUVBuffer = uvAccessor.byteOffset + uvBufferView.byteOffset;
 			u32 strideUVBuffer = uvBufferView.byteStride == 0 ? sizeof(f32) * 2 : uvBufferView.byteStride;
 
-			for (int i = 0; i < uvAccessor.count; ++i)
-			{
-				u32 index = (startOfUVBuffer + strideUVBuffer * i);
-				vertices.vertices[i].texCoord.x = static_cast<f32>(((f32*)model.buffers[uvBufferView.buffer].data.data())[index / sizeof(f32)]);
-				vertices.vertices[i].texCoord.y = static_cast<f32>(((f32*)model.buffers[uvBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
-				// convert from -1,1 to 0,1
-				if (!uvAccessor.minValues.empty() && uvAccessor.minValues[0] < 0.f)
-					vertices.vertices[i].texCoord = vertices.vertices[i].texCoord * 0.5f + vec2(0.5f);
-
-			}
+			ReadGLTFUVs(uvAccessor.count, startOfUVBuffer, strideUVBuffer, vertices.vertices, model.buffers[uvBufferView.buffer]);
 
 		}
 
@@ -239,10 +273,36 @@ namespace Graphics
 			for (int i = 0; i < tangentAccessor.count; ++i)
 			{
 				u32 index = (startOfTangentBuffer + strideTangentBuffer * i);
-				vertices.vertices[i].tangent.x = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[index / sizeof(f32)]);
-				vertices.vertices[i].tangent.y = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
-				vertices.vertices[i].tangent.z = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
-				vertices.vertices[i].tangent.w = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32) * 3) / sizeof(f32)]);
+				vertices.vertices[i].tangent = ReadGLTFFloat4(index, model.buffers[tangentBufferView.buffer].data);
+			}
+		}
+
+		if (colorAccessor.bufferView != -1)
+		{
+			auto colorBufferView = model.bufferViews[colorAccessor.bufferView];
+			DebugPrint("Colors\n");
+			assert(colorAccessor.type == 3 || colorAccessor.type == 4);
+			if (colorAccessor.type == 3)
+			{
+				u32 startOfColorBuffer = colorAccessor.byteOffset + colorBufferView.byteOffset;
+				u32 strideColorBuffer = colorBufferView.byteStride == 0 ? sizeof(f32) * 3 : colorBufferView.byteStride;
+
+				for (int i = 0; i < colorAccessor.count; ++i)
+				{
+					u32 index = (startOfColorBuffer + strideColorBuffer * i);
+					vertices.vertices[i].color = ReadGLTFFloat3(index, model.buffers[colorBufferView.buffer].data);
+				}
+			}
+			if (colorAccessor.type == 4)
+			{
+				u32 startOfColorBuffer = colorAccessor.byteOffset + colorBufferView.byteOffset;
+				u32 strideColorBuffer = colorBufferView.byteStride == 0 ? sizeof(f32) * 4 : colorBufferView.byteStride;
+
+				for (int i = 0; i < colorAccessor.count; ++i)
+				{
+					u32 index = (startOfColorBuffer + strideColorBuffer * i);
+					vertices.vertices[i].color = vec3(ReadGLTFFloat4(index, model.buffers[colorBufferView.buffer].data));
+				}
 			}
 		}
 
@@ -267,6 +327,7 @@ namespace Graphics
 		tinygltf::Accessor weightsAccessor;
 		tinygltf::Accessor jointsAccessor;
 		tinygltf::Accessor tangentAccessor;
+		tinygltf::Accessor colorAccessor;
 		auto indicesAccessor = model.accessors[mesh.indices];
 
 		LoadTextures(filename, mesh, model, mainTexture, metallic, normal, occlusion, emissive);
@@ -303,6 +364,11 @@ namespace Graphics
 			{
 				tangentAccessor = model.accessors[attrib.second];
 				assert(tangentAccessor.componentType == 5126);
+			}
+			if (attrib.first.compare("COLOR_0") == 0)
+			{
+				colorAccessor = model.accessors[attrib.second];
+				assert(colorAccessor.componentType == 5126);
 
 			}
 		}
@@ -320,10 +386,7 @@ namespace Graphics
 		for (int i = 0; i < positionAccessor.count; ++i)
 		{
 			u32 index = (startOfPositionBuffer + stridePositionBuffer * i);
-			vertices.vertices[i].pos.x = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[index / sizeof(f32)]);
-			vertices.vertices[i].pos.y = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
-			vertices.vertices[i].pos.z = static_cast<f32>(((f32*)model.buffers[positionBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
-
+			vertices.vertices[i].pos = ReadGLTFFloat3(index, model.buffers[positionBufferView.buffer].data);
 		}
 
 		auto normalBufferView = model.bufferViews[normalAccessor.bufferView];
@@ -334,9 +397,7 @@ namespace Graphics
 		for (int i = 0; i < normalAccessor.count; ++i)
 		{
 			u32 index = (startOfNormalBuffer + strideNormalBuffer * i);
-			vertices.vertices[i].normal.x = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[index / sizeof(f32)]);
-			vertices.vertices[i].normal.y = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
-			vertices.vertices[i].normal.z = static_cast<f32>(((f32*)model.buffers[normalBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
+			vertices.vertices[i].normal = ReadGLTFFloat3(index, model.buffers[normalBufferView.buffer].data);
 		}
 
 		if (uvAccessor.bufferView != -1)
@@ -348,17 +409,8 @@ namespace Graphics
 			u32 startOfUVBuffer = uvAccessor.byteOffset + uvBufferView.byteOffset;
 			u32 strideUVBuffer = uvBufferView.byteStride == 0 ? sizeof(f32) * 2 : uvBufferView.byteStride;
 
-			for (int i = 0; i < uvAccessor.count; ++i)
-			{
-				u32 index = (startOfUVBuffer + strideUVBuffer * i);
-				vertices.vertices[i].texCoord.x = static_cast<f32>(((f32*)model.buffers[uvBufferView.buffer].data.data())[index / sizeof(f32)]);
-				vertices.vertices[i].texCoord.y = static_cast<f32>(((f32*)model.buffers[uvBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
-				assert(vertices.vertices[i].texCoord.x <= uvAccessor.maxValues[0] && vertices.vertices[i].texCoord.x >= uvAccessor.minValues[0]);
-				assert(vertices.vertices[i].texCoord.y <= uvAccessor.maxValues[1] && vertices.vertices[i].texCoord.y >= uvAccessor.minValues[1]);
-				// convert from -1,1 to 0,1
-				if (!uvAccessor.minValues.empty() && uvAccessor.minValues[0] < 0.f)
-					vertices.vertices[i].texCoord = vertices.vertices[i].texCoord * 0.5f + vec2(0.5f);
-			}
+			ReadGLTFUVs(uvAccessor.count, startOfUVBuffer, strideUVBuffer, vertices.vertices, model.buffers[uvBufferView.buffer]);
+
 		}
 
 		if (weightsAccessor.bufferView != -1)
@@ -373,11 +425,7 @@ namespace Graphics
 			for (int i = 0; i < weightsAccessor.count; ++i)
 			{
 				u32 index = (startOfWeightsBuffer + strideWeightsBuffer * i);
-				vertices.vertices[i].weights.x = static_cast<f32>(((f32*)model.buffers[weightsBufferView.buffer].data.data())[index / sizeof(f32)]);
-				vertices.vertices[i].weights.y = static_cast<f32>(((f32*)model.buffers[weightsBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
-				vertices.vertices[i].weights.z = static_cast<f32>(((f32*)model.buffers[weightsBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
-				vertices.vertices[i].weights.w = static_cast<f32>(((f32*)model.buffers[weightsBufferView.buffer].data.data())[(index + sizeof(f32) * 3) / sizeof(f32)]);
-
+				vertices.vertices[i].weights = ReadGLTFFloat4(index, model.buffers[weightsBufferView.buffer].data);
 			}
 		}
 		
@@ -393,11 +441,7 @@ namespace Graphics
 			for (int i = 0; i < jointsAccessor.count; ++i)
 			{
 				u32 index = (startOfJointsBuffer + strideJointsBuffer * i);
-				vertices.vertices[i].joints.x = static_cast<u32>(((u16*)model.buffers[jointsBufferView.buffer].data.data())[index / sizeof(u16)]);
-				vertices.vertices[i].joints.y = static_cast<u32>(((u16*)model.buffers[jointsBufferView.buffer].data.data())[(index + sizeof(u16)) / sizeof(u16)]);
-				vertices.vertices[i].joints.z = static_cast<u32>(((u16*)model.buffers[jointsBufferView.buffer].data.data())[(index + sizeof(u16) * 2) / sizeof(u16)]);
-				vertices.vertices[i].joints.w = static_cast<u32>(((u16*)model.buffers[jointsBufferView.buffer].data.data())[(index + sizeof(u16) * 3) / sizeof(u16)]);
-
+				vertices.vertices[i].joints = ReadGLTFU16x4(index, model.buffers[jointsBufferView.buffer].data);
 			}
 		}
 
@@ -412,10 +456,36 @@ namespace Graphics
 			for (int i = 0; i < tangentAccessor.count; ++i)
 			{
 				u32 index = (startOfTangentBuffer + strideTangentBuffer * i);
-				vertices.vertices[i].tangent.x = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[index / sizeof(f32)]);
-				vertices.vertices[i].tangent.y = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32)) / sizeof(f32)]);
-				vertices.vertices[i].tangent.z = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32) * 2) / sizeof(f32)]);
-				vertices.vertices[i].tangent.w = static_cast<f32>(((f32*)model.buffers[tangentBufferView.buffer].data.data())[(index + sizeof(f32) * 3) / sizeof(f32)]);
+				vertices.vertices[i].tangent = ReadGLTFFloat4(index, model.buffers[tangentBufferView.buffer].data);
+			}
+		}
+
+		if (colorAccessor.bufferView != -1)
+		{
+			auto colorBufferView = model.bufferViews[colorAccessor.bufferView];
+			DebugPrint("Colors\n");
+			assert(colorAccessor.type == 3 || colorAccessor.type == 4);
+			if (colorAccessor.type == 3)
+			{
+				u32 startOfColorBuffer = colorAccessor.byteOffset + colorBufferView.byteOffset;
+				u32 strideColorBuffer = colorBufferView.byteStride == 0 ? sizeof(f32) * 3 : colorBufferView.byteStride;
+
+				for (int i = 0; i < colorAccessor.count; ++i)
+				{
+					u32 index = (startOfColorBuffer + strideColorBuffer * i);
+					vertices.vertices[i].color = ReadGLTFFloat3(index, model.buffers[colorBufferView.buffer].data);
+				}
+			}
+			if (colorAccessor.type == 4)
+			{
+				u32 startOfColorBuffer = colorAccessor.byteOffset + colorBufferView.byteOffset;
+				u32 strideColorBuffer = colorBufferView.byteStride == 0 ? sizeof(f32) * 4 : colorBufferView.byteStride;
+
+				for (int i = 0; i < colorAccessor.count; ++i)
+				{
+					u32 index = (startOfColorBuffer + strideColorBuffer * i);
+					vertices.vertices[i].color = vec3(ReadGLTFFloat4(index, model.buffers[colorBufferView.buffer].data));
+				}
 			}
 		}
 

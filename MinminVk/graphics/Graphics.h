@@ -26,6 +26,7 @@
 
 //#define CUBE_GLTF "Cube/Cube.gltf"
 //#define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
+//#define CUBE_GLTF "BoxVertexColors/BoxVertexColors.gltf"
 //#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
 //#define CUBE_GLTF "RiggedSimple/RiggedSimple.gltf"
 //#define CUBE_GLTF "RiggedFigure/RiggedFigure.gltf"

@@ -13,9 +13,9 @@ namespace Graphics
 		FilterType magFilter = FilterType::LINEAR;
 		FilterType minFilter = FilterType::LINEAR;
 		FilterType mipFilter = FilterType::LINEAR;
-		AddressModeType addressModeU = AddressModeType::CLAMP_TO_BORDER;
-		AddressModeType addressModeV = AddressModeType::CLAMP_TO_BORDER;
-		AddressModeType addressModeW = AddressModeType::CLAMP_TO_BORDER;
+		AddressModeType addressModeU = AddressModeType::REPEAT;
+		AddressModeType addressModeV = AddressModeType::REPEAT;
+		AddressModeType addressModeW = AddressModeType::REPEAT;
 		u32 maxAnisotropy = 16;
 		u32 maxLOD = 16;
 		Sampler();

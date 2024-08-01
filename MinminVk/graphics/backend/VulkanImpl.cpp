@@ -2695,7 +2695,9 @@ namespace Graphics
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 		material = MakeShared<PBRMaterial>();
+		materialUniformBuffer.pbrMaterial = material.get();
 		material->albedoTexture = mainTexture;
+		material->material->hasAlbedoTex = 1;
 		Vector<Graphics::Texture> textures{};
 		textures.push_back(material->albedoTexture);
 		textures.push_back(material->metallicTexture);
@@ -2716,6 +2718,7 @@ namespace Graphics
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 		material = MakeShared<PBRMaterial>();
+		materialUniformBuffer.pbrMaterial = material.get();
 		material->albedoTexture = mainTexture;
 		Vector<Graphics::Texture> textures{};
 		textures.push_back(material->albedoTexture);
@@ -2736,6 +2739,9 @@ namespace Graphics
 			material = pbrMat;
 			materialUniformBuffer.pbrMaterial = material.get();
 		}
+		else 
+			material = MakeShared<PBRMaterial>();
+
 		auto vertexDesc = MakeShared<BasicVertex>();
 		Import::LoadGLTFMesh(filename, mesh, model, *vertexDesc, indices, material->albedoTexture, material->metallicTexture, material->normalTexture, material->occlusionTexture, material->emissiveTexture);
 		this->vertexDesc = vertexDesc;
@@ -2743,12 +2749,13 @@ namespace Graphics
 		VulkanImpl::CreateIndexBuffer(*this);
 
 		Vector<Graphics::Texture> textures{};
-		textures.push_back(material->albedoTexture);
-		textures.push_back(material->metallicTexture);
-		textures.push_back(material->normalTexture);
-		textures.push_back(material->occlusionTexture);
-		textures.push_back(material->emissiveTexture);
-		
+		{
+			textures.push_back(material->albedoTexture);
+			textures.push_back(material->metallicTexture);
+			textures.push_back(material->normalTexture);
+			textures.push_back(material->occlusionTexture);
+			textures.push_back(material->emissiveTexture);
+		}
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			textures
 		);
@@ -2765,6 +2772,8 @@ namespace Graphics
 			material = pbrMat;
 			materialUniformBuffer.pbrMaterial = material.get();
 		}
+		else 
+			material = MakeShared<PBRMaterial>();
 		auto vertexDesc = MakeShared<SkinnedVertex>();
 		Import::LoadGLTFSkinnedMesh(filename, mesh, model, *vertexDesc, indices, material->albedoTexture, material->metallicTexture, material->normalTexture, material->occlusionTexture, material->emissiveTexture);
 		this->vertexDesc = vertexDesc;
@@ -2772,12 +2781,13 @@ namespace Graphics
 		VulkanImpl::CreateIndexBuffer(*this);
 
 		Vector<Graphics::Texture> textures{};
-		textures.push_back(material->albedoTexture);
-		textures.push_back(material->metallicTexture);
-		textures.push_back(material->normalTexture);
-		textures.push_back(material->occlusionTexture);
-		textures.push_back(material->emissiveTexture);
-
+		{
+			textures.push_back(material->albedoTexture);
+			textures.push_back(material->metallicTexture);
+			textures.push_back(material->normalTexture);
+			textures.push_back(material->occlusionTexture);
+			textures.push_back(material->emissiveTexture);
+		}
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			textures
 		);

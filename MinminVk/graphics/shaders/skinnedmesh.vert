@@ -21,6 +21,7 @@ layout(location = 2) in vec3 inNormal;
 layout(location = 3) in vec4 inWeights;
 layout(location = 4) in uvec4 inJoints;
 layout(location = 5) in vec4 inTangent;
+layout(location = 6) in vec3 inColor;
 
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
@@ -50,5 +51,5 @@ void main() {
     vec3 bitangentW = cross(normalW, tangentW) * inTangent.w;
 
     fragTBN = mat3(tangentW, normalize(bitangentW), normalW);
-
+    fragColor = inColor;
 }

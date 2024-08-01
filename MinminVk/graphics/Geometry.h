@@ -128,6 +128,7 @@ namespace Graphics
 			vec4 weights = vec4(0,0,0,0);
 			vec4u joints;
 			vec4 tangent = vec4(1, 0, 0, 1);
+			vec3 color = vec3(1);
 
 			bool operator==(const Vertex& other) const {
 				return pos == other.pos && weights == other.weights && texCoord == other.texCoord && joints == other.joints && normal == other.normal && tangent == other.tangent;
@@ -187,8 +188,14 @@ namespace Graphics
 			tangentAttribute.location = 5;
 			tangentAttribute.offset = offsetof(Vertex, tangent);
 			tangentAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC4;
+			
+			VertexAttribute colorAttribute;
+			colorAttribute.binding = 0;
+			colorAttribute.location = 6;
+			colorAttribute.offset = offsetof(Vertex, color);
+			colorAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
 
-			return Vector<VertexAttribute>{ posAttribute, uvAttribute, normalAttribute, weightsAttribute, jointsAttribute, tangentAttribute };
+			return Vector<VertexAttribute>{ posAttribute, uvAttribute, normalAttribute, weightsAttribute, jointsAttribute, tangentAttribute, colorAttribute };
 		}
 
 		u8* GetVertices() override
