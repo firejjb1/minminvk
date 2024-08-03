@@ -149,9 +149,12 @@ void main()
 
     Particle particleRoot = particlesOut[index - localVertexIndex];
     
-    vec4 prevRootPos = ubo.prevHead * vec4(particleRoot.position.xyz, 1);
-    vec4 curRootPos = ubo.curHead * vec4(particleRoot.position.xyz, 1);
-    vec3 shock = (curRootPos - prevRootPos).xyz;
+    //vec4 prevRootPos = ubo.prevHead * vec4(particleRoot.position.xyz, 1);
+    //vec4 curRootPos = ubo.curHead * vec4(particleRoot.position.xyz, 1);
+    //vec3 shock = (curRootPos - prevRootPos).xyz;
+    vec4 prevPos = ubo.prevHead * vec4(particleIn.position.xyz, 1);
+    vec4 curPos = ubo.curHead * vec4(particleIn.position.xyz, 1);
+    vec3 shock = (prevPos - curPos).xyz;
 
     float vertexMultiplier = float(localVertexIndex) / float(ubo.numVertexPerStrand);
     bool isMovable = IsMovable(particleIn.position);

@@ -34,6 +34,7 @@
 //#define CUBE_GLTF "CesiumMilkTruck/CesiumMilkTruck.gltf"
 //#define CUBE_GLTF "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
 //#define CUBE_GLTF "NormalTangentMirrorTest/NormalTangentMirrorTest.gltf"
+//#define CUBE_GLTF "building/muranobuilding.gltf"
 
 namespace Graphics
 {
@@ -157,7 +158,7 @@ namespace Graphics
 		
 		i32 width = presentation->swapChainDetails.width;
 		i32 height = presentation->swapChainDetails.height;
-		camera = MakeShared<Camera>(UI::cameraPosition, vec3(0.0f, 1.0f, 0.0f), UI::cameraLookDirection, 45, 0.1f, 1000.f, width, height);
+		camera = MakeShared<Camera>(*nodeManager, UI::cameraPosition, vec3(0.0f, 1.0f, 0.0f), UI::cameraLookDirection, 45, 0.1f, 1000.f, width, height);
 
 		// forward pass
 		{
@@ -189,8 +190,9 @@ namespace Graphics
 			// OBJ
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline, texture, concat_str(OBJ_DIR, VIKING_MODEL));
 			vikingRoom->node->worldMatrix = Math::Translate(vikingRoom->node->worldMatrix, vec3(0, -2.5f, -5));
+			
 			headMesh = MakeShared<OBJMesh>(forwardPipeline, concat_str(HAIR_DIR, HEAD_MODEL));
-			headMesh->node->worldMatrix = Math::Rotate(mat4(1), Math::PI, vec3(0,0,1));
+			headMesh->node = nodeManager->AddNode(Math::Translate(Math::Rotate(mat4(1), Math::PI, vec3(0, 0, 1)), vec3(0,1,-2)), camera->node->nodeID, Node::NodeType::MESH_NODE);
 			// GLTF
 			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline, forwardSkinnedPipeline, gltfMeshes, gltfSkinnedMeshes);
 
@@ -265,15 +267,14 @@ namespace Graphics
 
 			if (curSteps > maxUpdateStepsPerFrame)
 				break;
+
+			auto prevHeadMat = headMesh->node->worldMatrix;
+			camera->Update(fixedDeltaTime);
+			nodeManager->Update(fixedDeltaTime);
 			// all the fixed updates
 			{
 				// particle compute passes
 				{
-					vec3 keyboardMovement(0);
-					keyboardMovement.x += Input::D.pressed ? fixedDeltaTime : Input::A.pressed ? -fixedDeltaTime : 0;
-					keyboardMovement.y += Input::S.pressed ? fixedDeltaTime : Input::W.pressed ? -fixedDeltaTime : 0;
-
-
 					particleUniformBuffer->uniform.windStrength = UI::windStrength;
 					particleUniformBuffer->uniform.windDirection = vec4(UI::windDirection, 0);
 					particleUniformBuffer->uniform.shockStrength = UI::shockStrength;
@@ -282,16 +283,14 @@ namespace Graphics
 					particleUniformBuffer->uniform.stiffnessGlobal = UI::stiffnessGlobal;
 					particleUniformBuffer->uniform.effectiveRangeGlobal = UI::effectiveRangeGlobal;
 					particleUniformBuffer->uniform.capsuleRadius = UI::capsuleRadius;
+					particleUniformBuffer->uniform.prevHead = Math::Inverse(headMesh->node->worldMatrix) * prevHeadMat;
 
-					particleUniformBuffer->uniform.prevHead = headMesh->node->worldMatrix;
-
-					headMesh->node->worldMatrix = glm::translate(headMesh->node->worldMatrix, keyboardMovement);
 					if (UI::rotateHead)
 						headMesh->Update(fixedDeltaTime);
 					if (UI::resetHeadPos)
 						headMesh->node->worldMatrix = mat4(1);
 
-					particleUniformBuffer->uniform.curHead = headMesh->node->worldMatrix;
+					particleUniformBuffer->uniform.curHead = Math::Inverse(headMesh->node->worldMatrix) * headMesh->node->worldMatrix;
 
 					particleUniformBuffer->uniform.deltaTime = fixedDeltaTime;
 					particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
@@ -310,14 +309,14 @@ namespace Graphics
 				}
 
 				vikingRoom->Update(fixedDeltaTime);
-				nodeManager->Update(fixedDeltaTime);
+
+
 
 				for (auto& skinnedMesh : gltfSkinnedMeshes)
 				{
 					skinnedMesh->Update(fixedDeltaTime);
 				}
 
-				camera->Update(fixedDeltaTime);
 			}
 		}
 	}

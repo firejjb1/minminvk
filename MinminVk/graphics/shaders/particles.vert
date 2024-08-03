@@ -11,8 +11,8 @@ layout(location = 1) in vec4 inColor;
 
 layout(location = 0) out vec4 fragColor;
 
-void main() {
-
+void main() 
+{
     //gl_PointSize = 140.0;
     gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition.xyz, 1.0);
     //gl_Position = vec4(inPosition.xyz, 1.0);

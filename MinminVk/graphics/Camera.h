@@ -3,6 +3,7 @@
 #include <util/Type.h>
 #include <util/Math.h>
 #include <Input.h>
+#include <graphics/Node.h>
 
 namespace Graphics
 {
@@ -50,11 +51,15 @@ namespace Graphics
 		float yaw = 0;
 		float pitch = 0;
 
+
 	public:
-		Camera(vec3 position, vec3 up, vec3 direction, float fov, float znear, float zfar, float width, float height)
+		SharedPtr<Node> node;
+
+		Camera(NodeManager& nodeManager, vec3 position, vec3 up, vec3 direction, float fov, float znear, float zfar, float width, float height)
 			: position{ position }, up{ up }, direction{ direction }, fov{ fov }, znear{ znear }, zfar{ zfar }, width{ width }, height{ height }
 		{
 			//computeAngles();
+			node = nodeManager.AddNode(mat4(1), NodeID{0}, Node::NodeType::CAMERA_NODE);
 		}
 
 		mat4 GetCameraMatrix()
@@ -118,6 +123,10 @@ namespace Graphics
 			}
 
 			mouseLastClicked = Input::mouseState.leftPressed;
+
+
+			node->modelMatrix = Math::Inverse(GetCameraMatrix());
+			node->isDirty = true;
 		}
 	};
 

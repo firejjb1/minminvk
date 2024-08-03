@@ -318,7 +318,7 @@ namespace Graphics
 		OBJMesh(SharedPtr<GraphicsPipeline>, String filename);
 		void Update(f32 deltaTime) override
 		{
-			//node->modelMatrix = Math::Rotate(node->modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
+			node->modelMatrix = Math::Rotate(node->modelMatrix, deltaTime * Math::Radians(90), vec3(0, -1, 0));
 			//modelMatrix = Math::Translate(modelMatrix, vec3(0., 0.1, 0));
 		}
 	};

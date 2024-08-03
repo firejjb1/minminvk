@@ -55,15 +55,20 @@ namespace Graphics
 			nodes[0] = rootNode;
 		}
 
+		void AddParent(SharedPtr<Node> newNode, NodeID parentID)
+		{
+			newNode->parentNodeID = parentID;
+			nodes[newNode->parentNodeID.id]->childrenIDs.push_back(newNode->nodeID);
+		}
+
 		SharedPtr<Node> AddNode(mat4 modelMatrix, NodeID parentID, Node::NodeType nodeType)
 		{
 			SharedPtr<Node> newNode = MakeShared<Node>();
 			newNode->nodeID.id = cyclicIndex;
 			newNode->nodeType = nodeType;
-			newNode->parentNodeID = parentID;
 			newNode->modelMatrix = modelMatrix;
 			nodes[cyclicIndex] = newNode;
-			nodes[newNode->parentNodeID.id]->childrenIDs.push_back(newNode->nodeID);
+			AddParent(newNode, parentID);
 			
 			// find next available slot and record it in cyclicIndex
 			u32 curCyclicIndex = cyclicIndex++;

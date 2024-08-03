@@ -1,6 +1,6 @@
-## Wrapper around Vulkan and 3D renderer (WIP)
+## Minimal Mine Vulkan 3D renderer
 
-The goal of this project is to render a fully animated humanoid character with decent simulation and rendering. Trying to learn Vulkan and rendering / simulation techniques in the process.
+The goal of this project is to render a GLTF scene with animated humanoid character, learning Vulkan and rendering / simulation techniques in the process.
 
 ### Build
 The project is built using CMake. 
@@ -15,24 +15,29 @@ The project is built using CMake.
 
 ### Features
 #### Done
+- Vulkan abstraction, all Vulkan functionalities inside graphics/backend/VulkanImpl.cpp
+- graphics pipeline, compute pipeline
 - parse OBJ files
 - parse GLTF files 
 - support GLTF animation, including skinned animation
-- hair simulation shaders
-- PBR
+- PBR (GLTF implementation)
 - normal mapping
 - keyboard and mouse controlled camera
+- ImGUI integration
+- hair simulation shaders
 
 #### TODO
-- get a nice GLTF model (skinned, hair, cloth)
 - cloth simulation
+- hair generation
 - hair rendering
 - skin rendering
+- morph target animation
 
 #### Nice to Have
 - optimize the GLTF importer
 - post-processing pipelines
 - implement the interfaces in another graphics API
 - ray tracing pipeline
-  
+- sky
+
 see graphics/Graphics.h for example 

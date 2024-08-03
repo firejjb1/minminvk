@@ -227,8 +227,6 @@ namespace Graphics
 		vertices.vertices.resize(positionAccessor.count);
 
 		auto positionBufferView = model.bufferViews[positionAccessor.bufferView];
-		DebugPrint("Positions\n");
-
 		assert(positionAccessor.type == 3);
 		u32 startOfPositionBuffer = positionAccessor.byteOffset + positionBufferView.byteOffset;
 		u32 stridePositionBuffer = positionBufferView.byteStride == 0 ? sizeof(f32) * 3 : positionBufferView.byteStride;
@@ -239,7 +237,6 @@ namespace Graphics
 		}
 
 		auto normalBufferView = model.bufferViews[normalAccessor.bufferView];
-		DebugPrint("Normals\n");
 		u32 startOfNormalBuffer = normalAccessor.byteOffset + normalBufferView.byteOffset;
 		u32 strideNormalBuffer = normalBufferView.byteStride == 0 ? sizeof(f32) * 3 : normalBufferView.byteStride;
 
@@ -252,8 +249,6 @@ namespace Graphics
 		if (uvAccessor.bufferView != -1)
 		{
 			auto uvBufferView = model.bufferViews[uvAccessor.bufferView];
-			DebugPrint("UV\n");
-
 			assert(uvAccessor.type == 2);
 			u32 startOfUVBuffer = uvAccessor.byteOffset + uvBufferView.byteOffset;
 			u32 strideUVBuffer = uvBufferView.byteStride == 0 ? sizeof(f32) * 2 : uvBufferView.byteStride;
@@ -265,7 +260,6 @@ namespace Graphics
 		if (tangentAccessor.bufferView != -1)
 		{
 			auto tangentBufferView = model.bufferViews[tangentAccessor.bufferView];
-			DebugPrint("Tangent\n");
 			assert(tangentAccessor.type == 4);
 			u32 startOfTangentBuffer = tangentAccessor.byteOffset + tangentBufferView.byteOffset;
 			u32 strideTangentBuffer = tangentBufferView.byteStride == 0 ? sizeof(f32) * 4 : tangentBufferView.byteStride;
@@ -280,7 +274,6 @@ namespace Graphics
 		if (colorAccessor.bufferView != -1)
 		{
 			auto colorBufferView = model.bufferViews[colorAccessor.bufferView];
-			DebugPrint("Colors\n");
 			assert(colorAccessor.type == 3 || colorAccessor.type == 4);
 			if (colorAccessor.type == 3)
 			{
@@ -306,7 +299,6 @@ namespace Graphics
 			}
 		}
 
-		DebugPrint("Indices\n");
 		auto indicesBufferView = model.bufferViews[indicesAccessor.bufferView];
 		u32 startOfIndicesBuffer = indicesAccessor.byteOffset + indicesBufferView.byteOffset;
 		u32 strideIndicesBuffer = indicesBufferView.byteStride == 0 ? sizeof(u16) : indicesBufferView.byteStride;
@@ -378,8 +370,6 @@ namespace Graphics
 		vertices.vertices.resize(positionAccessor.count);
 
 		auto positionBufferView = model.bufferViews[positionAccessor.bufferView];
-		DebugPrint("Positions\n");
-
 		assert(positionAccessor.type == 3);
 		u32 startOfPositionBuffer = positionAccessor.byteOffset + positionBufferView.byteOffset;
 		u32 stridePositionBuffer = positionBufferView.byteStride == 0 ? sizeof(f32) * 3 : positionBufferView.byteStride;
@@ -390,7 +380,6 @@ namespace Graphics
 		}
 
 		auto normalBufferView = model.bufferViews[normalAccessor.bufferView];
-		DebugPrint("Normals\n");
 		u32 startOfNormalBuffer = normalAccessor.byteOffset + normalBufferView.byteOffset;
 		u32 strideNormalBuffer = normalBufferView.byteStride == 0 ? sizeof(f32) * 3 : normalBufferView.byteStride;
 
@@ -402,9 +391,7 @@ namespace Graphics
 
 		if (uvAccessor.bufferView != -1)
 		{
-			auto uvBufferView = model.bufferViews[uvAccessor.bufferView];
-			DebugPrint("UV\n");
-			
+			auto uvBufferView = model.bufferViews[uvAccessor.bufferView];			
 			assert(uvAccessor.type == 2);
 			u32 startOfUVBuffer = uvAccessor.byteOffset + uvBufferView.byteOffset;
 			u32 strideUVBuffer = uvBufferView.byteStride == 0 ? sizeof(f32) * 2 : uvBufferView.byteStride;
@@ -416,8 +403,6 @@ namespace Graphics
 		if (weightsAccessor.bufferView != -1)
 		{
 			auto weightsBufferView = model.bufferViews[weightsAccessor.bufferView];
-			DebugPrint("Weights\n");
-
 			assert(weightsAccessor.type == 4);
 			u32 startOfWeightsBuffer = weightsAccessor.byteOffset + weightsBufferView.byteOffset;
 			u32 strideWeightsBuffer = weightsBufferView.byteStride == 0 ? sizeof(f32) * 4 : weightsBufferView.byteStride;
@@ -432,8 +417,6 @@ namespace Graphics
 		if (jointsAccessor.bufferView != -1)
 		{
 			auto jointsBufferView = model.bufferViews[jointsAccessor.bufferView];
-			DebugPrint("Joints\n");
-
 			assert(jointsAccessor.type == 4);
 			u32 startOfJointsBuffer = jointsAccessor.byteOffset + jointsBufferView.byteOffset;
 			u32 strideJointsBuffer = jointsBufferView.byteStride == 0 ? sizeof(u16) * 4 : jointsBufferView.byteStride;
@@ -448,7 +431,6 @@ namespace Graphics
 		if (tangentAccessor.bufferView != -1)
 		{
 			auto tangentBufferView = model.bufferViews[tangentAccessor.bufferView];
-			DebugPrint("Tangent\n");
 			assert(tangentAccessor.type == 4);
 			u32 startOfTangentBuffer = tangentAccessor.byteOffset + tangentBufferView.byteOffset;
 			u32 strideTangentBuffer = tangentBufferView.byteStride == 0 ? sizeof(f32) * 4 : tangentBufferView.byteStride;
@@ -463,7 +445,6 @@ namespace Graphics
 		if (colorAccessor.bufferView != -1)
 		{
 			auto colorBufferView = model.bufferViews[colorAccessor.bufferView];
-			DebugPrint("Colors\n");
 			assert(colorAccessor.type == 3 || colorAccessor.type == 4);
 			if (colorAccessor.type == 3)
 			{
@@ -489,8 +470,6 @@ namespace Graphics
 			}
 		}
 
-
-		DebugPrint("Indices\n");
 		auto indicesBufferView = model.bufferViews[indicesAccessor.bufferView];
 		u32 startOfIndicesBuffer = indicesAccessor.byteOffset + indicesBufferView.byteOffset;
 		u32 strideIndicesBuffer = indicesBufferView.byteStride == 0 ? sizeof(u16) : indicesBufferView.byteStride;
