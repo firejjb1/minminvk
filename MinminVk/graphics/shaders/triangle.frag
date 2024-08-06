@@ -40,6 +40,8 @@ layout(set = 1, binding = 5) uniform UniformBufferMat {
     uint hasOcclusionTex;
     uint hasEmissiveTex;
     uint isDoubleSided;
+    uint alphaMode;
+    float alphaCutoff;
 } uboMat;
 
 // From https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/brdf.glsl
@@ -264,6 +266,7 @@ vec3 BRDF_specularSheen(vec3 sheenColor, float sheenRoughness, float NdotL, floa
 }
 
 void main() {
+
     vec3 lightIntensity = vec3(uboPass.lightIntensity);
     vec3 l_metal_brdf = vec3(0.0);
     float metallic = uboMat.metallic; 
@@ -289,8 +292,16 @@ void main() {
     float intensity = 1; // TODO (light attenuation)
     vec3 albedo = uboMat.baseColor.xyz * fragColor;
     
+    vec4 colorFromTex = texture(texColor, fragTexCoord);
     if (uboMat.hasAlbedoTex > 0)
-        albedo *= texture(texColor, fragTexCoord).rgb;
+        albedo *= colorFromTex.rgb;
+
+    // cutoff
+    if (uboMat.alphaMode == 2)
+    {
+        if (colorFromTex.a < uboMat.alphaCutoff)
+            discard;
+    }
 
     float NdotV = clampedDot(n, v);
     float NdotH = clampedDot(n, h);

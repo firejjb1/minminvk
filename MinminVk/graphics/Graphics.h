@@ -32,8 +32,8 @@
 //#define CUBE_GLTF "RiggedFigure/RiggedFigure.gltf"
 //#define CUBE_GLTF "CesiumMan/CesiumMan.gltf"
 //#define CUBE_GLTF "CesiumMilkTruck/CesiumMilkTruck.gltf"
-#define CUBE_GLTF "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
-//#define CUBE_GLTF "NormalTangentMirrorTest/NormalTangentMirrorTest.gltf"
+//#define CUBE_GLTF "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
+#define CUBE_GLTF "NormalTangentMirrorTest/NormalTangentMirrorTest.gltf"
 //#define CUBE_GLTF "building/muranobuilding.gltf"
 //#define CUBE_GLTF "TextureSettingsTest/TextureSettingsTest.gltf"
 

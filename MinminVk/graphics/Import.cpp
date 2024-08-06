@@ -583,6 +583,8 @@ namespace Graphics
 				pbr->material->hasMetallicRoughnessTex = material.pbrMetallicRoughness.metallicRoughnessTexture.index >= 0;
 				pbr->material->hasEmissiveTex = material.emissiveTexture.index >= 0;
 				pbr->material->isDoubleSided = material.doubleSided ? 1 : 0;
+				pbr->material->alphaMode = material.alphaMode == "OPAQUE" ? 0 : material.alphaMode == "MASK" ? 2 : 1;
+				pbr->material->alphaCutoff = material.alphaCutoff;
 				pbrMaterials.push_back(pbr);
 			}
 

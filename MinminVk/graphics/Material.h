@@ -24,6 +24,8 @@ namespace Graphics
             u32 hasOcclusionTex = 0;
             u32 hasEmissiveTex = 0;
             u32 isDoubleSided = 0;
+            u32 alphaMode = 0; // opaque, blend, mask
+            float alphaCutoff = 1;
         };
         UniquePtr<MaterialData> material;
 
