@@ -26,18 +26,18 @@ The project is built using CMake.
 - ImGUI integration
 - hair simulation shaders
 
-#### TODO
-- cloth simulation
-- hair generation
-- hair rendering
-- skin rendering
-- morph target animation
 
-#### Nice to Have
-- optimize the GLTF importer
-- post-processing pipelines
-- implement the interfaces in another graphics API
-- ray tracing pipeline
-- sky
+#### Supported [GLTF Models](https://github.com/KhronosGroup/glTF-Sample-Models/tree/main/2.0)
+- Cube
+- BoxAnimated
+- BoxVertexColors
+- AnimatedCube
+- RiggedSimple
+- RiggedFigure
+- CesiumMan
+- CesiumMilkTruck
+- Sponza
+- NormalTangentMirrorTest
+- TextureSettingsTest
 
 see graphics/Graphics.h for example 

@@ -19,6 +19,7 @@ namespace Graphics
 		u32 maxAnisotropy = 16;
 		u32 maxLOD = 16;
 		Sampler();
+		Sampler(FilterType magFilter, FilterType minFilter, AddressModeType addressModeU, AddressModeType addressModeV);
 	};
 
 	struct TextureID

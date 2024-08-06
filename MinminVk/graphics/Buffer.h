@@ -103,7 +103,7 @@ namespace Graphics
         {
             ResourceBinding uboBinding;
             uboBinding.binding = 5;
-            uboBinding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
+            uboBinding.shaderStageType = ResourceBinding::ShaderStageType::ALL_GRAPHICS;
             return uboBinding;
         }
 

@@ -30,6 +30,7 @@ layout(set = 1, binding = 5) uniform UniformBufferMat {
     uint hasNormalTex;
     uint hasOcclusionTex;
     uint hasEmissiveTex;
+    uint isDoubleSided;
 } uboMat;
 
 layout(location = 0) out vec3 fragColor;
@@ -44,7 +45,7 @@ void main() {
     fragColor = inColor;
     fragTexCoord = inTexCoord;
 
-    vec3 normalW = normalize(vec3(pushConst.inverseTransposeModel * vec4(normalize(inNormal), 0)));
+    vec3 normalW = normalize(vec3(pushConst.inverseTransposeModel * vec4(normalize(uboMat.isDoubleSided == 1 ? -inNormal : inNormal), 0)));
     fragNormal = normalW;
     vec3 tangentW = normalize(vec3(pushConst.modelMatrix * vec4(normalize(inTangent.xyz), 0)));
     //tangentW = normalize(tangentW - dot(tangentW, normalW) * normalW);

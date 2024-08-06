@@ -39,6 +39,7 @@ layout(set = 1, binding = 5) uniform UniformBufferMat {
     uint hasNormalTex;
     uint hasOcclusionTex;
     uint hasEmissiveTex;
+    uint isDoubleSided;
 } uboMat;
 
 // From https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/brdf.glsl

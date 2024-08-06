@@ -313,7 +313,6 @@ namespace VulkanImpl
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 		}
 
-
 		return extensions;
 	}
 
@@ -383,7 +382,7 @@ namespace VulkanImpl
 		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
 		appInfo.pEngineName = "No Engine";
 		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.apiVersion = VK_API_VERSION_1_0;
+		appInfo.apiVersion = VK_API_VERSION_1_3;
 
 		VkInstanceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -423,11 +422,14 @@ namespace VulkanImpl
 
 		Vector<VkExtensionProperties> extensionProps(extensionCount);
 		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensionProps.data());
-		DebugPrint("available extensions:\n");
+		//DebugPrint("available extensions:\n");
 
 		for (const auto& extension : extensionProps) {
-			DebugPrint("%s\n", extension.extensionName);
+			//DebugPrint("%s\n", extension.extensionName);
 		}
+		u32 version;
+		vkEnumerateInstanceVersion(&version);
+		DebugPrint("Vulkan version: %d.%d.%d\n", VK_VERSION_MAJOR(version), VK_VERSION_MINOR(version), VK_API_VERSION_PATCH(version));
 	}
 
 	struct QueueFamilyIndices {
@@ -664,6 +666,7 @@ namespace VulkanImpl
 		else {
 			createInfo.enabledLayerCount = 0;
 		}
+
 		createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 		createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 		if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
@@ -1058,7 +1061,7 @@ namespace VulkanImpl
 
 		VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
-		Vector<VkDynamicState>	dynamicStatesVK;
+		Vector<VkDynamicState>	dynamicStatesVK{VK_DYNAMIC_STATE_CULL_MODE};
 		for (auto state : pipeline->dynamicStates)
 		{
 			switch (state)
@@ -1587,6 +1590,11 @@ namespace VulkanImpl
 
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[pipelineID], 0, 2, descriptorSets, 0, nullptr);
 
+		if (geometry.material->material->isDoubleSided)
+			vkCmdSetCullMode(commandBuffer, VK_CULL_MODE_NONE);
+		else 
+			vkCmdSetCullMode(commandBuffer, VK_CULL_MODE_BACK_BIT);
+
 		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(geometry.GetIndicesData().size()), 1, 0, 0, 0);
 	}
 
@@ -2104,6 +2112,7 @@ namespace VulkanImpl
 		samplerInfo.mipLodBias = 0.0f;
 		samplerInfo.minLod = 0;
 		samplerInfo.maxLod = mipLevels;
+		sampler.id = textureSamplers.size();
 		auto& textureSampler = textureSamplers.emplace_back();
 		if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) 
 		{
@@ -2829,6 +2838,12 @@ namespace Graphics
 
 	Sampler::Sampler()
 	{
+		VulkanImpl::CreateTextureSampler(*this, maxLOD);
+	}
+
+	Sampler::Sampler(FilterType magFilter, FilterType minFilter, AddressModeType addressModeU, AddressModeType addressModeV) :
+		magFilter{magFilter}, minFilter{minFilter}, addressModeU{addressModeU}, addressModeV{addressModeV}
+	{	
 		VulkanImpl::CreateTextureSampler(*this, maxLOD);
 	}
 

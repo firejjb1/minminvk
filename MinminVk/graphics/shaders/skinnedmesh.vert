@@ -23,6 +23,19 @@ layout(location = 4) in uvec4 inJoints;
 layout(location = 5) in vec4 inTangent;
 layout(location = 6) in vec3 inColor;
 
+layout(set = 1, binding = 5) uniform UniformBufferMat {
+    vec4 baseColor;
+    vec4 emissiveColor;
+    float metallic;
+    float roughness;
+    uint hasAlbedoTex;
+    uint hasMetallicRoughnessTex;
+    uint hasNormalTex;
+    uint hasOcclusionTex;
+    uint hasEmissiveTex;
+    uint isDoubleSided;
+} uboMat;
+
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 fragNormal;
@@ -44,7 +57,7 @@ void main() {
     
     fragTexCoord = inTexCoord;
 
-    vec3 normalW = normalize(vec3(pushConst.inverseTransposeModel * transpose(inverse(skinMatrix)) * vec4(normalize(inNormal), 0)));
+    vec3 normalW = normalize(vec3(pushConst.inverseTransposeModel * transpose(inverse(skinMatrix)) * vec4(normalize(uboMat.isDoubleSided == 1 ? -inNormal : inNormal), 0)));
     fragNormal = normalW;
     vec3 tangentW = normalize(vec3(pushConst.modelMatrix * skinMatrix * vec4(normalize(inTangent.xyz), 0)));
     //tangentW = normalize(tangentW - dot(tangentW, normalW) * normalW);

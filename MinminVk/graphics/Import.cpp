@@ -56,20 +56,22 @@ namespace Graphics
 		}
 	}
 
-	 
+	Vector<SharedPtr<Sampler>> Import::textureSamplers;
+
 	void Import::LoadHairStrands(Vector<f32>& vertices, const String& filename)
 	{
 		Util::IO::ReadFloats(vertices, filename);
 	}
 
-	void LoadTextures(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Texture& mainTexture, Texture& metallic, Texture& normal, Texture& occlusion, Texture& emissive)
+	void Import::LoadTextures(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Texture& mainTexture, Texture& metallic, Texture& normal, Texture& occlusion, Texture& emissive)
 	{
 		if (mesh.material < 0)
 			return;
 		auto modelMat = model.materials[mesh.material];
 		if (modelMat.pbrMetallicRoughness.baseColorTexture.index > -1)
 		{
-			String mainTextureURI = model.images[model.textures[modelMat.pbrMetallicRoughness.baseColorTexture.index].source].uri;
+			auto tex = model.textures[modelMat.pbrMetallicRoughness.baseColorTexture.index];
+			String mainTextureURI = model.images[tex.source].uri;
 			if (mainTextureURI != "")
 			{
 				String texturePath;
@@ -77,12 +79,15 @@ namespace Graphics
 				texturePath.append("/../");
 				texturePath.append(mainTextureURI);
 				Texture texture(texturePath);
+				if (tex.sampler > -1)
+					texture.textureID.samplerID = textureSamplers[tex.sampler]->id;
 				mainTexture = texture;
 			}
 		}
 		if (modelMat.pbrMetallicRoughness.metallicRoughnessTexture.index > -1)
 		{
-			String metallicTextureURI = model.images[model.textures[modelMat.pbrMetallicRoughness.metallicRoughnessTexture.index].source].uri;
+			auto tex = model.textures[modelMat.pbrMetallicRoughness.metallicRoughnessTexture.index];
+			String metallicTextureURI = model.images[tex.source].uri;
 			if (metallicTextureURI != "")
 			{
 				String texturePath;
@@ -90,13 +95,16 @@ namespace Graphics
 				texturePath.append("/../");
 				texturePath.append(metallicTextureURI);
 				Texture texture(texturePath, Texture::FormatType::RGBA8_UNORM);
+				if (tex.sampler > -1)
+					texture.textureID.samplerID = textureSamplers[tex.sampler]->id;
 				texture.binding.binding = 1;
 				metallic = texture;
 			}
 		}
 		if (modelMat.normalTexture.index > -1)
 		{
-			String normalTexURI = model.images[model.textures[modelMat.normalTexture.index].source].uri;
+			auto tex = model.textures[modelMat.normalTexture.index];
+			String normalTexURI = model.images[tex.source].uri;
 			if (normalTexURI != "")
 			{
 				String texturePath;
@@ -104,13 +112,16 @@ namespace Graphics
 				texturePath.append("/../");
 				texturePath.append(normalTexURI);
 				Texture texture(texturePath, Texture::FormatType::RGBA8_UNORM);
+				if (tex.sampler > -1)
+					texture.textureID.samplerID = textureSamplers[tex.sampler]->id;
 				texture.binding.binding = 2;
 				normal = texture;
 			}
 		}
 		if (modelMat.occlusionTexture.index > -1)
 		{
-			String occlusionTexURI = model.images[model.textures[modelMat.occlusionTexture.index].source].uri;
+			auto tex = model.textures[modelMat.occlusionTexture.index];
+			String occlusionTexURI = model.images[tex.source].uri;
 			if (occlusionTexURI != "")
 			{
 				String texturePath;
@@ -118,13 +129,16 @@ namespace Graphics
 				texturePath.append("/../");
 				texturePath.append(occlusionTexURI);
 				Texture texture(texturePath, Texture::FormatType::RGBA8_UNORM);
+				if (tex.sampler > -1)
+					texture.textureID.samplerID = textureSamplers[tex.sampler]->id;
 				texture.binding.binding = 3;
 				occlusion = texture;
 			}
 		}
 		if (modelMat.emissiveTexture.index > -1)
 		{
-			String emissiveTexture = model.images[model.textures[modelMat.emissiveTexture.index].source].uri;
+			auto tex = model.textures[modelMat.emissiveTexture.index];
+			String emissiveTexture = model.images[tex.source].uri;
 			if (emissiveTexture != "")
 			{
 				String texturePath;
@@ -132,6 +146,8 @@ namespace Graphics
 				texturePath.append("/../");
 				texturePath.append(emissiveTexture);
 				Texture texture(texturePath);
+				if (tex.sampler > -1)
+					texture.textureID.samplerID = textureSamplers[tex.sampler]->id;
 				texture.binding.binding = 4;
 				emissive = texture;
 			}
@@ -494,6 +510,51 @@ namespace Graphics
 
 		for (auto& scene : model.scenes)
 		{
+			
+			for (auto& sampler : model.samplers)
+			{
+				int magfilter = sampler.magFilter; // 9728 NEAREST 9729 LINEAR
+				int minfilter = sampler.minFilter; // 9728 NEAREST 9729 LINEAR 9984 NEAREST_MIPMAP_NEAREST 9985 LINEAR_MIPMAP_NEAREST 9986 NEAREST_MIPMAP_LINEAR 9987 LINEAR_MIPMAP_LINEAR
+				int wrapS = sampler.wrapS; // 33071 CLAMP_TO_EDGE 33648 MIRRORED_REPEAT 10497 REPEAT
+				int wrapT = sampler.wrapT; // 33071 CLAMP_TO_EDGE 33648 MIRRORED_REPEAT 10497 REPEAT
+
+				Sampler::FilterType tmag;
+				Sampler::FilterType tmin;
+				Sampler::AddressModeType taddrU;
+				Sampler::AddressModeType taddrV;
+				if (magfilter == 9728)
+					tmag = Sampler::FilterType::POINT;
+				else if (magfilter == 9729)
+					tmag = Sampler::FilterType::LINEAR;
+				if (minfilter == 9728)
+					tmin = Sampler::FilterType::POINT;
+				else
+					tmin = Sampler::FilterType::LINEAR;
+
+
+				if (wrapS == 33071)
+					taddrU = Sampler::AddressModeType::CLAMP_TO_EDGE;
+				else if (wrapS == 33648)
+					taddrU = Sampler::AddressModeType::MIRRORED_REPEAT;
+				else if (wrapS == 10497)
+					taddrU = Sampler::AddressModeType::REPEAT;
+				if (wrapT == 33071)
+					taddrV = Sampler::AddressModeType::CLAMP_TO_EDGE;
+				else if (wrapT == 33648)
+					taddrV = Sampler::AddressModeType::MIRRORED_REPEAT;
+				else if (wrapT == 10497)
+					taddrV = Sampler::AddressModeType::REPEAT;
+
+				auto newSampler = MakeShared<Sampler>(tmag, tmin, taddrU, taddrV);
+				textureSamplers.push_back(newSampler);
+			}
+
+			if (textureSamplers.empty())
+			{
+				// default sampler
+				textureSamplers.push_back(MakeShared<Sampler>());
+			}
+
 			Vector<Vector<SharedPtr<Animation>>> animationToNodes;
 			animationToNodes.resize(model.nodes.size());
 
@@ -521,7 +582,7 @@ namespace Graphics
 				pbr->material->hasOcclusionTex = material.occlusionTexture.index >= 0;
 				pbr->material->hasMetallicRoughnessTex = material.pbrMetallicRoughness.metallicRoughnessTexture.index >= 0;
 				pbr->material->hasEmissiveTex = material.emissiveTexture.index >= 0;
-
+				pbr->material->isDoubleSided = material.doubleSided ? 1 : 0;
 				pbrMaterials.push_back(pbr);
 			}
 

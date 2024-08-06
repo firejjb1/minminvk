@@ -23,7 +23,7 @@ namespace Graphics
             u32 hasNormalTex = 0;
             u32 hasOcclusionTex = 0;
             u32 hasEmissiveTex = 0;
-            f32 padding;
+            u32 isDoubleSided = 0;
         };
         UniquePtr<MaterialData> material;
 
