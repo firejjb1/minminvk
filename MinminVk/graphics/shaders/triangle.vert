@@ -20,19 +20,6 @@ layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in vec3 inNormal;
 layout(location = 4) in vec4 inTangent;
 
-layout(set = 1, binding = 5) uniform UniformBufferMat {
-    vec4 baseColor;
-    vec4 emissiveColor;
-    float metallic;
-    float roughness;
-    uint hasAlbedoTex;
-    uint hasMetallicRoughnessTex;
-    uint hasNormalTex;
-    uint hasOcclusionTex;
-    uint hasEmissiveTex;
-    uint isDoubleSided;
-} uboMat;
-
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 fragNormal;
@@ -44,8 +31,9 @@ void main() {
     gl_Position = ubo.proj * ubo.view * vec4(fragPosWS, 1.0);
     fragColor = inColor;
     fragTexCoord = inTexCoord;
+    vec3 normal = inNormal;
 
-    vec3 normalW = normalize(vec3(pushConst.inverseTransposeModel * vec4(normalize(uboMat.isDoubleSided == 1 ? -inNormal : inNormal), 0)));
+    vec3 normalW = normalize(vec3(pushConst.inverseTransposeModel * vec4(normalize(normal), 0)));
     fragNormal = normalW;
     vec3 tangentW = normalize(vec3(pushConst.modelMatrix * vec4(normalize(inTangent.xyz), 0)));
     //tangentW = normalize(tangentW - dot(tangentW, normalW) * normalW);

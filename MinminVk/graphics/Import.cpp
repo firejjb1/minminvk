@@ -182,6 +182,7 @@ namespace Graphics
 		return vec4u16{ ptr[index / sz], ptr[(index + sz) / sz], ptr[(index + sz * 2) / sz], ptr[(index + sz * 3) / sz] };
 	}
 
+
 	template <typename T>
 	void ReadGLTFUVs(size_t uvCount, u32 startOfUVBuffer, u32 strideUVBuffer, T& vertices, tinygltf::Buffer& buffer)
 	{
@@ -237,8 +238,8 @@ namespace Graphics
 
 			}
 		}
-		// only support f32 types for now
-		assert(indicesAccessor.componentType == 5123);
+
+		assert(indicesAccessor.componentType == 5123 || indicesAccessor.componentType == 5121);
 
 		vertices.vertices.resize(positionAccessor.count);
 
@@ -318,11 +319,17 @@ namespace Graphics
 		auto indicesBufferView = model.bufferViews[indicesAccessor.bufferView];
 		u32 startOfIndicesBuffer = indicesAccessor.byteOffset + indicesBufferView.byteOffset;
 		u32 strideIndicesBuffer = indicesBufferView.byteStride == 0 ? sizeof(u16) : indicesBufferView.byteStride;
+		if (indicesAccessor.componentType == 5121)
+			strideIndicesBuffer = indicesBufferView.byteStride == 0 ? sizeof(u8) : indicesBufferView.byteStride;
 
 		for (int i = 0; i < indicesAccessor.count; ++i)
 		{
 			u32 index = (startOfIndicesBuffer + strideIndicesBuffer * i);
-			u16 val = static_cast<u16>(((u16*)model.buffers[indicesBufferView.buffer].data.data())[index / sizeof(u16)]);
+			u16 val;
+			if (indicesAccessor.componentType == 5121)
+				val = static_cast<u16>(((u8*)model.buffers[indicesBufferView.buffer].data.data())[index / sizeof(u8)]);
+			if (indicesAccessor.componentType == 5123)
+				val = static_cast<u16>(((u16*)model.buffers[indicesBufferView.buffer].data.data())[index / sizeof(u16)]);
 			indices.push_back(val);
 		}
 	}
@@ -381,7 +388,7 @@ namespace Graphics
 			}
 		}
 
-		assert(indicesAccessor.componentType == 5123);
+		assert(indicesAccessor.componentType == 5123 || indicesAccessor.componentType == 5121);
 
 		vertices.vertices.resize(positionAccessor.count);
 
@@ -489,11 +496,17 @@ namespace Graphics
 		auto indicesBufferView = model.bufferViews[indicesAccessor.bufferView];
 		u32 startOfIndicesBuffer = indicesAccessor.byteOffset + indicesBufferView.byteOffset;
 		u32 strideIndicesBuffer = indicesBufferView.byteStride == 0 ? sizeof(u16) : indicesBufferView.byteStride;
+		if (indicesAccessor.componentType == 5121)
+			strideIndicesBuffer = indicesBufferView.byteStride == 0 ? sizeof(u8) : indicesBufferView.byteStride;
 
 		for (int i = 0; i < indicesAccessor.count; ++i)
 		{
 			u32 index = (startOfIndicesBuffer + strideIndicesBuffer * i);
-			u16 val = static_cast<u16>(((u16*)model.buffers[indicesBufferView.buffer].data.data())[index / sizeof(u16)]);
+			u16 val;
+			if (indicesAccessor.componentType == 5121)
+				val = static_cast<u16>(((u8*)model.buffers[indicesBufferView.buffer].data.data())[index / sizeof(u8)]);
+			if (indicesAccessor.componentType == 5123)
+				val = static_cast<u16>(((u16*)model.buffers[indicesBufferView.buffer].data.data())[index / sizeof(u16)]);
 			indices.push_back(val);
 		}
 
@@ -501,7 +514,7 @@ namespace Graphics
 	}
 
 
-	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardSkinnedPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>> &newSkinnedMeshes)
+	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardTransparentPipeline, SharedPtr<GraphicsPipeline> forwardSkinnedPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>> &newSkinnedMeshes)
 	{
 		tinygltf::Model model;
 		Util::IO::ReadGLTF(model, filename);
@@ -510,7 +523,6 @@ namespace Graphics
 
 		for (auto& scene : model.scenes)
 		{
-			
 			for (auto& sampler : model.samplers)
 			{
 				int magfilter = sampler.magFilter; // 9728 NEAREST 9729 LINEAR
@@ -583,6 +595,8 @@ namespace Graphics
 				pbr->material->hasMetallicRoughnessTex = material.pbrMetallicRoughness.metallicRoughnessTexture.index >= 0;
 				pbr->material->hasEmissiveTex = material.emissiveTexture.index >= 0;
 				pbr->material->isDoubleSided = material.doubleSided ? 1 : 0;
+				pbr->material->alphaMode = material.alphaMode == "OPAQUE" ? PBRMaterial::ALPHA_MODE::ALPHA_OPAQUE : material.alphaMode == "MASK" ? PBRMaterial::ALPHA_MODE::ALPHA_MASK : PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT;
+				pbr->material->alphaCutoff = material.alphaCutoff;
 				pbrMaterials.push_back(pbr);
 			}
 
@@ -701,13 +715,18 @@ namespace Graphics
 					auto& gltfMesh = model.meshes[node.mesh];
 					for (auto primitive : gltfMesh.primitives)
 					{
-						auto geometry = MakeShared<GLTFMesh>(forwardPipeline, filename, primitive, model, primitive.material >= 0 ? pbrMaterials[primitive.material] : nullptr);
+						auto pipeline = forwardPipeline;
+						if (primitive.material >= 0 && pbrMaterials[primitive.material]->material->alphaMode == Graphics::PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
+						{
+							pipeline = forwardTransparentPipeline;
+						}
+						auto geometry = MakeShared<GLTFMesh>(pipeline, filename, primitive, model, primitive.material >= 0 ? pbrMaterials[primitive.material] : nullptr);
 						geometry->node = newNode;
 
 						newMeshes.push_back(geometry);
 
 					}
-									}
+				}
 				else if (nodeType == Node::SKINNED_MESH_NODE)
 				{
 					auto& gltfSkinnedMesh = model.meshes[node.mesh];

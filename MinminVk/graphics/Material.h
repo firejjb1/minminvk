@@ -6,6 +6,7 @@ namespace Graphics
 {
     struct Material
     {
+        enum class ALPHA_MODE { ALPHA_OPAQUE, ALPHA_TRANSPARENT, ALPHA_MASK };
         virtual const u32 GetDataSize() = 0;
         virtual void* GetData() = 0;
     };
@@ -24,6 +25,8 @@ namespace Graphics
             u32 hasOcclusionTex = 0;
             u32 hasEmissiveTex = 0;
             u32 isDoubleSided = 0;
+            ALPHA_MODE alphaMode = ALPHA_MODE::ALPHA_OPAQUE; // opaque, blend, mask
+            float alphaCutoff = 1;
         };
         UniquePtr<MaterialData> material;
 

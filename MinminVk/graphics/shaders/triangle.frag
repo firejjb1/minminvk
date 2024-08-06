@@ -40,6 +40,8 @@ layout(set = 1, binding = 5) uniform UniformBufferMat {
     uint hasOcclusionTex;
     uint hasEmissiveTex;
     uint isDoubleSided;
+    uint alphaMode;
+    float alphaCutoff;
 } uboMat;
 
 // From https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/brdf.glsl
@@ -264,6 +266,7 @@ vec3 BRDF_specularSheen(vec3 sheenColor, float sheenRoughness, float NdotL, floa
 }
 
 void main() {
+
     vec3 lightIntensity = vec3(uboPass.lightIntensity);
     vec3 l_metal_brdf = vec3(0.0);
     float metallic = uboMat.metallic; 
@@ -285,12 +288,25 @@ void main() {
         n = normalize(normalTex * 2. - vec3(1.));
         n = normalize(fragTBN * n);
     }
+
+    if (uboMat.isDoubleSided == 1 && !gl_FrontFacing)
+    {
+        n = -n;
+    }
     
     float intensity = 1; // TODO (light attenuation)
     vec3 albedo = uboMat.baseColor.xyz * fragColor;
     
+    vec4 colorFromTex = texture(texColor, fragTexCoord);
     if (uboMat.hasAlbedoTex > 0)
-        albedo *= texture(texColor, fragTexCoord).rgb;
+        albedo *= colorFromTex.rgb;
+
+    // cutoff
+    if (uboMat.alphaMode == 2)
+    {
+        if (colorFromTex.a < uboMat.alphaCutoff)
+            discard;
+    }
 
     float NdotV = clampedDot(n, v);
     float NdotH = clampedDot(n, h);
@@ -311,7 +327,7 @@ void main() {
     l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel);
     vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, metallic);
 
-    outColor = vec4(l_color, 1);
+    outColor = vec4(l_color, colorFromTex.a * uboMat.baseColor.a);
     //outColor = vec4( texture(texColor, fragTexCoord).rgb, 1);
     //outColor = vec4(uboMat.baseColor.xyz, 1);
     //outColor = vec4(n, 1);

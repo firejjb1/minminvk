@@ -39,5 +39,6 @@ The project is built using CMake.
 - Sponza
 - NormalTangentMirrorTest
 - TextureSettingsTest
+- AlphaBlendModeTest
 
 see graphics/Graphics.h for example 

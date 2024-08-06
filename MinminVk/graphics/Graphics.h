@@ -24,18 +24,19 @@
 #define HEAD_MODEL "head.obj"
 #define HAIR_DATA_FILE "hairdata.txt"
 
-//#define CUBE_GLTF "Cube/Cube.gltf"
-//#define CUBE_GLTF "BoxAnimated/BoxAnimated.gltf"
-//#define CUBE_GLTF "BoxVertexColors/BoxVertexColors.gltf"
-//#define CUBE_GLTF "AnimatedCube/AnimatedCube.gltf"
-//#define CUBE_GLTF "RiggedSimple/RiggedSimple.gltf"
-//#define CUBE_GLTF "RiggedFigure/RiggedFigure.gltf"
-//#define CUBE_GLTF "CesiumMan/CesiumMan.gltf"
-//#define CUBE_GLTF "CesiumMilkTruck/CesiumMilkTruck.gltf"
-#define CUBE_GLTF "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
-//#define CUBE_GLTF "NormalTangentMirrorTest/NormalTangentMirrorTest.gltf"
-//#define CUBE_GLTF "building/muranobuilding.gltf"
-//#define CUBE_GLTF "TextureSettingsTest/TextureSettingsTest.gltf"
+//#define GLTF_FILE "Cube/Cube.gltf"
+//#define GLTF_FILE "BoxAnimated/BoxAnimated.gltf"
+//#define GLTF_FILE "BoxVertexColors/BoxVertexColors.gltf"
+//#define GLTF_FILE "AnimatedCube/AnimatedCube.gltf"
+//#define GLTF_FILE "RiggedSimple/RiggedSimple.gltf"
+//#define GLTF_FILE "RiggedFigure/RiggedFigure.gltf"
+//#define GLTF_FILE "CesiumMan/CesiumMan.gltf"
+//#define GLTF_FILE "CesiumMilkTruck/CesiumMilkTruck.gltf"
+//#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
+//#define GLTF_FILE "NormalTangentMirrorTest/NormalTangentMirrorTest.gltf"
+//#define GLTF_FILE "building/muranobuilding.gltf"
+//#define GLTF_FILE "TextureSettingsTest/TextureSettingsTest.gltf"
+#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
 
 namespace Graphics
 {
@@ -95,6 +96,8 @@ namespace Graphics
 	SharedPtr<Presentation> presentation;
 	SharedPtr<GraphicsPipeline> forwardPipeline;
 	SharedPtr<RenderPass> forwardPass;
+	SharedPtr<GraphicsPipeline> forwardTransparentPipeline;
+	SharedPtr<RenderPass> forwardTransparentPass;
 	SharedPtr<RenderPass> forwardParticlePass;
 	SharedPtr<GraphicsPipeline> forwardSkinnedPipeline;
 	SharedPtr<RenderPass> forwardSkinnedPass;
@@ -175,6 +178,19 @@ namespace Graphics
 	
 			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
 
+			forwardTransparentPipeline = MakeShared<GraphicsPipeline>(
+				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
+				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
+				MakeShared<BasicVertex>(),
+				uniformBuffer,
+				Vector<Texture>{},
+				Vector<SharedPtr<Buffer>>{}
+			);
+			forwardTransparentPipeline->blendEnabled = true;
+			forwardTransparentPipeline->depthTestEnable = true;
+			forwardTransparentPipeline->depthWriteEnable = false;
+			forwardTransparentPass = MakeShared<RenderPass>(forwardTransparentPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
+
 			forwardSkinnedPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, SKINNED_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
@@ -195,7 +211,7 @@ namespace Graphics
 			headMesh = MakeShared<OBJMesh>(forwardPipeline, concat_str(HAIR_DIR, HEAD_MODEL));
 			headMesh->node = nodeManager->AddNode(Math::Translate(Math::Rotate(mat4(1), Math::PI, vec3(0, 0, 1)), vec3(0,1,-2)), camera->node->nodeID, Node::NodeType::MESH_NODE);
 			// GLTF
-			Import::LoadGLTF(concat_str(GLTF_DIR, CUBE_GLTF), *nodeManager, forwardPipeline, forwardSkinnedPipeline, gltfMeshes, gltfSkinnedMeshes);
+			Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE), *nodeManager, forwardPipeline, forwardTransparentPipeline, forwardSkinnedPipeline, gltfMeshes, gltfSkinnedMeshes);
 
 		}
 
@@ -358,7 +374,9 @@ namespace Graphics
 				// non-skinned 
 				for (auto& mesh : gltfMeshes)
 				{
-					mesh->Draw(renderContext);
+					// opaque or mask alpha
+					if (mesh->material->material->alphaMode != PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
+						mesh->Draw(renderContext);
 				}
 
 				headMesh->Draw(renderContext);
@@ -384,6 +402,18 @@ namespace Graphics
 			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->node->worldMatrix;
 			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
+			device->EndRenderPass(renderContext);
+
+			// pass 4 transparent meshes
+			renderContext.renderPass = forwardTransparentPass;
+			device->BeginRenderPass(renderContext);
+			{
+				for (auto& mesh : gltfMeshes)
+				{
+					if (mesh->material->material->alphaMode == PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
+						mesh->Draw(renderContext);
+				}
+			}
 			device->EndRenderPass(renderContext);
 
 			// UI pass
