@@ -288,6 +288,11 @@ void main() {
         n = normalize(normalTex * 2. - vec3(1.));
         n = normalize(fragTBN * n);
     }
+
+    if (uboMat.isDoubleSided == 1 && !gl_FrontFacing)
+    {
+        n = -n;
+    }
     
     float intensity = 1; // TODO (light attenuation)
     vec3 albedo = uboMat.baseColor.xyz * fragColor;
@@ -322,7 +327,7 @@ void main() {
     l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel);
     vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, metallic);
 
-    outColor = vec4(l_color, 1);
+    outColor = vec4(l_color, colorFromTex.a * uboMat.baseColor.a);
     //outColor = vec4( texture(texColor, fragTexCoord).rgb, 1);
     //outColor = vec4(uboMat.baseColor.xyz, 1);
     //outColor = vec4(n, 1);
