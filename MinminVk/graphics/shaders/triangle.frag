@@ -11,7 +11,8 @@ layout(location = 4) in mat3 fragTBN;
 layout(location = 0) out vec4 outColor;
 
 layout(push_constant) uniform PushConstants {
-    mat4 modelMatrix;
+    //mat4 modelMatrix;
+    layout(offset = 128) uint hasTangent;
 } pushConst;
 
 layout(binding = 0) uniform UniformBufferPass {
@@ -42,6 +43,7 @@ layout(set = 1, binding = 5) uniform UniformBufferMat {
     uint isDoubleSided;
     uint alphaMode;
     float alphaCutoff;
+    float occlusionStrength;
 } uboMat;
 
 // From https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/brdf.glsl
@@ -282,7 +284,7 @@ void main() {
         metallic = mr.b;
         roughness = mr.g;
     }
-    if (uboMat.hasNormalTex > 0)
+    if (uboMat.hasNormalTex > 0 && pushConst.hasTangent > 0)
     {
         vec3 normalTex = texture(texNormal, fragTexCoord).rgb;
         n = normalize(normalTex * 2. - vec3(1.));
@@ -294,6 +296,8 @@ void main() {
         n = -n;
     }
     
+    metallic = clamp(metallic, 0, 1);
+    roughness = clamp(roughness, 0, 1);
     float intensity = 1; // TODO (light attenuation)
     vec3 albedo = uboMat.baseColor.xyz * fragColor;
     
@@ -308,6 +312,15 @@ void main() {
             discard;
     }
 
+    if (uboMat.hasOcclusionTex > 0)
+    {
+        // direct lighting unaffected
+        // TODO enable when implemented indirect lighting
+        //vec3 occ = texture(texOcclusion, fragTexCoord).rgb;
+        //float occFactor = 1.0 + uboMat.occlusionStrength * (occ.r - 1.0);
+    }
+
+
     float NdotV = clampedDot(n, v);
     float NdotH = clampedDot(n, h);
     float LdotH = clampedDot(l, h);
@@ -320,16 +333,24 @@ void main() {
     vec3 F0 = vec3(0.04); 
     F0      = mix(F0, albedo, metallic);
     vec3 metal_fresnel = F_Schlick(albedo, vec3(1.0), abs(VdotH));
-    l_specular_metal = intensity * NdotL * BRDF_specularGGX(roughness, NdotL, NdotV, NdotH);
+    float alphaRoughness = roughness * roughness;
+    l_specular_metal = intensity * NdotL * BRDF_specularGGX(alphaRoughness, NdotL, NdotV, NdotH);
     l_specular_dielectric = l_specular_metal;
      l_metal_brdf = metal_fresnel * l_specular_metal;
     vec3 dielectric_fresnel = F_Schlick(F0, abs(VdotH));
     l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel);
     vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, metallic);
 
+    if (uboMat.hasEmissiveTex > 0)
+    {
+        vec3 emissive = texture(texEmissive, fragTexCoord).rgb * uboMat.emissiveColor.rgb;
+        l_color += emissive;
+    }
+
+
     outColor = vec4(l_color, colorFromTex.a * uboMat.baseColor.a);
     //outColor = vec4( texture(texColor, fragTexCoord).rgb, 1);
-    //outColor = vec4(uboMat.baseColor.xyz, 1);
-    //outColor = vec4(n, 1);
+    //outColor = vec4(l, 1);
+    //outColor = vec4(fragNormal, 1);
     //outColor = vec4(roughness,0,0, 1);
 }

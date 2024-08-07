@@ -33,6 +33,8 @@
 //#define GLTF_FILE "CesiumMan/CesiumMan.gltf"
 //#define GLTF_FILE "CesiumMilkTruck/CesiumMilkTruck.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
+//#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/BoomBoxWithAxes/glTF/BoomBoxWithAxes.gltf"
+//#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
 //#define GLTF_FILE "NormalTangentMirrorTest/NormalTangentMirrorTest.gltf"
 //#define GLTF_FILE "building/muranobuilding.gltf"
 //#define GLTF_FILE "TextureSettingsTest/TextureSettingsTest.gltf"

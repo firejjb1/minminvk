@@ -40,6 +40,7 @@ namespace Graphics
 		virtual Vector<VertexAttribute> GetVertexAttributes() = 0;
 		virtual u8* GetVertices() = 0;
 		virtual u32 GetVerticesCount() = 0;
+		bool hasTangent = false;
 	};
 
 	struct BasicVertex : public VertexDesc

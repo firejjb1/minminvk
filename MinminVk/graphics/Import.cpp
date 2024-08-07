@@ -229,6 +229,7 @@ namespace Graphics
 			{
 				tangentAccessor = model.accessors[attrib.second];
 				assert(tangentAccessor.componentType == 5126);
+				vertices.hasTangent = true;
 
 			}
 			if (attrib.first.compare("COLOR_0") == 0)
@@ -379,6 +380,7 @@ namespace Graphics
 			{
 				tangentAccessor = model.accessors[attrib.second];
 				assert(tangentAccessor.componentType == 5126);
+				vertices.hasTangent = true;
 			}
 			if (attrib.first.compare("COLOR_0") == 0)
 			{
@@ -597,6 +599,8 @@ namespace Graphics
 				pbr->material->isDoubleSided = material.doubleSided ? 1 : 0;
 				pbr->material->alphaMode = material.alphaMode == "OPAQUE" ? PBRMaterial::ALPHA_MODE::ALPHA_OPAQUE : material.alphaMode == "MASK" ? PBRMaterial::ALPHA_MODE::ALPHA_MASK : PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT;
 				pbr->material->alphaCutoff = material.alphaCutoff;
+				pbr->material->occlusionStrength = material.occlusionTexture.strength;
+
 				pbrMaterials.push_back(pbr);
 			}
 

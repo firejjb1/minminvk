@@ -32,7 +32,6 @@ void main() {
     fragColor = inColor;
     fragTexCoord = inTexCoord;
     vec3 normal = inNormal;
-
     vec3 normalW = normalize(vec3(pushConst.inverseTransposeModel * vec4(normalize(normal), 0)));
     fragNormal = normalW;
     vec3 tangentW = normalize(vec3(pushConst.modelMatrix * vec4(normalize(inTangent.xyz), 0)));

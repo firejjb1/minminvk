@@ -16,7 +16,7 @@ namespace Graphics
         struct MaterialData
         {
             vec4 baseColor = vec4(1);
-            vec4 emissiveColor = vec4(0);
+            vec4 emissiveColor = vec4(1);
             f32 metallic = 0.f;
             f32 roughness = 0.5f;
             u32 hasAlbedoTex = 0;
@@ -27,6 +27,7 @@ namespace Graphics
             u32 isDoubleSided = 0;
             ALPHA_MODE alphaMode = ALPHA_MODE::ALPHA_OPAQUE; // opaque, blend, mask
             float alphaCutoff = 1;
+            float occlusionStrength = 1;
         };
         UniquePtr<MaterialData> material;
 
