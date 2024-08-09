@@ -612,13 +612,16 @@ namespace Graphics
 					auto& channel = animation.channels[i];
 					auto& sampler = animation.samplers[i];
 					Animation::AnimationType animationType = channel.target_path == "rotation" ? Animation::AnimationType::ROTATION : channel.target_path == "translation" ? Animation::AnimationType::TRANSLATION : Animation::AnimationType::SCALE;
+					if (channel.target_path == "weights")
+						animationType = Animation::AnimationType::WEIGHTS;
 					Animation::SamplerType samplerType = sampler.interpolation == "LINEAR" ? Animation::SamplerType::LINEAR : sampler.interpolation == "STEP" ? Animation::SamplerType::STEP : Animation::SamplerType::CUBIC;
 					auto& inputAccessor = model.accessors[sampler.input];
+					assert(inputAccessor.type == 65);
+					assert(inputAccessor.componentType == 5126);
 					auto& inputBufferView = model.bufferViews[inputAccessor.bufferView];
 					Vector<f32> inputVector;
 					u32 startOfInputBuffer = inputAccessor.byteOffset + inputBufferView.byteOffset;
 					u32 strideOfInputBuffer = inputBufferView.byteStride == 0 ? sizeof(f32) : inputBufferView.byteStride;
-
 					for (int j = 0; j < inputAccessor.count; ++j)
 					{
 						u32 index = (startOfInputBuffer + strideOfInputBuffer * j);
@@ -626,11 +629,26 @@ namespace Graphics
 						inputVector.push_back(val);
 					}
 
+					Vector<f32> scalarOutput;
 					Vector<vec3> vec3Output;
 					Vector<vec4> vec4Output;
 
 					auto& outputAccessor = model.accessors[sampler.output];
+					assert(inputAccessor.componentType == 5126);
 					auto& outputBufferView = model.bufferViews[outputAccessor.bufferView];
+					if (outputAccessor.type == 65)
+					{
+						// scalar
+						u32 startOfOutputBuffer = outputAccessor.byteOffset + outputBufferView.byteOffset;
+						u32 strideOfOutputBuffer = outputBufferView.byteStride == 0 ? sizeof(f32) : outputBufferView.byteStride;
+						for (int j = 0; j < outputAccessor.count; ++j)
+						{
+							u32 index = (startOfOutputBuffer + strideOfOutputBuffer * j);
+							f32 val;
+							val = static_cast<f32>(((f32*)model.buffers[outputBufferView.buffer].data.data())[index / sizeof(f32)]);
+							scalarOutput.push_back(val);
+						}
+					}
 					if (outputAccessor.type == 3)
 					{
 						// vec3 output
@@ -663,7 +681,7 @@ namespace Graphics
 							vec4Output.push_back(val);
 						}
 					}
-					auto newAnimation = MakeShared<Animation>(animationType, samplerType, inputVector, vec3Output, vec4Output);
+					auto newAnimation = MakeShared<Animation>(animationType, samplerType, inputVector, vec3Output, vec4Output, scalarOutput);
 					animationToNodes[channel.target_node].push_back(newAnimation);
 				}
 			}

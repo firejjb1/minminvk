@@ -9,7 +9,7 @@ namespace Graphics
 	{
 		const static u32 maxAnimationTime = 5;
 
-		enum class AnimationType { ROTATION, TRANSLATION, SCALE };
+		enum class AnimationType { ROTATION, TRANSLATION, SCALE, WEIGHTS };
 
 		AnimationType animationType;
 
@@ -17,26 +17,34 @@ namespace Graphics
 
 		SamplerType samplerType = SamplerType::LINEAR;
 
-		enum class OutputType { VEC3, VEC4 };
+		enum class OutputType { SCALAR, VEC3, VEC4 };
 
 		OutputType outputType = OutputType::VEC3;
 
 		Vector<f32> input;
 
+		Vector<f32> scalarOutput;
 		Vector<vec3> vec3Output;
 		// vec4 for rotation only (quaternion)
 		Vector<vec4> vec4Output;
 
-		Animation(AnimationType animationType, SamplerType samplerTYpe, Vector<f32>& input, Vector<vec3>& vec3Output, Vector<vec4>& vec4Output) :
-			animationType{ animationType }, samplerType{ samplerType }, input { input}, vec3Output{ vec3Output }, vec4Output{ vec4Output } 
+		// only used if morph target weights animation. max 4
+		u32 numWeightsMorphTarget = 1;
+
+		Animation(AnimationType animationType, SamplerType samplerTYpe, Vector<f32>& input, Vector<vec3>& vec3Output, Vector<vec4>& vec4Output, Vector<f32>& scalarOutput) :
+			animationType{ animationType }, samplerType{ samplerType }, input { input}, vec3Output{ vec3Output }, vec4Output{ vec4Output }, scalarOutput{ scalarOutput }
 		{
-			assert(input.size() == vec3Output.size() || input.size() == vec4Output.size());
+			assert(input.size() == vec3Output.size() || input.size() == vec4Output.size() || scalarOutput.size() >= input.size());
 			assert(input.size() > 0);
-			assert(animationType == AnimationType::ROTATION && vec4Output.size() > 0 || vec3Output.size() > 0);
+			assert(animationType == AnimationType::ROTATION && vec4Output.size() > 0 || vec3Output.size() > 0 || scalarOutput.size() > 0);
 			if (vec3Output.size() != 0)
 				outputType = OutputType::VEC3;
 			if (vec4Output.size() != 0)
 				outputType = OutputType::VEC4;
+			if (scalarOutput.size() != 0)
+				outputType = OutputType::SCALAR;
+			if (animationType == AnimationType::WEIGHTS)
+				numWeightsMorphTarget = scalarOutput.size() / input.size();
 		}
 
 		inline vec4 gltfQuatToVec4(vec4 &gltfQuat)

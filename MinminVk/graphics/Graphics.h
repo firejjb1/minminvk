@@ -38,7 +38,8 @@
 //#define GLTF_FILE "NormalTangentMirrorTest/NormalTangentMirrorTest.gltf"
 //#define GLTF_FILE "building/muranobuilding.gltf"
 //#define GLTF_FILE "TextureSettingsTest/TextureSettingsTest.gltf"
-#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
+//#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
+#define GLTF_FILE "AnimatedMorphCube/AnimatedMorphCube.gltf"
 
 namespace Graphics
 {

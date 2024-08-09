@@ -210,6 +210,98 @@ namespace Graphics
 		}
 	};
 
+	struct MorphVertex : public VertexDesc
+	{
+		struct Vertex 
+		{
+			vec3 pos;
+			vec2 texCoord;
+			vec3 normal = vec3(0,0,1);
+			vec4 tangent = vec4(1, 0, 0, 1);
+			vec3 color = vec3(1);
+			vec4 weights = vec4(0,0,0,0);
+			vec3 posTarget0;
+			vec3 normalTarget0 = vec3(0, 0, 1);
+			vec4 tangetTarget0 = vec4(0);
+			// TEX
+			// COLOR
+			vec3 posTarget1;
+			vec3 normalTarget1 = vec3(0, 0, 1);
+			vec4 tangetTarget1 = vec4(0);
+			vec3 posTarget2;
+			vec3 normalTarget2 = vec3(0, 0, 1);
+			vec4 tangetTarget2 = vec4(0);
+			vec3 posTarget3;
+			vec3 normalTarget3 = vec3(0, 0, 1);
+			vec4 tangetTarget3 = vec4(0);
+		};
+
+		Vector<Vertex> vertices;
+
+		MorphVertex() {};
+
+		MorphVertex(Vector<Vertex> &&vertices) : vertices{ vertices } {}
+
+		VertexBinding GetVertexBinding() override
+		{
+			VertexBinding binding;
+			binding.stride = sizeof(Vertex);
+			binding.binding = 0;
+			return binding;
+		}
+
+		Vector<VertexAttribute> GetVertexAttributes() override
+		{
+			VertexAttribute posAttribute;
+			posAttribute.binding = 0;
+			posAttribute.location = 0;
+			posAttribute.offset = offsetof(Vertex, pos);
+			posAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
+
+			VertexAttribute uvAttribute;
+			uvAttribute.binding = 0;
+			uvAttribute.location = 1;
+			uvAttribute.offset = offsetof(Vertex, texCoord);
+			uvAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC2;
+
+			VertexAttribute normalAttribute;
+			normalAttribute.binding = 0;
+			normalAttribute.location = 2;
+			normalAttribute.offset = offsetof(Vertex, normal);
+			normalAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
+			
+			VertexAttribute tangentAttribute;
+			tangentAttribute.binding = 0;
+			tangentAttribute.location = 3;
+			tangentAttribute.offset = offsetof(Vertex, tangent);
+			tangentAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC4;
+
+			VertexAttribute colorAttribute;
+			colorAttribute.binding = 0;
+			colorAttribute.location = 4;
+			colorAttribute.offset = offsetof(Vertex, color);
+			colorAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
+
+			VertexAttribute weightsAttribute;
+			weightsAttribute.binding = 0;
+			weightsAttribute.location = 5;
+			weightsAttribute.offset = offsetof(Vertex, weights);
+			weightsAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC4;	
+			
+			return Vector<VertexAttribute>{ posAttribute, uvAttribute, normalAttribute, weightsAttribute, tangentAttribute, colorAttribute };
+		}
+
+		u8* GetVertices() override
+		{
+			return ((u8*)vertices.data());
+		}
+
+		u32 GetVerticesCount() override
+		{
+			return vertices.size() * sizeof(Vertex) / sizeof(u8);
+		}
+	};
+
 	struct ParticleVertex : public VertexDesc
 	{
 		struct Particle

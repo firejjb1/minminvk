@@ -26,6 +26,9 @@ namespace Graphics
 		mat4 parentModelMatrix = mat4(1);
 		mat4 worldMatrix = mat4(1);
 
+		// only used for assets with morph target animation (max 4 targets)
+		vec4 morphTargetWeights = vec4(0);
+
 		bool isDirty = true;
 
 		Vector<SharedPtr<Animation>> animations;
