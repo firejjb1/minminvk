@@ -1,4 +1,4 @@
-## Minimal Mine Vulkan 3D renderer
+## Minimal Vulkan 3D renderer
 
 The goal of this project is to render a GLTF scene with animated humanoid character, learning Vulkan and rendering / simulation techniques in the process.
 
