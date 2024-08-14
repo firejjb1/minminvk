@@ -41,6 +41,31 @@ namespace Graphics
 		virtual u8* GetVertices() = 0;
 		virtual u32 GetVerticesCount() = 0;
 		bool hasTangent = false;
+		bool hasNormal = false;
+		bool hasSkeleton = false;
+		bool hasBlends = false;
+
+		struct ComputeVertexConstant
+		{
+			u32 hasNormal;
+			u32 hasTangent;
+			u32 hasSkeleton;
+			u32 hasBlendShape;
+
+			u32 vertexCount;
+			u32 vertexStride;
+			u32 skinStride;
+			u32 skinWeightOffset;
+
+			u32 blendShapeCount;
+			u32 normalizedBlendShapes;
+			u32 normalTangentStride;
+		};
+		ComputeVertexConstant vertexConstant;
+
+		// if have skeleton
+		virtual u8* GetSkeletonVertices() = 0;
+		virtual u32 GetSkeletonVerticesCount() = 0;
 	};
 
 	struct BasicVertex : public VertexDesc
@@ -57,9 +82,18 @@ namespace Graphics
 				return pos == other.pos && color == other.color && texCoord == other.texCoord && tangent == other.tangent && normal == other.normal;
 			}
 
+			void test() {}
 		};
 
 		Vector<Vertex> vertices;
+
+		struct JointWeightVertex
+		{
+			vec4u joints;
+			vec4 weights = vec4(0, 0, 0, 0);
+		};
+
+		Vector<JointWeightVertex> jointVertices;
 
 		BasicVertex() {};
 
@@ -117,8 +151,19 @@ namespace Graphics
 		{
 			return vertices.size() * sizeof(Vertex) / sizeof(u8);
 		}
+
+		u8* GetSkeletonVertices() override
+		{
+			return ((u8*)jointVertices.data());
+		}
+
+		u32 GetSkeletonVerticesCount() override
+		{
+			return jointVertices.size() * sizeof(JointWeightVertex) / sizeof(u8);
+		}
 	};
 
+	// deprecated
 	struct SkinnedVertex : public VertexDesc
 	{
 		struct Vertex 
@@ -208,6 +253,16 @@ namespace Graphics
 		{
 			return vertices.size() * sizeof(Vertex) / sizeof(u8);
 		}
+
+		u8* GetSkeletonVertices() override
+		{
+			return nullptr;
+		}
+
+		u32 GetSkeletonVerticesCount() override
+		{
+			return 0;
+		}
 	};
 
 	struct ParticleVertex : public VertexDesc
@@ -258,9 +313,22 @@ namespace Graphics
 		{
 			return particles.size() * sizeof(Particle) / sizeof(u8);
 		}
+		u8* GetSkeletonVertices() override
+		{
+			return nullptr;
+		}
+
+		u32 GetSkeletonVerticesCount() override
+		{
+			return 0;
+		}
 	};
 
-	struct GeometryID { u32 vertexBufferID = 0; u32 indexBufferID = 0; u32 setID; };
+	struct GeometryID { 
+		u32 vertexBufferID = 0; u32 indexBufferID = 0; u32 setID; 
+		// compute skinning buffers 
+		u32 transformedVertexBufferID = 0;
+	};
 
 	struct Geometry
 	{
@@ -270,6 +338,8 @@ namespace Graphics
 		GeometryID geometryID;
 		Texture mainTexture;
 		PBRUniformBuffer materialUniformBuffer;
+		SharedPtr<VertexBuffer> vertexBuffer;
+		SharedPtr<VertexBuffer> transformedVertexBuffer;
 
 	protected:
 		SharedPtr<VertexDesc> vertexDesc;
@@ -326,23 +396,15 @@ namespace Graphics
 
 	struct GLTFMesh : public Geometry
 	{
-	public:
-		GLTFMesh(SharedPtr<GraphicsPipeline>, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial>);
-		void Update(f32 deltaTime) override
-		{
-
-		}
-	};
-
-	struct GLTFSkinnedMesh : Geometry
-	{
 	protected:
 		Vector<SharedPtr<Node>> joints;
 		Vector<mat4> inverseBindMatrices;
-		SharedPtr<GraphicsPipeline> pipeline;
 
 	public:
-		GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial>);
+		SharedPtr<StructuredBuffer> jointWeightData;
+		SharedPtr<SkeletonUniformBuffer> skeletonMatrixData;
+
+		GLTFMesh(SharedPtr<GraphicsPipeline>, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial>, Vector<mat4> inverseBindMatrices = Vector<mat4>{});
 
 		void SetInverseBindMatrices(Vector<mat4>& inverseBindMatrices)
 		{
@@ -353,6 +415,19 @@ namespace Graphics
 		{
 			this->joints = joints;
 		}
+
+		void Update(f32 deltaTime) override;
+	};
+
+	// deprecated
+	struct GLTFSkinnedMesh : GLTFMesh
+	{
+	protected:
+
+		SharedPtr<GraphicsPipeline> pipeline;
+
+	public:
+		GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial>);
 
 		void Update(f32 deltaTime) override;
 	};

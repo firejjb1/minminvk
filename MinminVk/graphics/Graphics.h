@@ -10,12 +10,12 @@
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
-#define SKINNED_VERTEX_SHADER "skinnedmeshvert.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
 #define PARTICLE_COMP_LSC_SHADER "particlelsc.spv"
 #define PARTICLE_COMP_ELC_WIND_SHADER "particleelcwind.spv"
 #define PARTICLE_VERT_SHADER "particlesvert.spv"
 #define PARTICLE_FRAG_SHADER "particlesfrag.spv"
+#define VERTEX_COMP_SHADER "computevertex.spv"
 #define STATUE_IMAGE "statue.jpg"
 #define WALL_IMAGE "blue_floor_tiles_01_diff_1k.jpg"
 #define BLUE_IMAGE "blue.jpeg"
@@ -30,7 +30,7 @@
 //#define GLTF_FILE "AnimatedCube/AnimatedCube.gltf"
 //#define GLTF_FILE "RiggedSimple/RiggedSimple.gltf"
 //#define GLTF_FILE "RiggedFigure/RiggedFigure.gltf"
-//#define GLTF_FILE "CesiumMan/CesiumMan.gltf"
+#define GLTF_FILE "CesiumMan/CesiumMan.gltf"
 //#define GLTF_FILE "CesiumMilkTruck/CesiumMilkTruck.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/BoomBoxWithAxes/glTF/BoomBoxWithAxes.gltf"
@@ -38,7 +38,7 @@
 //#define GLTF_FILE "NormalTangentMirrorTest/NormalTangentMirrorTest.gltf"
 //#define GLTF_FILE "building/muranobuilding.gltf"
 //#define GLTF_FILE "TextureSettingsTest/TextureSettingsTest.gltf"
-#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
+//#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
 
 namespace Graphics
 {
@@ -101,8 +101,6 @@ namespace Graphics
 	SharedPtr<GraphicsPipeline> forwardTransparentPipeline;
 	SharedPtr<RenderPass> forwardTransparentPass;
 	SharedPtr<RenderPass> forwardParticlePass;
-	SharedPtr<GraphicsPipeline> forwardSkinnedPipeline;
-	SharedPtr<RenderPass> forwardSkinnedPass;
 	SharedPtr<UIRender> uiRender;
 	SharedPtr<Quad> quad;
 	SharedPtr<OBJMesh> vikingRoom;
@@ -116,6 +114,7 @@ namespace Graphics
 	SharedPtr<ComputePipeline> particleLSCComputePipeline;
 	SharedPtr<ComputePipeline> particleELCWindComputePipeline;
 	SharedPtr<GraphicsPipeline> particleRenderPipeline;
+	SharedPtr<ComputePipeline> vertexComputePipeline;
 	Vector<SharedPtr<Buffer>> computeBuffers;
 	Vector<Texture> computeTextures{};
 	u32 numVertexPerStrand = 16;
@@ -193,17 +192,6 @@ namespace Graphics
 			forwardTransparentPipeline->depthWriteEnable = false;
 			forwardTransparentPass = MakeShared<RenderPass>(forwardTransparentPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 
-			forwardSkinnedPipeline = MakeShared<GraphicsPipeline>(
-				MakeShared<Shader>(concat_str(SHADERS_DIR, SKINNED_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
-				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
-				MakeShared<SkinnedVertex>(),
-				uniformBuffer,
-				Vector<Texture>{},
-				Vector<SharedPtr<Buffer>>{}
-			);
-
-			forwardSkinnedPass = MakeShared<RenderPass>(forwardSkinnedPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
-
 			quad = MakeShared<Quad>(forwardPipeline, texture);
 
 			// OBJ
@@ -213,11 +201,11 @@ namespace Graphics
 			headMesh = MakeShared<OBJMesh>(forwardPipeline, concat_str(HAIR_DIR, HEAD_MODEL));
 			headMesh->node = nodeManager->AddNode(Math::Translate(Math::Rotate(mat4(1), Math::PI, vec3(0, 0, 1)), vec3(0,1,-2)), camera->node->nodeID, Node::NodeType::MESH_NODE);
 			// GLTF
-			Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE), *nodeManager, forwardPipeline, forwardTransparentPipeline, forwardSkinnedPipeline, gltfMeshes, gltfSkinnedMeshes);
+			Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
 
 		}
 
-		// Compute Pass
+		// Compute Passes
 		{
 
 			Import::LoadHairStrands(particles, concat_str(HAIR_DIR, HAIR_DATA_FILE));
@@ -249,7 +237,7 @@ namespace Graphics
 			computeBuffers.insert(computeBuffers.end(), { particleUniformBuffer, particleBufferPrev, particleBuffer, particleInitialBuffer });
 			// Integrate and Global Shape
 			particleComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
-				vec3{particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle),1,1}, vec3{256,1,1}, computeBuffers, computeTextures);
+				vec3{ particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle),1,1 }, vec3{ 256,1,1 }, computeBuffers, computeTextures);
 
 			particleLSCComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, PARTICLE_COMP_LSC_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
 				vec3{ particles.size() * sizeof(f32) / sizeof(ParticleVertex::Particle) / numVertexPerStrand,1,1 }, vec3{ 256,1,1 }, computeBuffers, computeTextures);
@@ -267,10 +255,25 @@ namespace Graphics
 			particleRenderPipeline->depthTestEnable = true;
 			particleRenderPipeline->depthWriteEnable = false;
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
-			
+
+			for (auto mesh : gltfMeshes)
+			{
+				// use the first mesh with skeleton or blend shape to init the pipeline
+				if (mesh->GetVertexData()->hasSkeleton || mesh->GetVertexData()->hasBlends)
+				{
+					Vector<SharedPtr<Buffer>> computeVertexBuffers{ mesh->vertexBuffer, mesh->transformedVertexBuffer, mesh->jointWeightData, mesh->skeletonMatrixData  };
+					
+					PushConstant vertexConstant("VertexParams", PushConstant::Stage::COMPUTE, sizeof(BasicVertex::ComputeVertexConstant));
+					vertexComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, VERTEX_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
+						vec3{ 1,1,1 }, vec3{ 64,1,1 }, computeVertexBuffers, Vector<Texture>{}, Vector<PushConstant>{vertexConstant}
+					);
+
+					break;
+				}
+			}
+
 			// TODO async compute
 			// particleRenderPipeline->Wait(particleELCWindComputePipeline->pipelineID);
-
 		}
 	}
 
@@ -323,6 +326,27 @@ namespace Graphics
 					particleLSCComputePipeline->Dispatch(computeContext);
 					computeContext.computePipeline = particleELCWindComputePipeline;
 					particleELCWindComputePipeline->Dispatch(computeContext);
+
+					for (auto& mesh : gltfMeshes)
+					{
+						auto& vertexData = mesh->GetVertexData();
+						if (vertexData->hasBlends || vertexData->hasSkeleton)
+						{
+							computeContext.computePipeline = vertexComputePipeline;
+							mesh->Update(fixedDeltaTime);
+							mesh->skeletonMatrixData->UpdateUniformBuffer(computeContext.frameID);
+							// set the buffers
+							Vector<SharedPtr<Buffer>> newBuffers{mesh->vertexBuffer, mesh->transformedVertexBuffer, mesh->jointWeightData, mesh->skeletonMatrixData };
+							Vector<Texture> newTextures;
+							vertexComputePipeline->UpdateResources(computeContext, newBuffers, newTextures);
+							// set the push constants
+							vertexComputePipeline->pushConstants[0].SetData(&mesh->GetVertexData()->vertexConstant, sizeof(BasicVertex::ComputeVertexConstant));
+							// set the invocation size
+							vertexComputePipeline->threadSz = vec3(mesh->vertexBuffer->GetBufferSize() / sizeof(BasicVertex::Vertex), 1, 1);
+							// dispatch
+							vertexComputePipeline->Dispatch(computeContext);
+						}
+					}
 
 					device->EndRecording(computeContext);
 				}
@@ -386,18 +410,8 @@ namespace Graphics
 			}
 			device->EndRenderPass(renderContext);
 
-			// pass 2 - skinned meshes
-			renderContext.renderPass = forwardSkinnedPass;
-			device->BeginRenderPass(renderContext);
-			{
-				for (auto& mesh : gltfSkinnedMeshes)
-				{
-					mesh->Draw(renderContext);
-				}
-			}
-			device->EndRenderPass(renderContext);
 
-			// pass 3 - hair
+			// pass 2 - hair
 			renderContext.renderPass = forwardParticlePass;
 			device->BeginRenderPass(renderContext);
 
@@ -406,7 +420,7 @@ namespace Graphics
 
 			device->EndRenderPass(renderContext);
 
-			// pass 4 transparent meshes
+			// pass 3 transparent meshes
 			renderContext.renderPass = forwardTransparentPass;
 			device->BeginRenderPass(renderContext);
 			{

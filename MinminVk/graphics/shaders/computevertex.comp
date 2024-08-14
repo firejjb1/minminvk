@@ -18,35 +18,45 @@
 //outputs:
 // new vertex buffer
 
+layout(set = 0, binding = 0, std430) readonly buffer SrcVertexData {
+	uint data[];
+}
+src_vertices;
+
 layout(set = 0, binding = 1, std430) buffer DstVertexData {
 	uint data[];
 }
 dst_vertices;
 
-layout(set = 0, binding = 2, std430) readonly buffer  BlendShapeWeights {
-	float data[];
-}
-blend_shape_weights;
 
-layout(set = 1, binding = 0, std430) readonly buffer SrcVertexData {
-	uint data[];
-}
-src_vertices;
-
-layout(set = 1, binding = 1, std430) readonly buffer BoneWeightData {
+layout(set = 0, binding = 2, std430) readonly buffer BoneWeightData {
 	uint data[];
 }
 src_bone_weights;
 
-layout(set = 1, binding = 2, std430) readonly buffer  BlendShapeData {
+
+layout(set = 0, binding = 3) uniform SkeletonData {
+	mat4 data[128];
+}
+bone_transforms;
+
+
+/**layout(set = 0, binding = 4, std430) readonly buffer  BlendShapeData {
 	uint data[];
 }
 src_blend_shapes;
 
-layout(set = 2, binding = 0, std430) readonly buffer SkeletonData {
-	vec4 data[];
+
+layout(set = 0, binding = 5, std430) readonly buffer  BlendShapeWeights {
+	float data[];
 }
-bone_transforms;
+blend_shape_weights;
+*/
+
+//layout(set = 0, binding = 5, std430) readonly buffer SkeletonData {
+//	vec4 data[];
+//}
+//bone_transforms;
 
 layout(push_constant) uniform Params {
 	bool has_normal;
@@ -128,7 +138,7 @@ uint encode_tang_to_uint_oct(vec4 base) {
 layout (local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 void main() 
 {
-// vertex data 
+// vertex data (all padded to vec4) 80 bytes total
 // vec3 pos;
 // vec3 color = vec3(1);
 // vec2 texCoord;
@@ -147,8 +157,8 @@ void main()
 	vec4 tangent;
 
 	vertex = uintBitsToFloat(uvec3(src_vertices.data[src_offset + 0], src_vertices.data[src_offset + 1], src_vertices.data[src_offset + 2]));
-	normal = uintBitsToFloat(uvec3(src_vertices.data[src_offset + 8], src_vertices.data[src_offset + 9], src_vertices.data[src_offset + 10]));
-	tangent = uintBitsToFloat(uvec4(src_vertices.data[src_offset + 11], src_vertices.data[src_offset + 12], src_vertices.data[src_offset + 13], src_vertices.data[src_offset + 14]));
+	normal = uintBitsToFloat(uvec3(src_vertices.data[src_offset + 12], src_vertices.data[src_offset + 13], src_vertices.data[src_offset + 14]));
+	tangent = uintBitsToFloat(uvec4(src_vertices.data[src_offset + 16], src_vertices.data[src_offset + 17], src_vertices.data[src_offset + 18], src_vertices.data[src_offset + 19]));
 	
 
 	if (params.has_blend_shape)
@@ -161,18 +171,18 @@ void main()
 		uint skin_offset = params.skin_stride * index;
 		uvec4 bones = uvec4(src_bone_weights.data[skin_offset + 0], src_bone_weights.data[skin_offset + 1], src_bone_weights.data[skin_offset + 2], src_bone_weights.data[skin_offset + 3]);
 		skin_offset += params.skin_weight_offset;
-		uvec4 weights = uvec4(src_bone_weights.data[skin_offset + 0], src_bone_weights.data[skin_offset + 1], src_bone_weights.data[skin_offset + 2], src_bone_weights.data[skin_offset + 3]);
+		vec4 weights = uintBitsToFloat(uvec4(src_bone_weights.data[skin_offset + 0], src_bone_weights.data[skin_offset + 1], src_bone_weights.data[skin_offset + 2], src_bone_weights.data[skin_offset + 3]));
+		
+		mat4 skinMatrix =
+			weights.x * bone_transforms.data[int(bones.x)] +
+			weights.y * bone_transforms.data[int(bones.y)] +
+			weights.z * bone_transforms.data[int(bones.z)] +
+			weights.w * bone_transforms.data[int(bones.w)];
 
-		mat4 skinMatrix = 
-			weights.x * mat4(bone_transforms.data[bones.x], bone_transforms.data[bones.x + 1], bone_transforms.data[bones.x + 2], vec4(0.0, 0.0, 0.0, 1.0))  +
-			weights.y * mat4(bone_transforms.data[bones.y], bone_transforms.data[bones.y + 1], bone_transforms.data[bones.y + 2], vec4(0.0, 0.0, 0.0, 1.0)) +
-			weights.z * mat4(bone_transforms.data[bones.z], bone_transforms.data[bones.z + 1], bone_transforms.data[bones.z + 2], vec4(0.0, 0.0, 0.0, 1.0)) +
-			weights.w * mat4(bone_transforms.data[bones.w], bone_transforms.data[bones.w + 1], bone_transforms.data[bones.w + 2], vec4(0.0, 0.0, 0.0, 1.0));
 
-		//reverse order because its transposed
-		vertex = (vec4(vertex, 1.0) * skinMatrix).xyz;
-		normal = normalize((vec4(normal, 0.0) * skinMatrix).xyz);
-		tangent.xyz = normalize((vec4(tangent.xyz, 0.0) * skinMatrix).xyz);
+		vertex = (skinMatrix * vec4(vertex, 1.0)).xyz;
+		normal = normalize((skinMatrix * vec4(normal, 0.0)).xyz);
+		tangent.xyz = normalize((skinMatrix * vec4(tangent.xyz, 0.0)).xyz);
 	}
 
 	uint dst_offset = index * params.vertex_stride;
@@ -183,14 +193,14 @@ void main()
 	dst_vertices.data[dst_offset + 2] = uvertex.z;
 
 	uvec3 unormal = floatBitsToUint(normal);
-	dst_vertices.data[dst_offset + 8] = unormal.x;
-	dst_vertices.data[dst_offset + 9] = unormal.y;
-	dst_vertices.data[dst_offset + 10] = unormal.z;
+	dst_vertices.data[dst_offset + 12] = unormal.x;
+	dst_vertices.data[dst_offset + 13] = unormal.y;
+	dst_vertices.data[dst_offset + 14] = unormal.z;
 	
 	uvec4 utangent = floatBitsToUint(tangent);
-	dst_vertices.data[dst_offset + 11] = utangent.x;
-	dst_vertices.data[dst_offset + 12] = utangent.y;
-	dst_vertices.data[dst_offset + 13] = utangent.z;
-	dst_vertices.data[dst_offset + 14] = utangent.z;
+	dst_vertices.data[dst_offset + 16] = utangent.x;
+	dst_vertices.data[dst_offset + 17] = utangent.y;
+	dst_vertices.data[dst_offset + 18] = utangent.z;
+	dst_vertices.data[dst_offset + 19] = utangent.z;
 
 }

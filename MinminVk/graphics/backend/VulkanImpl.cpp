@@ -891,8 +891,9 @@ namespace VulkanImpl
 
 	void CreateVertexBuffer(Graphics::Geometry &geometry)
 	{
-		const u8* vertices = geometry.GetVertexData()->GetVertices();
-		VkDeviceSize bufferSize = sizeof(u8) * geometry.GetVertexData()->GetVerticesCount();
+		auto vertexData = geometry.GetVertexData();
+		const u8* vertices = vertexData->GetVertices();
+		VkDeviceSize bufferSize = sizeof(u8) * vertexData->GetVerticesCount();
 
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
@@ -905,11 +906,30 @@ namespace VulkanImpl
 
 		auto& vertexBuffer = vertexBuffers.emplace_back();
 		auto& vertexBufferMemory = vertexBufferMemories.emplace_back();
-
-		CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+		auto vbUsage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		if (vertexData->hasBlends || vertexData->hasSkeleton)
+			vbUsage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		CreateBuffer(bufferSize, vbUsage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
 		geometry.geometryID.vertexBufferID = vertexBuffers.size() - 1;
-
+		geometry.vertexBuffer = MakeShared<Graphics::VertexBuffer>(bufferSize, Graphics::Buffer::AccessType::READONLY);
+		geometry.vertexBuffer->extendedBufferIDs.push_back(geometry.geometryID.vertexBufferID);
+		geometry.vertexBuffer->binding.binding = 0;
+		geometry.vertexBuffer->binding.shaderStageType = Graphics::ResourceBinding::ShaderStageType::COMPUTE;
 		CopyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+		if (vertexData->hasSkeleton || vertexData->hasBlends)
+		{
+			auto& transformedVertexBuffer = vertexBuffers.emplace_back();
+			auto& transformedVertexBufferMemory = vertexBufferMemories.emplace_back();
+			CreateBuffer(bufferSize, vbUsage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, transformedVertexBuffer, transformedVertexBufferMemory);
+			geometry.geometryID.transformedVertexBufferID = vertexBuffers.size() - 1;
+			CopyBuffer(stagingBuffer, transformedVertexBuffer, bufferSize);
+			geometry.transformedVertexBuffer = MakeShared<Graphics::VertexBuffer>(bufferSize, Graphics::Buffer::AccessType::WRITE);
+			geometry.transformedVertexBuffer->extendedBufferIDs.push_back(geometry.geometryID.transformedVertexBufferID);
+			geometry.transformedVertexBuffer->binding.binding = 1;
+			geometry.transformedVertexBuffer->binding.shaderStageType = Graphics::ResourceBinding::ShaderStageType::COMPUTE;
+
+		}
+
 		vkDestroyBuffer(device, stagingBuffer, nullptr);
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
 	}
@@ -980,6 +1000,8 @@ namespace VulkanImpl
 
 	void CreateStorageBuffer(u32 bufferSize, Graphics::Buffer::BufferUsageType bufferUsageType, Graphics::StructuredBuffer* buffer, bool forAllFramesInFlight = true)
 	{
+		if (bufferSize == 0)
+			return;
 		// Create a staging buffer used to upload data to the gpu
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
@@ -1024,6 +1046,20 @@ namespace VulkanImpl
 		auto computeDescriptorSetLayout = descriptorSetLayouts[layoutID];
         pipelineLayoutInfo.pSetLayouts = &computeDescriptorSetLayout;
 
+		VkPushConstantRange pushConstantRange;
+		u32 offset = 0;
+		u32 size = 0;
+		for (auto pushConstant : pipeline->pushConstants)
+		{
+			size += pushConstant.data.size() * sizeof(u8);
+		}
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		pushConstantRange.offset = offset;
+		pushConstantRange.size = size;
+		
+		pipelineLayoutInfo.pushConstantRangeCount = size > 0 ? 1 : 0; // Optional
+		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange; // Optional
+		
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create compute pipeline layout!");
         }
@@ -1572,7 +1608,8 @@ namespace VulkanImpl
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 		auto& vertexBuffer = vertexBuffers[geometry.geometryID.vertexBufferID];
-		VkBuffer vertexBuffers[] = { vertexBuffer };
+		auto& transformedVertexBuffer = vertexBuffers[geometry.geometryID.transformedVertexBufferID];
+		VkBuffer vertexBuffers[] = { geometry.GetVertexData()->hasSkeleton || geometry.GetVertexData()->hasBlends ? transformedVertexBuffer : vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 
 		UpdateUniformBuffer(geometry.materialUniformBuffer.GetData(), geometry.materialUniformBuffer.GetBufferSize(), geometry.materialUniformBuffer, swapID);
@@ -1600,7 +1637,7 @@ namespace VulkanImpl
 		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(geometry.GetIndicesData().size()), 1, 0, 0, 0);
 	}
 
-	void Dispatch(Graphics::CommandList commandList, int pipelineID, int layoutID, int descriptorPoolID, int swapID, vec3 threadSz, vec3 invocationSz)
+	void Dispatch(Graphics::CommandList commandList, int pipelineID, int layoutID, int descriptorPoolID, int swapID, vec3 threadSz, vec3 invocationSz, Graphics::PushConstant *pushConstant = nullptr)
 	{
 		auto& computePipeline = VulkanImpl::pipelines[pipelineID];
 		VkCommandBuffer commandBuffer = VulkanImpl::computeCommandBuffers[commandList.commandListID];
@@ -1612,6 +1649,11 @@ namespace VulkanImpl
 
 		vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+
+		if (pushConstant != nullptr)
+		{
+			vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID], VK_SHADER_STAGE_COMPUTE_BIT, 0, pushConstant->data.size() * sizeof(u8), pushConstant->data.data());
+		}
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSetsPerPool[descriptorPoolID][swapID], 0, nullptr);
 
@@ -1849,9 +1891,15 @@ namespace VulkanImpl
 				// TODO
 				for (size_t bufferIndex = 0; bufferIndex < buffers.size(); ++bufferIndex)
 				{
-					auto& bufferInfo = bufferInfos.emplace_back();
 					const auto& buffer = buffers[bufferIndex];
-					bufferInfo.buffer = buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM ? uniformBuffers[buffer->extendedBufferIDs[i-startSetIndex]] : shaderStorageBuffers[buffer->extendedBufferIDs[i - startSetIndex]];
+
+					auto& bufferInfo = bufferInfos.emplace_back();
+					if (buffer->GetBufferType() == Graphics::Buffer::BufferType::UNIFORM)
+						bufferInfo.buffer = uniformBuffers[buffer->extendedBufferIDs[i - startSetIndex]];
+					if (buffer->GetBufferType() == Graphics::Buffer::BufferType::STRUCTURED)
+						bufferInfo.buffer = shaderStorageBuffers[buffer->extendedBufferIDs[i - startSetIndex]];
+					if (buffer->GetBufferType() == Graphics::Buffer::BufferType::VERTEX)
+						bufferInfo.buffer = vertexBuffers[buffer->extendedBufferIDs[0]];
 					bufferInfo.offset = 0;
 					bufferInfo.range = buffer->GetBufferSize();
 				}
@@ -2629,9 +2677,9 @@ namespace Graphics
 		for (auto& buffer : buffers)
 		{
 			if (buffer->GetBufferType() == Buffer::BufferType::UNIFORM)
-				numUniform += buffer->extendedBufferIDs.size();
+				numUniform += Max(buffer->extendedBufferIDs.size(), (size_t)1);
 			if (buffer->GetBufferType() == Buffer::BufferType::STRUCTURED)
-				numSSBO += buffer->extendedBufferIDs.size();
+				numSSBO += Max(buffer->extendedBufferIDs.size(), (size_t)1);
 		}
 		for (auto& tex : this->textures)
 			numTex++;
@@ -2642,20 +2690,21 @@ namespace Graphics
 		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, allBuffers, this->textures);
 	}
 
-	void ComputePipeline::UpdateResources(Vector<SharedPtr<Buffer>>& buffers, Vector<Texture>& textures)
+	void ComputePipeline::UpdateResources(ComputeContext& context, Vector<SharedPtr<Buffer>>& buffers, Vector<Texture>& textures)
 	{
 		Vector<Graphics::Buffer*> allBuffers{ };
-		for (auto buffer : this->buffers)
+		for (auto buffer : buffers)
 			allBuffers.push_back(buffer.get());
 
-		VulkanImpl::UpdateDescriptorSets(this->descriptorPoolID.id, allBuffers, textures);
+		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
+		VulkanImpl::UpdateDescriptorSets(this->descriptorPoolID.id, allBuffers, textures, swapID, 1);
 	}
 
 	void ComputePipeline::Dispatch(ComputeContext& context)
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetComputeCommandList(swapID);
-		VulkanImpl::Dispatch(commandList, this->pipelineID.id, this->layoutID, this->descriptorPoolID.id, swapID, this->threadSz, this->invocationSz);
+		VulkanImpl::Dispatch(commandList, this->pipelineID.id, this->layoutID, this->descriptorPoolID.id, swapID, this->threadSz, this->invocationSz, this->pushConstants.empty() ? nullptr : &this->pushConstants[0]);
 	}
 
 	void UniformBuffer::UpdateUniformBuffer(int frameID)
@@ -2742,8 +2791,8 @@ namespace Graphics
 		);
 	}
 
-	GLTFMesh::GLTFMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial> pbrMat)
-		: Geometry(Texture())
+	GLTFMesh::GLTFMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial> pbrMat, Vector<mat4> invBindMatrices)
+		: Geometry(Texture()), inverseBindMatrices{invBindMatrices}
 	{
 		if (pbrMat != nullptr)
 		{
@@ -2759,6 +2808,18 @@ namespace Graphics
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
 
+		if (vertexDesc->hasSkeleton)
+		{
+			ResourceBinding jointsBufferBinding;
+			jointsBufferBinding.binding = 2;
+			jointsBufferBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+			Vector<Buffer::BufferUsageType> jointsBufferUsage;
+			jointsBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_STORAGE);
+			jointsBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
+			jointWeightData = MakeShared<StructuredBuffer>(vertexDesc->GetSkeletonVertices(), vertexDesc->GetSkeletonVerticesCount(), jointsBufferBinding, jointsBufferUsage);
+			skeletonMatrixData = MakeShared<SkeletonUniformBuffer>();
+		}
+
 		Vector<Graphics::Texture> textures{};
 		{
 			textures.push_back(material->albedoTexture);
@@ -2769,14 +2830,11 @@ namespace Graphics
 		}
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			textures
-		);
-
-		// create descriptor sets for the other textures
-		
+		);		
 	}
 	
 	GLTFSkinnedMesh::GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial> pbrMat)
-		: Geometry(Texture()), pipeline{pipeline}
+		: GLTFMesh(pipeline, filename, mesh, model, pbrMat, Vector<mat4>()), pipeline{pipeline}
 	{
 		if (pbrMat != nullptr)
 		{
@@ -2802,6 +2860,35 @@ namespace Graphics
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			textures
 		);
+	}
+
+	void GLTFMesh::Update(f32 deltaTime)
+	{
+		if (vertexDesc->hasSkeleton)
+		{
+			mat4 invWorld = Math::Inverse(node->worldMatrix);
+			for (int i = 0; i < joints.size(); ++i)
+			{
+				auto joint = joints[i];
+				auto jointMatrix = (invWorld * joint->worldMatrix * inverseBindMatrices[i]);
+				skeletonMatrixData->data[i] = jointMatrix;
+			}
+		}
+
+		auto& vertexData = GetVertexData();
+		vertexData->vertexConstant.hasNormal = vertexData->hasNormal ? 1 : 0;
+		vertexData->vertexConstant.hasTangent = vertexData->hasTangent ? 1 : 0;
+		vertexData->vertexConstant.hasSkeleton = vertexData->hasSkeleton ? 1 : 0;
+		vertexData->vertexConstant.hasBlendShape = vertexData->hasBlends ? 1 : 0;
+		vertexData->vertexConstant.vertexCount = vertexData->GetVerticesCount() / sizeof(BasicVertex::Vertex);
+		vertexData->vertexConstant.vertexStride = sizeof(BasicVertex::Vertex) / sizeof(u32);
+		vertexData->vertexConstant.skinStride = sizeof(BasicVertex::JointWeightVertex) / sizeof(u32);
+		vertexData->vertexConstant.skinWeightOffset = 4;
+		vertexData->vertexConstant.blendShapeCount = 0;
+		vertexData->vertexConstant.normalizedBlendShapes = 0;
+		vertexData->vertexConstant.normalTangentStride = 0;
+
+		
 	}
 
 	void GLTFSkinnedMesh::Update(f32 deltaTime)

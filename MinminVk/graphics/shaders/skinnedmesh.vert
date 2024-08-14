@@ -1,5 +1,6 @@
 #version 450
 
+// DEPRECATED. computevertex.comp is used now
 layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
     mat4 view;

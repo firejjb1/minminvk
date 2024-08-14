@@ -203,6 +203,9 @@ namespace Graphics
 		tinygltf::Accessor tangentAccessor;
 		tinygltf::Accessor colorAccessor;
 
+		tinygltf::Accessor weightsAccessor;
+		tinygltf::Accessor jointsAccessor;
+
 		auto indicesAccessor = model.accessors[mesh.indices];
 
 		LoadTextures(filename, mesh, model, mainTexture, metallic, normal, occlusion, emissive);
@@ -230,19 +233,30 @@ namespace Graphics
 				tangentAccessor = model.accessors[attrib.second];
 				assert(tangentAccessor.componentType == 5126);
 				vertices.hasTangent = true;
-
 			}
 			if (attrib.first.compare("COLOR_0") == 0)
 			{
 				colorAccessor = model.accessors[attrib.second];
 				assert(colorAccessor.componentType == 5126);
-
+			}
+			if (attrib.first.compare("WEIGHTS_0") == 0)
+			{
+				weightsAccessor = model.accessors[attrib.second];
+				assert(weightsAccessor.componentType == 5126);
+				vertices.hasSkeleton = true;
+			}
+			if (attrib.first.compare("JOINTS_0") == 0)
+			{
+				jointsAccessor = model.accessors[attrib.second];
+				assert(jointsAccessor.componentType == 5123);
 			}
 		}
 
 		assert(indicesAccessor.componentType == 5123 || indicesAccessor.componentType == 5121);
 
 		vertices.vertices.resize(positionAccessor.count);
+		if (vertices.hasSkeleton == true)
+			vertices.jointVertices.resize(positionAccessor.count);
 
 		auto positionBufferView = model.bufferViews[positionAccessor.bufferView];
 		assert(positionAccessor.type == 3);
@@ -314,6 +328,34 @@ namespace Graphics
 					u32 index = (startOfColorBuffer + strideColorBuffer * i);
 					vertices.vertices[i].color = vec3(ReadGLTFFloat4(index, model.buffers[colorBufferView.buffer].data));
 				}
+			}
+		}
+
+		if (weightsAccessor.bufferView != -1)
+		{
+			auto weightsBufferView = model.bufferViews[weightsAccessor.bufferView];
+			assert(weightsAccessor.type == 4);
+			u32 startOfWeightsBuffer = weightsAccessor.byteOffset + weightsBufferView.byteOffset;
+			u32 strideWeightsBuffer = weightsBufferView.byteStride == 0 ? sizeof(f32) * 4 : weightsBufferView.byteStride;
+
+			for (int i = 0; i < weightsAccessor.count; ++i)
+			{
+				u32 index = (startOfWeightsBuffer + strideWeightsBuffer * i);
+				vertices.jointVertices[i].weights = ReadGLTFFloat4(index, model.buffers[weightsBufferView.buffer].data);
+			}
+		}
+
+		if (jointsAccessor.bufferView != -1)
+		{
+			auto jointsBufferView = model.bufferViews[jointsAccessor.bufferView];
+			assert(jointsAccessor.type == 4);
+			u32 startOfJointsBuffer = jointsAccessor.byteOffset + jointsBufferView.byteOffset;
+			u32 strideJointsBuffer = jointsBufferView.byteStride == 0 ? sizeof(u16) * 4 : jointsBufferView.byteStride;
+
+			for (int i = 0; i < jointsAccessor.count; ++i)
+			{
+				u32 index = (startOfJointsBuffer + strideJointsBuffer * i);
+				vertices.jointVertices[i].joints = ReadGLTFU16x4(index, model.buffers[jointsBufferView.buffer].data);
 			}
 		}
 
@@ -516,11 +558,11 @@ namespace Graphics
 	}
 
 
-	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardTransparentPipeline, SharedPtr<GraphicsPipeline> forwardSkinnedPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>> &newSkinnedMeshes)
+	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardTransparentPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes)
 	{
 		tinygltf::Model model;
 		Util::IO::ReadGLTF(model, filename);
-		Vector<std::pair<SharedPtr<GLTFSkinnedMesh>, Vector<int>>> nodeToJoints;
+		Vector<std::pair<SharedPtr<GLTFMesh>, Vector<int>>> nodeToJoints;
 		Vector<SharedPtr<PBRMaterial>> pbrMaterials;
 
 		for (auto& scene : model.scenes)
@@ -714,7 +756,7 @@ namespace Graphics
 
 				auto newNode = nodeManager.AddNode(modelMatrix, parentID, nodeType);
 
-				if (nodeType == Node::MESH_NODE)
+				if (nodeType == Node::MESH_NODE )
 				{
 					auto& gltfMesh = model.meshes[node.mesh];
 					for (auto primitive : gltfMesh.primitives)
@@ -726,14 +768,13 @@ namespace Graphics
 						}
 						auto geometry = MakeShared<GLTFMesh>(pipeline, filename, primitive, model, primitive.material >= 0 ? pbrMaterials[primitive.material] : nullptr);
 						geometry->node = newNode;
-
+						
 						newMeshes.push_back(geometry);
 
 					}
 				}
 				else if (nodeType == Node::SKINNED_MESH_NODE)
 				{
-					auto& gltfSkinnedMesh = model.meshes[node.mesh];
 					// get inverse bind matrices
 					auto inverseBindMatAccessor = model.accessors[model.skins[node.skin].inverseBindMatrices];
 					auto inverseBindBufferView = model.bufferViews[inverseBindMatAccessor.bufferView];
@@ -763,18 +804,23 @@ namespace Graphics
 						);
 						invBindMatrices.push_back(matrix);
 					}
-					for (auto primitive : gltfSkinnedMesh.primitives)
+					auto& gltfMesh = model.meshes[node.mesh];
+					for (auto primitive : gltfMesh.primitives)
 					{
-						auto geometry = MakeShared<GLTFSkinnedMesh>(forwardSkinnedPipeline, filename, primitive, model, primitive.material >= 0 ? pbrMaterials[primitive.material] : nullptr);
+						auto pipeline = forwardPipeline;
+						if (primitive.material >= 0 && pbrMaterials[primitive.material]->material->alphaMode == Graphics::PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
+						{
+							pipeline = forwardTransparentPipeline;
+						}
+						auto geometry = MakeShared<GLTFMesh>(pipeline, filename, primitive, model, primitive.material >= 0 ? pbrMaterials[primitive.material] : nullptr, invBindMatrices);
 						geometry->node = newNode;
+						// setup compute vertex
 
-						geometry->SetInverseBindMatrices(invBindMatrices);
+						// TODO
 						nodeToJoints.push_back(std::make_pair(geometry, model.skins[node.skin].joints));
-						newSkinnedMeshes.push_back(geometry);
-					}
-				
+						newMeshes.push_back(geometry);
 
-					// prepare joint vectors
+					}
 				}
 
 				for (auto& child : node.children)
@@ -789,7 +835,7 @@ namespace Graphics
 
 		for (auto res : nodeToJoints)
 		{
-			SharedPtr<GLTFSkinnedMesh> node = res.first;
+			SharedPtr<GLTFMesh> node = res.first;
 			Vector<int> jointIDs = res.second;
 			Vector<SharedPtr<Node>> joints;
 

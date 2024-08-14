@@ -10,7 +10,7 @@ namespace Graphics
 
     struct Buffer
     {
-        enum class BufferType { STRUCTURED, UNIFORM };
+        enum class BufferType { STRUCTURED, UNIFORM, VERTEX };
         enum class BufferUsageType
         {
             NONE = 0,
@@ -32,6 +32,33 @@ namespace Graphics
         private:
         BufferType bufferType;
         AccessType accessType;
+    };
+
+    struct VertexBuffer : Buffer
+    {
+        ResourceBinding binding;
+        u32 dataSize;
+        AccessType accessType;
+
+        VertexBuffer(u32 dataSize, AccessType accessType) : dataSize{ dataSize }, accessType{ accessType } {}
+
+        const ResourceBinding GetBinding() const override
+        {
+            return binding;
+        }
+        const BufferType GetBufferType() const override { return Buffer::BufferType::VERTEX; }
+
+        const AccessType GetAccessType() const override { return accessType; }
+
+        const u32 GetBufferSize() const override
+        {
+            return dataSize;
+        }
+
+        const BufferUsageType GetUsageType() const override {
+            BufferUsageType usage = BufferUsageType::BUFFER_VERTEX;
+            return usage;
+        }
     };
 
     struct UniformBuffer : Buffer
@@ -83,6 +110,39 @@ namespace Graphics
         }
 
         BasicUniformBuffer() { Init(); }
+
+    };
+
+    struct SkeletonUniformBuffer : UniformBuffer
+    {
+        static const u32 jointMatricesSize = 128;
+
+        Vector<mat4> data;
+
+        void *GetData() override
+        {
+            return (void*)data.data();
+        }
+
+        const ResourceBinding GetBinding() const override
+        {
+            ResourceBinding uboBinding;
+            uboBinding.binding = 3;
+            uboBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+            return uboBinding;
+        }
+
+        const BufferType GetBufferType() const override { return Buffer::BufferType::UNIFORM; }
+        const AccessType GetAccessType() const override 
+        {
+            return AccessType::READONLY;
+        }
+        const u32 GetBufferSize() const override { return data.size() * sizeof(mat4); }
+        const BufferUsageType GetUsageType() const override {
+            return Buffer::BufferUsageType::BUFFER_UNIFORM;
+        }
+
+        SkeletonUniformBuffer() { data.resize(jointMatricesSize); Init(); }
 
     };
 
@@ -146,6 +206,19 @@ namespace Graphics
         StructuredBuffer(Vector<f32> &data, ResourceBinding &binding, Vector<BufferUsageType> usageTypes)
             : bufferData{ data }, binding{ binding }, usageTypes{ usageTypes } 
         {
+            Init();
+        }
+        
+        StructuredBuffer(u8 *data, u32 dataSize, ResourceBinding &binding, Vector<BufferUsageType> usageTypes)
+            :  binding{ binding }, usageTypes{ usageTypes } 
+        {
+            bufferData.resize(dataSize * sizeof(u8) / sizeof(f32));
+            u32 numf32 = dataSize * sizeof(u8) / sizeof(f32);
+            f32* dataPtr = (f32*)data;
+            for (int i = 0; i < numf32; ++i)
+            {
+                bufferData[i] = *(dataPtr + i);
+            }
             Init();
         }
 
