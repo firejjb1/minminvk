@@ -31,14 +31,17 @@
 //#define GLTF_FILE "RiggedSimple/RiggedSimple.gltf"
 //#define GLTF_FILE "RiggedFigure/RiggedFigure.gltf"
 #define GLTF_FILE "CesiumMan/CesiumMan.gltf"
+//#define GLTF_FILE "AnimatedMorphCube/AnimatedMorphCube.gltf"
 //#define GLTF_FILE "CesiumMilkTruck/CesiumMilkTruck.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/BoomBoxWithAxes/glTF/BoomBoxWithAxes.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
+//#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/SimpleMorph/glTF/SimpleMorph.gltf"
 //#define GLTF_FILE "NormalTangentMirrorTest/NormalTangentMirrorTest.gltf"
 //#define GLTF_FILE "building/muranobuilding.gltf"
 //#define GLTF_FILE "TextureSettingsTest/TextureSettingsTest.gltf"
 //#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
+//#define GLTF_FILE "lain/lain.gltf"
 
 namespace Graphics
 {
@@ -106,7 +109,6 @@ namespace Graphics
 	SharedPtr<OBJMesh> vikingRoom;
 	SharedPtr<OBJMesh> headMesh;
 	Vector<SharedPtr<GLTFMesh>> gltfMeshes;
-	Vector<SharedPtr<GLTFSkinnedMesh>> gltfSkinnedMeshes;
 	SharedPtr<StructuredBuffer> particleBuffer;
 	SharedPtr<StructuredBuffer> particleBufferPrev;
 	SharedPtr<ParticlesUniformBuffer> particleUniformBuffer;
@@ -256,21 +258,48 @@ namespace Graphics
 			particleRenderPipeline->depthWriteEnable = false;
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 
+
+		
 			for (auto mesh : gltfMeshes)
 			{
 				// use the first mesh with skeleton or blend shape to init the pipeline
 				if (mesh->GetVertexData()->hasSkeleton || mesh->GetVertexData()->hasBlends)
 				{
-					Vector<SharedPtr<Buffer>> computeVertexBuffers{ mesh->vertexBuffer, mesh->transformedVertexBuffer, mesh->jointWeightData, mesh->skeletonMatrixData  };
-					
+					Vector<SharedPtr<Buffer>> computeVertexBuffers;
+					if (gltfMeshes.size() > 0)
+					{
+						computeVertexBuffers.push_back(gltfMeshes[0]->vertexBuffer);
+						computeVertexBuffers.push_back(gltfMeshes[0]->transformedVertexBuffer);
+					}
+					ResourceBinding jointWeightBufferBinding;
+					jointWeightBufferBinding.binding = 2;
+					jointWeightBufferBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+					Vector<Buffer::BufferUsageType> jointWeightsBufferUsage;
+					jointWeightsBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_STORAGE);
+					jointWeightsBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
+					SharedPtr<StructuredBuffer> jointWeightData = MakeShared<StructuredBuffer>(Vector<f32>{1}, jointWeightBufferBinding, jointWeightsBufferUsage);
+					computeVertexBuffers.push_back(jointWeightData);
+					SharedPtr<SkeletonUniformBuffer> skeletonBufferData = MakeShared<SkeletonUniformBuffer>();
+					computeVertexBuffers.push_back(skeletonBufferData);
+					SharedPtr<BlendWeightsUniformBuffer> blendWeightsUniform = MakeShared<BlendWeightsUniformBuffer>();
+					computeVertexBuffers.push_back(blendWeightsUniform);
+					ResourceBinding blendDataBufferBinding;
+					blendDataBufferBinding.binding = 5;
+					blendDataBufferBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+					Vector<Buffer::BufferUsageType> blendDataBufferUsage;
+					blendDataBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_STORAGE);
+					blendDataBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
+					SharedPtr<StructuredBuffer> blendDataBuffer = MakeShared<StructuredBuffer>(Vector<f32>{1}, blendDataBufferBinding, blendDataBufferUsage);
+					computeVertexBuffers.push_back(blendDataBuffer);
+
 					PushConstant vertexConstant("VertexParams", PushConstant::Stage::COMPUTE, sizeof(BasicVertex::ComputeVertexConstant));
 					vertexComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, VERTEX_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
 						vec3{ 1,1,1 }, vec3{ 64,1,1 }, computeVertexBuffers, Vector<Texture>{}, Vector<PushConstant>{vertexConstant}
 					);
-
 					break;
 				}
 			}
+			
 
 			// TODO async compute
 			// particleRenderPipeline->Wait(particleELCWindComputePipeline->pipelineID);
@@ -330,7 +359,7 @@ namespace Graphics
 					for (auto& mesh : gltfMeshes)
 					{
 						auto& vertexData = mesh->GetVertexData();
-						if (vertexData->hasBlends || vertexData->hasSkeleton)
+						if (vertexData->hasSkeleton)
 						{
 							computeContext.computePipeline = vertexComputePipeline;
 							mesh->Update(fixedDeltaTime);
@@ -346,19 +375,29 @@ namespace Graphics
 							// dispatch
 							vertexComputePipeline->Dispatch(computeContext);
 						}
+
+						if (vertexData->hasBlends)
+						{
+							computeContext.computePipeline = vertexComputePipeline;
+							mesh->Update(fixedDeltaTime);
+							mesh->morphWeightData->UpdateUniformBuffer(computeContext.frameID);
+							// set the buffers
+							Vector<SharedPtr<Buffer>> newBuffers{ mesh->vertexBuffer, mesh->transformedVertexBuffer, mesh->morphWeightData, mesh->morphTargetsData };
+							Vector<Texture> newTextures;
+							vertexComputePipeline->UpdateResources(computeContext, newBuffers, newTextures);
+							// set the push constants
+							vertexComputePipeline->pushConstants[0].SetData(&mesh->GetVertexData()->vertexConstant, sizeof(BasicVertex::ComputeVertexConstant));
+							// set the invocation size
+							vertexComputePipeline->threadSz = vec3(mesh->vertexBuffer->GetBufferSize() / sizeof(BasicVertex::Vertex), 1, 1);
+							// dispatch
+							vertexComputePipeline->Dispatch(computeContext);
+						}
 					}
 
 					device->EndRecording(computeContext);
 				}
 
 				vikingRoom->Update(fixedDeltaTime);
-
-
-
-				for (auto& skinnedMesh : gltfSkinnedMeshes)
-				{
-					skinnedMesh->Update(fixedDeltaTime);
-				}
 
 			}
 		}

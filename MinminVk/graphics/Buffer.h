@@ -145,6 +145,39 @@ namespace Graphics
         SkeletonUniformBuffer() { data.resize(jointMatricesSize); Init(); }
 
     };
+    
+    struct BlendWeightsUniformBuffer : UniformBuffer
+    {
+        static const u32 blendWeightsSize = 8;
+
+        Vector<f32> data;
+
+        void *GetData() override
+        {
+            return (void*)data.data();
+        }
+
+        const ResourceBinding GetBinding() const override
+        {
+            ResourceBinding uboBinding;
+            uboBinding.binding = 4;
+            uboBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+            return uboBinding;
+        }
+
+        const BufferType GetBufferType() const override { return Buffer::BufferType::UNIFORM; }
+        const AccessType GetAccessType() const override 
+        {
+            return AccessType::READONLY;
+        }
+        const u32 GetBufferSize() const override { return data.size() * sizeof(f32); }
+        const BufferUsageType GetUsageType() const override {
+            return Buffer::BufferUsageType::BUFFER_UNIFORM;
+        }
+
+        BlendWeightsUniformBuffer() { data.resize(blendWeightsSize); Init(); }
+
+    };
 
     struct PBRUniformBuffer : UniformBuffer
     {

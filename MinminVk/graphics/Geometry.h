@@ -59,13 +59,17 @@ namespace Graphics
 
 			u32 blendShapeCount;
 			u32 normalizedBlendShapes;
-			u32 normalTangentStride;
+			u32 blend_weight_stride;
 		};
 		ComputeVertexConstant vertexConstant;
 
 		// if have skeleton
 		virtual u8* GetSkeletonVertices() = 0;
 		virtual u32 GetSkeletonVerticesCount() = 0;
+
+		// if have morph targets
+		virtual u8* GetMorphVertices() = 0;
+		virtual u32 GetMorphVerticesCount() = 0;
 	};
 
 	struct BasicVertex : public VertexDesc
@@ -94,6 +98,14 @@ namespace Graphics
 		};
 
 		Vector<JointWeightVertex> jointVertices;
+
+		struct BlendVertexData
+		{
+			vec4 position = vec4(0);
+			vec4 normal = vec4(0);
+			vec4 tangent = vec4(0);
+		};
+		Vector<BlendVertexData> blendVertices;
 
 		BasicVertex() {};
 
@@ -161,107 +173,15 @@ namespace Graphics
 		{
 			return jointVertices.size() * sizeof(JointWeightVertex) / sizeof(u8);
 		}
-	};
 
-	// deprecated
-	struct SkinnedVertex : public VertexDesc
-	{
-		struct Vertex 
+		u8* GetMorphVertices() override
 		{
-			vec3 pos;
-			vec2 texCoord;
-			vec3 normal = vec3(0,0,1);
-			vec4 weights = vec4(0,0,0,0);
-			vec4u joints;
-			vec4 tangent = vec4(1, 0, 0, 1);
-			vec3 color = vec3(1);
-
-			bool operator==(const Vertex& other) const {
-				return pos == other.pos && weights == other.weights && texCoord == other.texCoord && joints == other.joints && normal == other.normal && tangent == other.tangent;
-			}
-
-		};
-
-		Vector<Vertex> vertices;
-
-		SkinnedVertex() {};
-
-		SkinnedVertex(Vector<Vertex> &&vertices) : vertices{ vertices } {}
-
-		VertexBinding GetVertexBinding() override
-		{
-			VertexBinding binding;
-			binding.stride = sizeof(Vertex);
-			binding.binding = 0;
-			return binding;
+			return ((u8*)blendVertices.data());
 		}
 
-		Vector<VertexAttribute> GetVertexAttributes() override
+		u32 GetMorphVerticesCount() override
 		{
-			VertexAttribute posAttribute;
-			posAttribute.binding = 0;
-			posAttribute.location = 0;
-			posAttribute.offset = offsetof(Vertex, pos);
-			posAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
-
-
-			VertexAttribute uvAttribute;
-			uvAttribute.binding = 0;
-			uvAttribute.location = 1;
-			uvAttribute.offset = offsetof(Vertex, texCoord);
-			uvAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC2;
-
-			VertexAttribute normalAttribute;
-			normalAttribute.binding = 0;
-			normalAttribute.location = 2;
-			normalAttribute.offset = offsetof(Vertex, normal);
-			normalAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
-			
-			VertexAttribute weightsAttribute;
-			weightsAttribute.binding = 0;
-			weightsAttribute.location = 3;
-			weightsAttribute.offset = offsetof(Vertex, weights);
-			weightsAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC4;	
-			
-			VertexAttribute jointsAttribute;
-			jointsAttribute.binding = 0;
-			jointsAttribute.location = 4;
-			jointsAttribute.offset = offsetof(Vertex, joints);
-			jointsAttribute.vertexFormatType = VertexAttribute::VertexFormatType::UVEC4;
-
-			VertexAttribute tangentAttribute;
-			tangentAttribute.binding = 0;
-			tangentAttribute.location = 5;
-			tangentAttribute.offset = offsetof(Vertex, tangent);
-			tangentAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC4;
-			
-			VertexAttribute colorAttribute;
-			colorAttribute.binding = 0;
-			colorAttribute.location = 6;
-			colorAttribute.offset = offsetof(Vertex, color);
-			colorAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
-
-			return Vector<VertexAttribute>{ posAttribute, uvAttribute, normalAttribute, weightsAttribute, jointsAttribute, tangentAttribute, colorAttribute };
-		}
-
-		u8* GetVertices() override
-		{
-			return ((u8*)vertices.data());
-		}
-
-		u32 GetVerticesCount() override
-		{
-			return vertices.size() * sizeof(Vertex) / sizeof(u8);
-		}
-
-		u8* GetSkeletonVertices() override
-		{
-			return nullptr;
-		}
-
-		u32 GetSkeletonVerticesCount() override
-		{
-			return 0;
+			return blendVertices.size() * sizeof(BlendVertexData) / sizeof(u8);
 		}
 	};
 
@@ -319,6 +239,15 @@ namespace Graphics
 		}
 
 		u32 GetSkeletonVerticesCount() override
+		{
+			return 0;
+		}
+		u8* GetMorphVertices() override
+		{
+			return nullptr;
+		}
+
+		u32 GetMorphVerticesCount() override
 		{
 			return 0;
 		}
@@ -403,6 +332,8 @@ namespace Graphics
 	public:
 		SharedPtr<StructuredBuffer> jointWeightData;
 		SharedPtr<SkeletonUniformBuffer> skeletonMatrixData;
+		SharedPtr<BlendWeightsUniformBuffer> morphWeightData;
+		SharedPtr<StructuredBuffer> morphTargetsData;
 
 		GLTFMesh(SharedPtr<GraphicsPipeline>, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial>, Vector<mat4> inverseBindMatrices = Vector<mat4>{});
 
@@ -420,17 +351,17 @@ namespace Graphics
 	};
 
 	// deprecated
-	struct GLTFSkinnedMesh : GLTFMesh
-	{
-	protected:
+	//struct GLTFSkinnedMesh : GLTFMesh
+	//{
+	//protected:
 
-		SharedPtr<GraphicsPipeline> pipeline;
+	//	SharedPtr<GraphicsPipeline> pipeline;
 
-	public:
-		GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial>);
+	//public:
+	//	GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial>);
 
-		void Update(f32 deltaTime) override;
-	};
+	//	void Update(f32 deltaTime) override;
+	//};
 }
 
 namespace std {

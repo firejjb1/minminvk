@@ -26,6 +26,8 @@ namespace Graphics
 		mat4 parentModelMatrix = mat4(1);
 		mat4 worldMatrix = mat4(1);
 
+		Vector<f32> morphWeights;
+
 		bool isDirty = true;
 
 		Vector<SharedPtr<Animation>> animations;

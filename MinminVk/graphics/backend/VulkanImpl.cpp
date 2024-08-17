@@ -2820,6 +2820,18 @@ namespace Graphics
 			skeletonMatrixData = MakeShared<SkeletonUniformBuffer>();
 		}
 
+		if (vertexDesc->hasBlends)
+		{
+			morphWeightData = MakeShared<BlendWeightsUniformBuffer>();
+			ResourceBinding morphDataBufferBinding;
+			morphDataBufferBinding.binding = 5;
+			morphDataBufferBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+			Vector<Buffer::BufferUsageType> morphsBufferUsage;
+			morphsBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_STORAGE);
+			morphsBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
+			morphTargetsData = MakeShared<StructuredBuffer>(vertexDesc->GetMorphVertices(), vertexDesc->GetMorphVerticesCount(), morphDataBufferBinding, morphsBufferUsage);
+		}
+
 		Vector<Graphics::Texture> textures{};
 		{
 			textures.push_back(material->albedoTexture);
@@ -2832,35 +2844,7 @@ namespace Graphics
 			textures
 		);		
 	}
-	
-	GLTFSkinnedMesh::GLTFSkinnedMesh(SharedPtr<GraphicsPipeline> pipeline, String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, SharedPtr<PBRMaterial> pbrMat)
-		: GLTFMesh(pipeline, filename, mesh, model, pbrMat, Vector<mat4>()), pipeline{pipeline}
-	{
-		if (pbrMat != nullptr)
-		{
-			material = pbrMat;
-			materialUniformBuffer.pbrMaterial = material.get();
-		}
-		else 
-			material = MakeShared<PBRMaterial>();
-		auto vertexDesc = MakeShared<SkinnedVertex>();
-		Import::LoadGLTFSkinnedMesh(filename, mesh, model, *vertexDesc, indices, material->albedoTexture, material->metallicTexture, material->normalTexture, material->occlusionTexture, material->emissiveTexture);
-		this->vertexDesc = vertexDesc;
-		VulkanImpl::CreateVertexBuffer(*this);
-		VulkanImpl::CreateIndexBuffer(*this);
 
-		Vector<Graphics::Texture> textures{};
-		{
-			textures.push_back(material->albedoTexture);
-			textures.push_back(material->metallicTexture);
-			textures.push_back(material->normalTexture);
-			textures.push_back(material->occlusionTexture);
-			textures.push_back(material->emissiveTexture);
-		}
-		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
-			textures
-		);
-	}
 
 	void GLTFMesh::Update(f32 deltaTime)
 	{
@@ -2884,23 +2868,17 @@ namespace Graphics
 		vertexData->vertexConstant.vertexStride = sizeof(BasicVertex::Vertex) / sizeof(u32);
 		vertexData->vertexConstant.skinStride = sizeof(BasicVertex::JointWeightVertex) / sizeof(u32);
 		vertexData->vertexConstant.skinWeightOffset = 4;
-		vertexData->vertexConstant.blendShapeCount = 0;
+		vertexData->vertexConstant.blendShapeCount = node->morphWeights.size();
 		vertexData->vertexConstant.normalizedBlendShapes = 0;
-		vertexData->vertexConstant.normalTangentStride = 0;
+		vertexData->vertexConstant.blend_weight_stride = sizeof(BasicVertex::BlendVertexData) / sizeof(u32); 
 
+		for (int i = 0; i < node->morphWeights.size(); ++i)
+		{
+			morphWeightData->data[i] = node->morphWeights[i];
+		}
 		
 	}
 
-	void GLTFSkinnedMesh::Update(f32 deltaTime)
-	{
-
-		mat4 invWorld = Math::Inverse(node->worldMatrix);
-		for (int i = 0; i < joints.size(); ++i)
-		{
-			auto joint = joints[i];
-			pipeline->uniformDesc->transformUniform.jointMatrices[i] = (invWorld * joint->worldMatrix * inverseBindMatrices[i]);
-		}
-	}
 
 	void Geometry::Draw(RenderContext& context)
 	{

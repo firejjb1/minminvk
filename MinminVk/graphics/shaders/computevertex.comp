@@ -40,23 +40,15 @@ layout(set = 0, binding = 3) uniform SkeletonData {
 }
 bone_transforms;
 
+layout(set = 0, binding = 4) uniform BlendShapeWeights {
+	vec4 data[2];
+}
+blend_shape_weights;
 
-/**layout(set = 0, binding = 4, std430) readonly buffer  BlendShapeData {
+layout(set = 0, binding = 5, std430) readonly buffer  BlendShapeData {
 	uint data[];
 }
 src_blend_shapes;
-
-
-layout(set = 0, binding = 5, std430) readonly buffer  BlendShapeWeights {
-	float data[];
-}
-blend_shape_weights;
-*/
-
-//layout(set = 0, binding = 5, std430) readonly buffer SkeletonData {
-//	vec4 data[];
-//}
-//bone_transforms;
 
 layout(push_constant) uniform Params {
 	bool has_normal;
@@ -71,7 +63,7 @@ layout(push_constant) uniform Params {
 
 	uint blend_shape_count;
 	bool normalized_blend_shapes;
-	uint normal_tangent_stride;
+	uint blend_weight_stride;
 	uint pad1;
 
 //	vec2 skeleton_transform_x;
@@ -85,55 +77,6 @@ layout(push_constant) uniform Params {
 }
 params;
 
-vec2 uint_to_vec2(uint base) {
-	uvec2 decode = (uvec2(base) >> uvec2(0, 16)) & uvec2(0xFFFF, 0xFFFF);
-	return vec2(decode) / vec2(65535.0, 65535.0) * 2.0 - 1.0;
-}
-
-vec3 oct_to_vec3(vec2 oct) {
-	vec3 v = vec3(oct.xy, 1.0 - abs(oct.x) - abs(oct.y));
-	float t = max(-v.z, 0.0);
-	v.xy += t * -sign(v.xy);
-	return normalize(v);
-}
-
-vec3 decode_uint_oct_to_norm(uint base) {
-	return oct_to_vec3(uint_to_vec2(base));
-}
-
-vec4 decode_uint_oct_to_tang(uint base) {
-	vec2 oct_sign_encoded = uint_to_vec2(base);
-	// Binormal sign encoded in y component
-	vec2 oct = vec2(oct_sign_encoded.x, abs(oct_sign_encoded.y) * 2.0 - 1.0);
-	return vec4(oct_to_vec3(oct), sign(oct_sign_encoded.y));
-}
-
-vec2 signNotZero(vec2 v) {
-	return mix(vec2(-1.0), vec2(1.0), greaterThanEqual(v.xy, vec2(0.0)));
-}
-
-uint vec2_to_uint(vec2 base) {
-	uvec2 enc = uvec2(clamp(ivec2(base * vec2(65535, 65535)), ivec2(0), ivec2(0xFFFF, 0xFFFF))) << uvec2(0, 16);
-	return enc.x | enc.y;
-}
-
-vec2 vec3_to_oct(vec3 e) {
-	e /= abs(e.x) + abs(e.y) + abs(e.z);
-	vec2 oct = e.z >= 0.0f ? e.xy : (vec2(1.0f) - abs(e.yx)) * signNotZero(e.xy);
-	return oct * 0.5f + 0.5f;
-}
-
-uint encode_norm_to_uint_oct(vec3 base) {
-	return vec2_to_uint(vec3_to_oct(base));
-}
-
-uint encode_tang_to_uint_oct(vec4 base) {
-	vec2 oct = vec3_to_oct(base.xyz);
-	// Encode binormal sign in y component
-	oct.y = oct.y * 0.5f + 0.5f;
-	oct.y = base.w >= 0.0f ? oct.y : 1 - oct.y;
-	return vec2_to_uint(oct);
-}
 
 layout (local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 void main() 
@@ -163,7 +106,32 @@ void main()
 
 	if (params.has_blend_shape)
 	{
-		// TODO 
+		float blend_total = 0.0;
+		vec3 blend_vertex = vec3(0.0);
+		vec3 blend_normal = vec3(0.0);
+		vec3 blend_tangent = vec3(0.0);
+
+		for (int i = 0; i < params.blend_shape_count; ++i)
+		{
+			float w = blend_shape_weights.data[i/4][i%4];
+			if (abs(w) > 0.00001)
+			{
+				uint base_offset = params.vertex_count * i * params.blend_weight_stride + index * params.blend_weight_stride;
+				blend_vertex += uintBitsToFloat(uvec3(src_blend_shapes.data[base_offset + 0], src_blend_shapes.data[base_offset + 1], src_blend_shapes.data[base_offset + 2])) * w;
+				if (params.has_normal)
+				{
+					blend_normal += uintBitsToFloat(uvec3(src_blend_shapes.data[base_offset + 4], src_blend_shapes.data[base_offset + 5], src_blend_shapes.data[base_offset + 6])) * w;
+
+				}
+				if (params.has_tangent)
+				{
+					blend_normal += uintBitsToFloat(uvec3(src_blend_shapes.data[base_offset + 8], src_blend_shapes.data[base_offset + 9], src_blend_shapes.data[base_offset + 10])) * w;
+				}
+			}
+		}
+		vertex += blend_vertex;
+		normal = normalize(normal + blend_normal);
+		tangent.rgb = normalize(tangent.rgb + blend_tangent);
 	}
 
 	if (params.has_skeleton)
