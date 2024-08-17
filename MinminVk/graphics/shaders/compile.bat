@@ -6,3 +6,4 @@ glslc particleelcwind.comp -o particleelcwind.spv
 glslc particles.vert -o particlesvert.spv
 glslc particles.frag -o particlesfrag.spv
 glslc skinnedmesh.vert -o skinnedmeshvert.spv
+glslc computevertex.comp -o computevertex.spv

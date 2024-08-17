@@ -216,8 +216,30 @@ namespace Graphics
 		void Init(SharedPtr<Presentation> presentation);
 	};
 
+	struct PushConstant
+	{
+		enum class Stage { VERTEX, FRAGMENT, COMPUTE };
+		Stage stage;
+		Vector<u8> data;
+		String name;
+
+		PushConstant(String name, Stage stage, u32 dataSize)
+		{
+			data.resize(dataSize);
+		}
+
+		void SetData(void* newData, u32 dataSize)
+		{
+			for (int i = 0; i < dataSize; ++i)
+			{
+				data[i] = *(((u8*)newData) + i);
+			}
+		}
+	};
+
 	struct ComputePipeline : public Pipeline
 	{
+		Vector<PushConstant> pushConstants;
 		SharedPtr<Shader> computeShader;
 		vec3 threadSz;
 		vec3 invocationSz;
@@ -226,8 +248,8 @@ namespace Graphics
 		Vector<SharedPtr<Buffer>> buffers;
 		Vector<Texture> textures;
 
-		ComputePipeline(SharedPtr<Shader> computeShader, vec3 threadSz, vec3 invocationSz, Vector<SharedPtr<Buffer>> &buffers, Vector<Texture> &textures)
-			: computeShader{computeShader}, threadSz{threadSz}, invocationSz{invocationSz}, buffers{buffers}, textures{textures}
+		ComputePipeline(SharedPtr<Shader> computeShader, vec3 threadSz, vec3 invocationSz, Vector<SharedPtr<Buffer>>& buffers, Vector<Texture>& textures, Vector<PushConstant> pushConstants = Vector<PushConstant>{})
+			: computeShader{computeShader}, threadSz{threadSz}, invocationSz{invocationSz}, buffers{buffers}, textures{textures}, pushConstants{pushConstants}
 		{
 			Init();
 		}
@@ -236,14 +258,7 @@ namespace Graphics
 
 		void Dispatch(ComputeContext & context);
 
-		void UpdateResources(Vector<SharedPtr<Buffer>> &buffers, Vector<Texture> &textures);
+		void UpdateResources(ComputeContext& context, Vector<SharedPtr<Buffer>> &buffers, Vector<Texture> &textures);
 	};
-
-	// struct ComputePass
-	// {
-	// 	ComputePassID computePassID;
-	// 	SharedPtr<ComputePipeline> pso;
-
-	// };
 
 }

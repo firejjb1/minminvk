@@ -350,7 +350,7 @@ void main() {
 
     outColor = vec4(l_color, colorFromTex.a * uboMat.baseColor.a);
     //outColor = vec4( texture(texColor, fragTexCoord).rgb, 1);
-    //outColor = vec4(l, 1);
+    //outColor = vec4(1);
     //outColor = vec4(fragNormal, 1);
     //outColor = vec4(roughness,0,0, 1);
 }

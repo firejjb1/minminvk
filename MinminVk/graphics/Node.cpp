@@ -18,17 +18,26 @@ namespace Graphics
 
 				isDirty = true;
 			}
-			if (anim->animationType == Animation::AnimationType::SCALE)
+			else if (anim->animationType == Animation::AnimationType::SCALE)
 			{
 				vec3 scale = anim->Sample(nodeManager.timer);
 				newscale = Math::Scale(mat4(1), scale);
 				isDirty = true;
 			}
-			if (anim->animationType == Animation::AnimationType::TRANSLATION)
+			else if (anim->animationType == Animation::AnimationType::TRANSLATION)
 			{
 				vec3 trans = anim->Sample(nodeManager.timer);
 				newtrans = Math::Translate(mat4(1), trans);
 				isDirty = true;
+			}
+			else if (anim->animationType == Animation::AnimationType::WEIGHTS)
+			{
+				vec4 weights = anim->Sample(nodeManager.timer);
+				
+				for (int i = 0; i < Min((u32)4, anim->numWeightsMorphTarget); ++i)
+				{
+					morphWeights[i] = weights[i];
+				}
 			}
 		}
 		mat4 newModel = newtrans * newrot * newscale;

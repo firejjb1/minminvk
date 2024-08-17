@@ -34,8 +34,7 @@ namespace Graphics
 
 		static void LoadGLTFMesh(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Graphics::BasicVertex& vertices, Vector<u16>& indices, Texture& mainTexture, Texture& metallic, Texture& normal, Texture& occlusion, Texture& emissive);
 
-		static void LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardTransparentPipeline, SharedPtr<GraphicsPipeline> forwardSkinnedPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes, Vector<SharedPtr<GLTFSkinnedMesh>>& newSkinnedMeshes);
+		static void LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardTransparentPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes);
 
-		static void LoadGLTFSkinnedMesh(const String filename, tinygltf::Primitive& mesh, tinygltf::Model& model, Graphics::SkinnedVertex& vertices, Vector<u16>& indices, Texture& mainTexture, Texture& metallic, Texture& normal, Texture& occlusion, Texture& emissive);
 	};
 }

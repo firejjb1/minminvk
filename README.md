@@ -19,7 +19,7 @@ The project is built using CMake.
 - graphics pipeline, compute pipeline
 - parse OBJ files
 - parse GLTF files 
-- support GLTF animation, including skinned animation
+- support GLTF animation, including skinned animation and morph targets
 - PBR (GLTF implementation)
 - normal mapping
 - keyboard and mouse controlled camera
@@ -27,7 +27,7 @@ The project is built using CMake.
 - hair simulation shaders
 
 
-#### Supported [GLTF Models](https://github.com/KhronosGroup/glTF-Sample-Models/tree/main/2.0)
+#### Tested [GLTF Models](https://github.com/KhronosGroup/glTF-Sample-Models/tree/main/2.0)
 - Cube
 - BoxAnimated
 - BoxVertexColors
@@ -40,5 +40,7 @@ The project is built using CMake.
 - NormalTangentMirrorTest
 - TextureSettingsTest
 - AlphaBlendModeTest
+- SimpleMorph
+- AnimatedMorphCube
 
 see graphics/Graphics.h for example 
