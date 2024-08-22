@@ -31,6 +31,9 @@ namespace Graphics
 		bool isDirty = true;
 
 		Vector<SharedPtr<Animation>> animations;
+		f32 minAnimationTime = 0.f;
+		f32 maxAnimationTime = 5.f;
+		f32 timer = 0;
 
 		// only for import
 		i32 gltfID = 0;

@@ -561,11 +561,17 @@ namespace Graphics
 					Vector<f32> inputVector;
 					u32 startOfInputBuffer = inputAccessor.byteOffset + inputBufferView.byteOffset;
 					u32 strideOfInputBuffer = inputBufferView.byteStride == 0 ? sizeof(f32) : inputBufferView.byteStride;
-
+					f32 minInput = inputAccessor.minValues.size() > 0 ? inputAccessor.minValues[0] : 1000.f;
+					f32 maxInput = inputAccessor.maxValues.size() > 0 ? inputAccessor.maxValues[0] : 0.f;
+					
 					for (int j = 0; j < inputAccessor.count; ++j)
 					{
 						u32 index = (startOfInputBuffer + strideOfInputBuffer * j);
 						f32 val = static_cast<f32>(((f32*)model.buffers[inputBufferView.buffer].data.data())[index / sizeof(f32)]);
+						if (val < minInput)
+							minInput = val;
+						if (val > maxInput)
+							maxInput = val;
 						inputVector.push_back(val);
 					}
 
@@ -621,7 +627,7 @@ namespace Graphics
 							vec4Output.push_back(val);
 						}
 					}
-					auto newAnimation = MakeShared<Animation>(animationType, samplerType, inputVector, vec3Output, vec4Output, scalarOutput);
+					auto newAnimation = MakeShared<Animation>(animationType, samplerType, minInput, maxInput, inputVector, vec3Output, vec4Output, scalarOutput);
 					animationToNodes[channel.target_node].push_back(newAnimation);
 				}
 			}
@@ -751,6 +757,13 @@ namespace Graphics
 				}
 
 				newNode->animations = animationToNodes[nodeFront.first];
+				for (auto& anim : newNode->animations)
+				{
+					if (anim->minInput > newNode->minAnimationTime)
+						newNode->minAnimationTime = anim->minInput;
+					if (anim->maxInput < newNode->maxAnimationTime)
+						newNode->maxAnimationTime = anim->maxInput;
+				}
 				newNode->gltfID = nodeFront.first;
 			}
 		}
