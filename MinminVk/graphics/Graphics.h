@@ -41,7 +41,7 @@
 //#define GLTF_FILE "building/muranobuilding.gltf"
 //#define GLTF_FILE "TextureSettingsTest/TextureSettingsTest.gltf"
 //#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
-#define GLTF_FILE "lain2/lain.gltf"
+#define GLTF_FILE "lain2/lain_anim.gltf"
 
 namespace Graphics
 {
