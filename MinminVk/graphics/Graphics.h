@@ -42,6 +42,7 @@
 //#define GLTF_FILE "TextureSettingsTest/TextureSettingsTest.gltf"
 //#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
 #define GLTF_FILE "lain2/lain_anim.gltf"
+//#define GLTF_FILE "testBlend/testBlend.gltf"
 
 namespace Graphics
 {
