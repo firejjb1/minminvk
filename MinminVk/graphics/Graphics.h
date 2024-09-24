@@ -30,7 +30,7 @@
 //#define GLTF_FILE "AnimatedCube/AnimatedCube.gltf"
 //#define GLTF_FILE "RiggedSimple/RiggedSimple.gltf"
 //#define GLTF_FILE "RiggedFigure/RiggedFigure.gltf"
-#define GLTF_FILE "CesiumMan/CesiumMan.gltf"
+//#define GLTF_FILE "CesiumMan/CesiumMan.gltf"
 //#define GLTF_FILE "AnimatedMorphCube/AnimatedMorphCube.gltf"
 //#define GLTF_FILE "CesiumMilkTruck/CesiumMilkTruck.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
@@ -41,7 +41,8 @@
 //#define GLTF_FILE "building/muranobuilding.gltf"
 //#define GLTF_FILE "TextureSettingsTest/TextureSettingsTest.gltf"
 //#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
-//#define GLTF_FILE "lain/lain.gltf"
+#define GLTF_FILE "lain2/lain_anim.gltf"
+//#define GLTF_FILE "testBlend/testBlend.gltf"
 
 namespace Graphics
 {
@@ -355,6 +356,7 @@ namespace Graphics
 					particleLSCComputePipeline->Dispatch(computeContext);
 					computeContext.computePipeline = particleELCWindComputePipeline;
 					particleELCWindComputePipeline->Dispatch(computeContext);
+					device->EndRecording(computeContext);
 
 					for (auto& mesh : gltfMeshes)
 					{
@@ -367,13 +369,16 @@ namespace Graphics
 							// set the buffers
 							Vector<SharedPtr<Buffer>> newBuffers{mesh->vertexBuffer, mesh->transformedVertexBuffer, mesh->jointWeightData, mesh->skeletonMatrixData };
 							Vector<Texture> newTextures;
+							// TODO one descriptor set per skinned or morph mesh for compute vertex
+							device->BeginRecording(computeContext);
 							vertexComputePipeline->UpdateResources(computeContext, newBuffers, newTextures);
-							// set the push constants
+							device->EndRecording(computeContext);
+
+							device->BeginRecording(computeContext);
 							vertexComputePipeline->pushConstants[0].SetData(&mesh->GetVertexData()->vertexConstant, sizeof(BasicVertex::ComputeVertexConstant));
-							// set the invocation size
 							vertexComputePipeline->threadSz = vec3(mesh->vertexBuffer->GetBufferSize() / sizeof(BasicVertex::Vertex), 1, 1);
-							// dispatch
 							vertexComputePipeline->Dispatch(computeContext);
+							device->EndRecording(computeContext);
 						}
 
 						if (vertexData->hasBlends)
@@ -381,20 +386,20 @@ namespace Graphics
 							computeContext.computePipeline = vertexComputePipeline;
 							mesh->Update(fixedDeltaTime);
 							mesh->morphWeightData->UpdateUniformBuffer(computeContext.frameID);
-							// set the buffers
 							Vector<SharedPtr<Buffer>> newBuffers{ mesh->vertexBuffer, mesh->transformedVertexBuffer, mesh->morphWeightData, mesh->morphTargetsData };
 							Vector<Texture> newTextures;
+							device->BeginRecording(computeContext);
 							vertexComputePipeline->UpdateResources(computeContext, newBuffers, newTextures);
-							// set the push constants
 							vertexComputePipeline->pushConstants[0].SetData(&mesh->GetVertexData()->vertexConstant, sizeof(BasicVertex::ComputeVertexConstant));
-							// set the invocation size
+							device->EndRecording(computeContext);
 							vertexComputePipeline->threadSz = vec3(mesh->vertexBuffer->GetBufferSize() / sizeof(BasicVertex::Vertex), 1, 1);
-							// dispatch
+							device->BeginRecording(computeContext);
 							vertexComputePipeline->Dispatch(computeContext);
+							device->EndRecording(computeContext);
 						}
 					}
 
-					device->EndRecording(computeContext);
+					
 				}
 
 				vikingRoom->Update(fixedDeltaTime);
@@ -406,6 +411,7 @@ namespace Graphics
 	void MainRender(const u32 frameID, const f32 deltaTime)
 	{
 		renderContext.frameID = frameID;
+		renderContext.updateFrameID = computeContext.frameID;
 
 		updateTimeAccumulator += deltaTime;
 		Update(fixedDeltaTime);
@@ -436,7 +442,6 @@ namespace Graphics
 				
 				vikingRoom->Draw(renderContext);
 				
-				// non-skinned 
 				for (auto& mesh : gltfMeshes)
 				{
 					// opaque or mask alpha

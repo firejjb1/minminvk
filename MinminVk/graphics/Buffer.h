@@ -10,7 +10,7 @@ namespace Graphics
 
     struct Buffer
     {
-        enum class BufferType { STRUCTURED, UNIFORM, VERTEX };
+        enum class BufferType { STRUCTURED, UNIFORM, VERTEX, VERTEX_WRITE };
         enum class BufferUsageType
         {
             NONE = 0,
@@ -39,14 +39,15 @@ namespace Graphics
         ResourceBinding binding;
         u32 dataSize;
         AccessType accessType;
+        bool isAlsoStorage = false;
 
-        VertexBuffer(u32 dataSize, AccessType accessType) : dataSize{ dataSize }, accessType{ accessType } {}
+        VertexBuffer(u32 dataSize, AccessType accessType, bool isAlsoStorage) : dataSize{ dataSize }, accessType{ accessType }, isAlsoStorage{ isAlsoStorage } {}
 
         const ResourceBinding GetBinding() const override
         {
             return binding;
         }
-        const BufferType GetBufferType() const override { return Buffer::BufferType::VERTEX; }
+        const BufferType GetBufferType() const override { if (isAlsoStorage) return Buffer::BufferType::VERTEX_WRITE; return Buffer::BufferType::VERTEX; }
 
         const AccessType GetAccessType() const override { return accessType; }
 

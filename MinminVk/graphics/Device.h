@@ -11,6 +11,7 @@ namespace Graphics
 	struct RenderContext
 	{
 		u32 frameID = 0;
+		u32 updateFrameID = 0;
 		SharedPtr<RenderPass> renderPass;
 		SharedPtr<Presentation> presentation;
 		SharedPtr<Device> device;

@@ -22,6 +22,8 @@ namespace Graphics
 		OutputType outputType = OutputType::VEC3;
 
 		Vector<f32> input;
+		f32 minInput;
+		f32 maxInput;
 
 		Vector<f32> scalarOutput;
 		Vector<vec3> vec3Output;
@@ -31,8 +33,8 @@ namespace Graphics
 		u32 numWeightsMorphTarget = 1;
 
 
-		Animation(AnimationType animationType, SamplerType samplerTYpe, Vector<f32>& input, Vector<vec3>& vec3Output, Vector<vec4>& vec4Output, Vector<f32>& scalarOutput) :
-			animationType{ animationType }, samplerType{ samplerType }, input{ input }, vec3Output{ vec3Output }, vec4Output{ vec4Output }, scalarOutput{ scalarOutput }
+		Animation(AnimationType animationType, SamplerType samplerTYpe, f32 minInput, f32 maxInput, Vector<f32>& input, Vector<vec3>& vec3Output, Vector<vec4>& vec4Output, Vector<f32>& scalarOutput) :
+			animationType{ animationType }, samplerType{ samplerType }, input{ input }, vec3Output{ vec3Output }, vec4Output{ vec4Output }, scalarOutput{ scalarOutput }, minInput{minInput}, maxInput{maxInput}
 		{
 			assert(input.size() == vec3Output.size() || input.size() == vec4Output.size() || scalarOutput.size() >= input.size());
 			assert(input.size() > 0);
