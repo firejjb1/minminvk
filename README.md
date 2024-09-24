@@ -14,7 +14,6 @@ The project is built using CMake.
 - MacOS
 
 ### Features
-#### Done
 - Vulkan abstraction, all Vulkan functionalities inside graphics/backend/VulkanImpl.cpp
 - graphics pipeline, compute pipeline
 - parse OBJ files
@@ -25,7 +24,7 @@ The project is built using CMake.
 - keyboard and mouse controlled camera
 - ImGUI integration
 - hair simulation shaders
-
+- dancing Lain
 
 #### Tested [GLTF Models](https://github.com/KhronosGroup/glTF-Sample-Models/tree/main/2.0)
 - Cube
