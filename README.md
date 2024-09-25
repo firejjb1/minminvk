@@ -45,5 +45,5 @@ The project is built using CMake.
 see graphics/Graphics.h for example 
 
 
-![Dancing Lain](https://github.com/firejjb1/minminvk/tree/master/MinminVk/assets/Animation.gif)
+![Dancing Lain](https://github.com/firejjb1/minminvk/blob/master/MinminVk/assets/Animation.gif)
 
