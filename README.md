@@ -43,3 +43,7 @@ The project is built using CMake.
 - AnimatedMorphCube
 
 see graphics/Graphics.h for example 
+
+
+![Dancing Lain](https://github.com/firejjb1/minminvk/tree/master/MinminVk/assets/Animation.gif)
+
