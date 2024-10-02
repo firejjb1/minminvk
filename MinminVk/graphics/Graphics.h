@@ -28,7 +28,7 @@
 //#define GLTF_FILE "BoxAnimated/BoxAnimated.gltf"
 //#define GLTF_FILE "BoxVertexColors/BoxVertexColors.gltf"
 //#define GLTF_FILE "AnimatedCube/AnimatedCube.gltf"
-//#define GLTF_FILE "RiggedSimple/RiggedSimple.gltf"
+#define GLTF_FILE "RiggedSimple/RiggedSimple.gltf"
 //#define GLTF_FILE "RiggedFigure/RiggedFigure.gltf"
 //#define GLTF_FILE "CesiumMan/CesiumMan.gltf"
 //#define GLTF_FILE "AnimatedMorphCube/AnimatedMorphCube.gltf"
@@ -41,7 +41,7 @@
 //#define GLTF_FILE "building/muranobuilding.gltf"
 //#define GLTF_FILE "TextureSettingsTest/TextureSettingsTest.gltf"
 //#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
-#define GLTF_FILE "lain2/lain_anim.gltf"
+//#define GLTF_FILE "lain2/lain_anim.gltf"
 //#define GLTF_FILE "testBlend/testBlend.gltf"
 
 namespace Graphics
@@ -278,7 +278,8 @@ namespace Graphics
 					Vector<Buffer::BufferUsageType> jointWeightsBufferUsage;
 					jointWeightsBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_STORAGE);
 					jointWeightsBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
-					SharedPtr<StructuredBuffer> jointWeightData = MakeShared<StructuredBuffer>(Vector<f32>{1}, jointWeightBufferBinding, jointWeightsBufferUsage);
+					Vector<f32> tmpVec{1};
+					SharedPtr<StructuredBuffer> jointWeightData = MakeShared<StructuredBuffer>(tmpVec, jointWeightBufferBinding, jointWeightsBufferUsage);
 					computeVertexBuffers.push_back(jointWeightData);
 					SharedPtr<SkeletonUniformBuffer> skeletonBufferData = MakeShared<SkeletonUniformBuffer>();
 					computeVertexBuffers.push_back(skeletonBufferData);
@@ -290,12 +291,12 @@ namespace Graphics
 					Vector<Buffer::BufferUsageType> blendDataBufferUsage;
 					blendDataBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_STORAGE);
 					blendDataBufferUsage.push_back(Buffer::BufferUsageType::BUFFER_TRANSFER_DST);
-					SharedPtr<StructuredBuffer> blendDataBuffer = MakeShared<StructuredBuffer>(Vector<f32>{1}, blendDataBufferBinding, blendDataBufferUsage);
+					SharedPtr<StructuredBuffer> blendDataBuffer = MakeShared<StructuredBuffer>(tmpVec, blendDataBufferBinding, blendDataBufferUsage);
 					computeVertexBuffers.push_back(blendDataBuffer);
-
+					Vector<Texture> tex{};
 					PushConstant vertexConstant("VertexParams", PushConstant::Stage::COMPUTE, sizeof(BasicVertex::ComputeVertexConstant));
 					vertexComputePipeline = MakeShared<ComputePipeline>(MakeShared<Shader>(concat_str(SHADERS_DIR, VERTEX_COMP_SHADER), Shader::ShaderType::SHADER_COMPUTE, "main"),
-						vec3{ 1,1,1 }, vec3{ 64,1,1 }, computeVertexBuffers, Vector<Texture>{}, Vector<PushConstant>{vertexConstant}
+						vec3{ 1,1,1 }, vec3{ 64,1,1 }, computeVertexBuffers, tex, Vector<PushConstant>{vertexConstant}
 					);
 					break;
 				}
@@ -360,7 +361,7 @@ namespace Graphics
 
 					for (auto& mesh : gltfMeshes)
 					{
-						auto& vertexData = mesh->GetVertexData();
+						auto vertexData = mesh->GetVertexData();
 						if (vertexData->hasSkeleton)
 						{
 							computeContext.computePipeline = vertexComputePipeline;

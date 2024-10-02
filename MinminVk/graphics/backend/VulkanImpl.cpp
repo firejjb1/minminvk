@@ -2871,7 +2871,7 @@ namespace Graphics
 			}
 		}
 
-		auto& vertexData = GetVertexData();
+		auto vertexData = GetVertexData();
 		vertexData->vertexConstant.hasNormal = vertexData->hasNormal ? 1 : 0;
 		vertexData->vertexConstant.hasTangent = vertexData->hasTangent ? 1 : 0;
 		vertexData->vertexConstant.hasSkeleton = vertexData->hasSkeleton ? 1 : 0;

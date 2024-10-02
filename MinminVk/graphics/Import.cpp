@@ -68,6 +68,7 @@ namespace Graphics
 		if (mesh.material < 0)
 			return;
 		auto modelMat = model.materials[mesh.material];
+		String dirName = filename.substr(0, filename.find_last_of("\\/"));
 		if (modelMat.pbrMetallicRoughness.baseColorTexture.index > -1)
 		{
 			auto tex = model.textures[modelMat.pbrMetallicRoughness.baseColorTexture.index];
@@ -75,8 +76,8 @@ namespace Graphics
 			if (mainTextureURI != "")
 			{
 				String texturePath;
-				texturePath.append(filename);
-				texturePath.append("/../");
+				texturePath.append(dirName);
+				texturePath.append("/");
 				texturePath.append(mainTextureURI);
 				Texture texture(texturePath);
 				if (tex.sampler > -1)
@@ -91,8 +92,8 @@ namespace Graphics
 			if (metallicTextureURI != "")
 			{
 				String texturePath;
-				texturePath.append(filename);
-				texturePath.append("/../");
+				texturePath.append(dirName);
+				texturePath.append("/");
 				texturePath.append(metallicTextureURI);
 				Texture texture(texturePath, Texture::FormatType::RGBA8_UNORM);
 				if (tex.sampler > -1)
@@ -108,8 +109,8 @@ namespace Graphics
 			if (normalTexURI != "")
 			{
 				String texturePath;
-				texturePath.append(filename);
-				texturePath.append("/../");
+				texturePath.append(dirName);
+				texturePath.append("/");
 				texturePath.append(normalTexURI);
 				Texture texture(texturePath, Texture::FormatType::RGBA8_UNORM);
 				if (tex.sampler > -1)
@@ -125,8 +126,8 @@ namespace Graphics
 			if (occlusionTexURI != "")
 			{
 				String texturePath;
-				texturePath.append(filename);
-				texturePath.append("/../");
+				texturePath.append(dirName);
+				texturePath.append("/");
 				texturePath.append(occlusionTexURI);
 				Texture texture(texturePath, Texture::FormatType::RGBA8_UNORM);
 				if (tex.sampler > -1)
@@ -142,8 +143,8 @@ namespace Graphics
 			if (emissiveTexture != "")
 			{
 				String texturePath;
-				texturePath.append(filename);
-				texturePath.append("/../");
+				texturePath.append(dirName);
+				texturePath.append("/");
 				texturePath.append(emissiveTexture);
 				Texture texture(texturePath);
 				if (tex.sampler > -1)

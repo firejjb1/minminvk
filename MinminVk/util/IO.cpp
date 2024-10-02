@@ -47,7 +47,7 @@ unsigned char* IO::ReadImage(i32& width, i32& height, const String& filename)
 	//stbi_set_flip_vertically_on_load(true);
 	unsigned char * data = stbi_load(filename.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 	if (!data) {
-		throw std::runtime_error("failed to load texture image!");
+		throw std::runtime_error("failed to load texture image! " + filename);
 	}
 	width = texWidth;
 	height = texHeight;
