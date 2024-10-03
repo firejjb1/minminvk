@@ -28,7 +28,7 @@
 //#define GLTF_FILE "BoxAnimated/BoxAnimated.gltf"
 //#define GLTF_FILE "BoxVertexColors/BoxVertexColors.gltf"
 //#define GLTF_FILE "AnimatedCube/AnimatedCube.gltf"
-#define GLTF_FILE "RiggedSimple/RiggedSimple.gltf"
+//#define GLTF_FILE "RiggedSimple/RiggedSimple.gltf"
 //#define GLTF_FILE "RiggedFigure/RiggedFigure.gltf"
 //#define GLTF_FILE "CesiumMan/CesiumMan.gltf"
 //#define GLTF_FILE "AnimatedMorphCube/AnimatedMorphCube.gltf"
@@ -41,7 +41,7 @@
 //#define GLTF_FILE "building/muranobuilding.gltf"
 //#define GLTF_FILE "TextureSettingsTest/TextureSettingsTest.gltf"
 //#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
-//#define GLTF_FILE "lain2/lain_anim.gltf"
+#define GLTF_FILE "lain2/lain_anim.gltf"
 //#define GLTF_FILE "testBlend/testBlend.gltf"
 
 namespace Graphics

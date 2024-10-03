@@ -431,7 +431,6 @@ namespace Graphics
 					vertices.jointVertices[i].joints = ReadGLTFU8x4(index, model.buffers[jointsBufferView.buffer].data);
 			}
 		}
-
 		auto indicesBufferView = model.bufferViews[indicesAccessor.bufferView];
 		u32 startOfIndicesBuffer = indicesAccessor.byteOffset + indicesBufferView.byteOffset;
 		u32 strideIndicesBuffer;
