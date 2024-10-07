@@ -420,26 +420,27 @@ namespace Graphics
 		{
 			// pass 1 - meshes
 			renderContext.renderPass = forwardPass;
+			//renderContext.renderPass = forwardParticlePass;
+
 			bool success = device->BeginRecording(renderContext);
 			if (!success)
 				return;
-			
+			// view projection
+			{
+				forwardPipeline->uniformDesc->transformUniform.view = camera->GetCameraMatrix();
+				i32 width = presentation->swapChainDetails.width;
+				i32 height = presentation->swapChainDetails.height;
+				forwardPipeline->uniformDesc->transformUniform.proj = camera->GetProjectionMatrix();
+				forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
+				forwardPipeline->uniformDesc->transformUniform.cameraPosition = vec4(camera->GetPosition(), 1);
+				forwardPipeline->uniformDesc->transformUniform.lightDirection = vec4(UI::lightDirection, 0);
+				forwardPipeline->uniformDesc->transformUniform.lightIntensity = vec4(UI::lightIntensity, 1);
+
+				particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
+				particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
+			}
 			device->BeginRenderPass(renderContext);
 			{
-				// view projection
-				{
-					forwardPipeline->uniformDesc->transformUniform.view = camera->GetCameraMatrix();
-					i32 width = presentation->swapChainDetails.width;
-					i32 height = presentation->swapChainDetails.height;
-					forwardPipeline->uniformDesc->transformUniform.proj = camera->GetProjectionMatrix();
-					forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
-					forwardPipeline->uniformDesc->transformUniform.cameraPosition = vec4(camera->GetPosition(), 1);
-					forwardPipeline->uniformDesc->transformUniform.lightDirection = vec4(UI::lightDirection, 0);
-					forwardPipeline->uniformDesc->transformUniform.lightIntensity = vec4(UI::lightIntensity, 1);
-
-					particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
-					particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
-				}
 				
 				vikingRoom->Draw(renderContext);
 				
@@ -457,16 +458,16 @@ namespace Graphics
 
 
 			// pass 2 - hair
-			renderContext.renderPass = forwardParticlePass;
+			/*renderContext.renderPass = forwardParticlePass;
 			device->BeginRenderPass(renderContext);
 
 			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->node->worldMatrix;
 			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
-			device->EndRenderPass(renderContext);
+			device->EndRenderPass(renderContext);*/
 
 			// pass 3 transparent meshes
-			renderContext.renderPass = forwardTransparentPass;
+			/*renderContext.renderPass = forwardTransparentPass;
 			device->BeginRenderPass(renderContext);
 			{
 				for (auto& mesh : gltfMeshes)
@@ -475,7 +476,7 @@ namespace Graphics
 						mesh->Draw(renderContext);
 				}
 			}
-			device->EndRenderPass(renderContext);
+			device->EndRenderPass(renderContext);*/
 
 			// UI pass
 			renderContext.shouldRenderUI = true;

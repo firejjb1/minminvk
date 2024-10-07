@@ -34,6 +34,7 @@ namespace VulkanImpl
 	};
 	const std::vector<const char*> deviceExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME
 	};
 
 	void* windowVK;
@@ -481,6 +482,9 @@ namespace VulkanImpl
 			requiredExtensions.erase(extension.extensionName);
 		}
 
+		for (const auto& nonSupportedExtension : requiredExtensions)
+			DebugPrint("Device extensions not supported: %s\n", nonSupportedExtension);
+
 		return requiredExtensions.empty();
 	}
 
@@ -499,6 +503,7 @@ namespace VulkanImpl
 			SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(device);
 			swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
 		}
+
 		bool isSuitable = indices.isComplete() && extensionsSupported && swapChainAdequate;
 		if (isSuitable)
 		{
@@ -655,6 +660,7 @@ namespace VulkanImpl
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		createInfo.pQueueCreateInfos = queueCreateInfos.data();
 		deviceFeatures.samplerAnisotropy = VK_TRUE;
+		
 		createInfo.queueCreateInfoCount = static_cast<u32>(queueCreateInfos.size());
 
 		createInfo.pEnabledFeatures = &deviceFeatures;
@@ -666,7 +672,10 @@ namespace VulkanImpl
 		else {
 			createInfo.enabledLayerCount = 0;
 		}
-
+		struct VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderFeature{};
+		dynamicRenderFeature.dynamicRendering = true;
+		dynamicRenderFeature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+		createInfo.pNext = &dynamicRenderFeature;
 		createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 		createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 		if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
@@ -1297,7 +1306,14 @@ namespace VulkanImpl
 			throw std::runtime_error("failed to create pipeline layout!");
 		}
 
+		VkPipelineRenderingCreateInfoKHR pipeline_rendering_create_info{};
+		pipeline_rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+		pipeline_rendering_create_info.colorAttachmentCount = 1;
+		pipeline_rendering_create_info.pColorAttachmentFormats = &swapChainImageFormat;
+		pipeline_rendering_create_info.depthAttachmentFormat = depthFormatChosen;
+
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
+		pipelineInfo.pNext = &pipeline_rendering_create_info;
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 		pipelineInfo.stageCount = 2;
 		pipelineInfo.pStages = shaderStages;
@@ -1325,7 +1341,8 @@ namespace VulkanImpl
 
 		pipelineInfo.layout = pipelineLayout;
 
-		pipelineInfo.renderPass = renderPasses[renderPassID.id];
+		//pipelineInfo.renderPass = renderPasses[renderPassID.id];
+		pipelineInfo.renderPass = VK_NULL_HANDLE;
 		pipelineInfo.subpass = 0;
 		
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
@@ -1682,28 +1699,90 @@ namespace VulkanImpl
 		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
 			throw std::runtime_error("failed to begin recording command buffer!");
 		}
+
+		const VkImageMemoryBarrier image_memory_barrier{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.image = swapChainImages[commandList.imageIndex],
+			.subresourceRange = {
+			  .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			  .baseMipLevel = 0,
+			  .levelCount = 1,
+			  .baseArrayLayer = 0,
+			  .layerCount = 1,
+			}
+		};
+
+		vkCmdPipelineBarrier(
+			commandBuffer,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,  // srcStageMask
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // dstStageMask
+			0,
+			0,
+			nullptr,
+			0,
+			nullptr,
+			1, // imageMemoryBarrierCount
+			&image_memory_barrier // pImageMemoryBarriers
+		);
 	}
 
-	void BeginRenderPass(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID, SharedPtr<Graphics::BasicUniformBuffer> basicUniform, u32 swapID)
+	void BeginRenderPass(Graphics::CommandList commandList, SharedPtr<Graphics::RenderPass> renderPass, Graphics::PipeLineID pipelineID, SharedPtr<Graphics::BasicUniformBuffer> basicUniform, u32 swapID, SharedPtr<Graphics::Presentation> presentation)
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
-		VkRenderPassBeginInfo renderPassInfo{};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		auto& renderPass = renderPasses[renderPassID.id];
-		renderPassInfo.renderPass = renderPass;
-		renderPassInfo.framebuffer = swapChainFramebuffers[commandList.imageIndex];
+		//VkRenderPassBeginInfo renderPassInfo{};
+		//renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		//auto& renderPass = renderPasses[renderPassID.id];
+		//renderPassInfo.renderPass = renderPass;
+		//renderPassInfo.framebuffer = swapChainFramebuffers[commandList.imageIndex];
 
-		renderPassInfo.renderArea.offset = { 0, 0 };
-		renderPassInfo.renderArea.extent = swapChainExtent;
+		//renderPassInfo.renderArea.offset = { 0, 0 };
+		//renderPassInfo.renderArea.extent = swapChainExtent;
 
 		Vector<VkClearValue> clearValues(2);
 		clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
 		clearValues[1].depthStencil = { 1.0f, 0 };
+		
+		//renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+		//renderPassInfo.pClearValues = clearValues.data();
 
-		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-		renderPassInfo.pClearValues = clearValues.data();
+		//vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		
+		VkRenderingAttachmentInfoKHR color_attachment_info{};
+		color_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		color_attachment_info.imageView = textureImageViews[renderPass->colorAttachment.textureID.viewID];
+		color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		color_attachment_info.loadOp = MapToVulkanLoadOp(renderPass->loadOp);
+		color_attachment_info.storeOp = MapToVulkanStoreOp(renderPass->storeOp);
+		color_attachment_info.clearValue = clearValues[0];
+		color_attachment_info.resolveImageView = swapChainImageViews[commandList.imageIndex];
+		color_attachment_info.resolveImageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		color_attachment_info.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+
+		VkRenderingAttachmentInfoKHR depth_attachment_info{};
+		depth_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		depth_attachment_info.imageView = textureImageViews[presentation->depthTextureID.viewID];
+		depth_attachment_info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depth_attachment_info.loadOp = MapToVulkanLoadOp(renderPass->depthLoadOp);
+		depth_attachment_info.storeOp = MapToVulkanStoreOp(renderPass->depthStoreOp);
+		depth_attachment_info.clearValue = clearValues[1];
+		
+		VkRenderingInfoKHR render_info{};
+		render_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+		VkRect2D render_area{};
+		render_area.extent.width = swapChainExtent.width;
+		render_area.extent.height = swapChainExtent.height;
+		render_info.renderArea = render_area;
+		render_info.layerCount = 1;
+		render_info.colorAttachmentCount = 1;
+		render_info.pColorAttachments = &color_attachment_info;
+		render_info.pDepthAttachment = &depth_attachment_info;
+
+		vkCmdBeginRendering(commandBuffer, &render_info);
+
 		auto& graphicsPipeline = pipelines[pipelineID.id];
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 		VkViewport viewport{};
@@ -1727,9 +1806,24 @@ namespace VulkanImpl
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 
-		vkCmdEndRenderPass(commandBuffer);
+		//vkCmdEndRenderPass(commandBuffer);
+		vkCmdEndRendering(commandBuffer);
 
-		vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+		const VkImageMemoryBarrier image_memory_barrier{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.image = swapChainImages[commandList.imageIndex],
+			.subresourceRange = {
+			  .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			  .baseMipLevel = 0,
+			  .levelCount = 1,
+			  .baseArrayLayer = 0,
+			  .layerCount = 1,
+			}
+		};
+		vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, &image_memory_barrier);
 
 	}
 
@@ -1748,6 +1842,35 @@ namespace VulkanImpl
 	void EndRecordCommandbuffer(Graphics::CommandList commandList)
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
+
+
+		const VkImageMemoryBarrier image_memory_barrier{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+			.image = swapChainImages[commandList.imageIndex],
+			.subresourceRange = {
+			  .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			  .baseMipLevel = 0,
+			  .levelCount = 1,
+			  .baseArrayLayer = 0,
+			  .layerCount = 1,
+			}
+		};
+
+		vkCmdPipelineBarrier(
+			commandBuffer,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // srcStageMask
+			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // dstStageMask
+			0,
+			0,
+			nullptr,
+			0,
+			nullptr,
+			1, // imageMemoryBarrierCount
+			&image_memory_barrier // pImageMemoryBarriers
+		);
 
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
 			throw std::runtime_error("failed to record command buffer!");
@@ -2305,7 +2428,7 @@ namespace VulkanImpl
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), uiCommandBuffers[bufferIdx]);
 
 		// End and submit render pass
-		vkCmdEndRenderPass(uiCommandBuffers[bufferIdx]);
+		 vkCmdEndRenderPass(uiCommandBuffers[bufferIdx]);
 
 		if (vkEndCommandBuffer(uiCommandBuffers[bufferIdx]) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to record command buffers!");
@@ -2513,7 +2636,7 @@ namespace Graphics
 		auto pipelineID = context.renderPass->pso->pipelineID.id;
 		auto& commandList = GetCommandList(swapID);
 	
-		VulkanImpl::BeginRenderPass(commandList, renderPass->renderPassID, renderPass->pso->pipelineID, context.renderPass->pso->uniformDesc, swapID);
+		VulkanImpl::BeginRenderPass(commandList, renderPass, renderPass->pso->pipelineID, context.renderPass->pso->uniformDesc, swapID, context.presentation);
 	}
 
 	void Device::EndRenderPass(Graphics::RenderContext& context)
