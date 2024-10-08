@@ -420,26 +420,26 @@ namespace Graphics
 		{
 			// pass 1 - meshes
 			renderContext.renderPass = forwardPass;
+
 			bool success = device->BeginRecording(renderContext);
 			if (!success)
 				return;
-			
+			// view projection
+			{
+				forwardPipeline->uniformDesc->transformUniform.view = camera->GetCameraMatrix();
+				i32 width = presentation->swapChainDetails.width;
+				i32 height = presentation->swapChainDetails.height;
+				forwardPipeline->uniformDesc->transformUniform.proj = camera->GetProjectionMatrix();
+				forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
+				forwardPipeline->uniformDesc->transformUniform.cameraPosition = vec4(camera->GetPosition(), 1);
+				forwardPipeline->uniformDesc->transformUniform.lightDirection = vec4(UI::lightDirection, 0);
+				forwardPipeline->uniformDesc->transformUniform.lightIntensity = vec4(UI::lightIntensity, 1);
+
+				particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
+				particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
+			}
 			device->BeginRenderPass(renderContext);
 			{
-				// view projection
-				{
-					forwardPipeline->uniformDesc->transformUniform.view = camera->GetCameraMatrix();
-					i32 width = presentation->swapChainDetails.width;
-					i32 height = presentation->swapChainDetails.height;
-					forwardPipeline->uniformDesc->transformUniform.proj = camera->GetProjectionMatrix();
-					forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
-					forwardPipeline->uniformDesc->transformUniform.cameraPosition = vec4(camera->GetPosition(), 1);
-					forwardPipeline->uniformDesc->transformUniform.lightDirection = vec4(UI::lightDirection, 0);
-					forwardPipeline->uniformDesc->transformUniform.lightIntensity = vec4(UI::lightIntensity, 1);
-
-					particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
-					particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
-				}
 				
 				vikingRoom->Draw(renderContext);
 				

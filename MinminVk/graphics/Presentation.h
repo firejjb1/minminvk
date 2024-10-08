@@ -6,13 +6,12 @@ namespace Graphics
 {
 	struct Presentation
 	{
-		// pointer to window object (glfw, could be other if added)
+		// pointer to window object (glfw)
 		void* window;
 
 		struct SwapChainDetails
 		{
 			u32 targetImageCount = 2;
-			//u32 maxImageCount = 0; // 0 means no maximum
 			u32 width;
 			u32 height;
 			Texture::FormatType format = Texture::FormatType::RGBA8_SRGB;
@@ -21,7 +20,6 @@ namespace Graphics
 			enum class ModeType { FIFO, FIFO_RELAXED, MAILBOX, IMMEDIATE };
 			ModeType mode = ModeType::FIFO_RELAXED;
 
-			//Vector<TextureID> textureIDs;
 		};
 
 		enum class DepthFormatType { D32, D32S8, D24S8 };
@@ -29,6 +27,8 @@ namespace Graphics
 		Texture::TilingType depthTilingType = Texture::TilingType::OPTIMAL;
 
 		TextureID depthTextureID;
+		TextureID colorTextureID;
+		u32 maxMSAASamples = 4;
 
 		SwapChainDetails swapChainDetails;
 

@@ -34,6 +34,7 @@ namespace VulkanImpl
 	};
 	const std::vector<const char*> deviceExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME
 	};
 
 	void* windowVK;
@@ -52,11 +53,9 @@ namespace VulkanImpl
 	Vector<VkImageView> swapChainImageViews;
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
-	Vector<VkRenderPass> renderPasses;
 	Vector<VkDescriptorSetLayout> descriptorSetLayouts;
 	Vector<VkPipelineLayout> pipelineLayouts;
 	Vector<VkPipeline> pipelines;
-	Vector<VkFramebuffer> swapChainFramebuffers;
 	VkCommandPool commandPool;
 	Vector<VkCommandBuffer> commandBuffers;
 	Vector<VkCommandBuffer> computeCommandBuffers;
@@ -239,7 +238,7 @@ namespace VulkanImpl
 		return VK_SAMPLE_COUNT_1_BIT;
 	}
 
-	void CreateDepthResources(Graphics::Presentation* presentation, Graphics::RenderPass* renderPass = nullptr)
+	void CreateDepthResources(Graphics::Presentation* presentation)
 	{		
 		Vector<VkFormat> candidates;
 		if (presentation->depthFormatType == Graphics::Presentation::DepthFormatType::D32)
@@ -266,7 +265,7 @@ namespace VulkanImpl
 				depthFormatChosen = format;
 			}
 		}
-		if (presentation->depthTextureID.id != 0)
+		if (presentation->depthTextureID.id != 0 && textureImages.size() > presentation->depthTextureID.id)
 		{
 			// depth resources already exist
 			VkImage& depthImage = textureImages[presentation->depthTextureID.id];
@@ -276,7 +275,7 @@ namespace VulkanImpl
 			vkFreeMemory(VulkanImpl::device, depthImageMemory, nullptr);
 			vkDestroyImageView(device, depthImageView, nullptr);
 			CreateImage(swapChainExtent.width, swapChainExtent.height, depthFormatChosen, tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				depthImage, depthImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass == nullptr ? 64 : renderPass->numSamplesDepth)));
+				depthImage, depthImageMemory, 1, msaaSamples);
 			depthImageView = CreateImageView(depthImage, depthFormatChosen, VK_IMAGE_ASPECT_DEPTH_BIT);
 		}
 		else
@@ -289,7 +288,7 @@ namespace VulkanImpl
 			presentation->depthTextureID.viewID = textureImageViews.size() - 1;
 
 			CreateImage(swapChainExtent.width, swapChainExtent.height, depthFormatChosen, tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-				depthImage, depthImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass == nullptr ? 64 : renderPass->numSamplesDepth)));
+				depthImage, depthImageMemory, 1, msaaSamples);
 			depthImageView = CreateImageView(depthImage, depthFormatChosen, VK_IMAGE_ASPECT_DEPTH_BIT);
 		}
 	}
@@ -481,6 +480,9 @@ namespace VulkanImpl
 			requiredExtensions.erase(extension.extensionName);
 		}
 
+		for (const auto& nonSupportedExtension : requiredExtensions)
+			DebugPrint("Device extensions not supported: %s\n", nonSupportedExtension);
+
 		return requiredExtensions.empty();
 	}
 
@@ -499,6 +501,7 @@ namespace VulkanImpl
 			SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(device);
 			swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
 		}
+
 		bool isSuitable = indices.isComplete() && extensionsSupported && swapChainAdequate;
 		if (isSuitable)
 		{
@@ -604,7 +607,7 @@ namespace VulkanImpl
 		for (const auto& device : devices) {
 			if (isDeviceSuitable(device)) {
 				physicalDevice = device;
-				msaaSamples = GetMaxUsableSampleCount();
+				msaaSamples = Min(msaaSamples, GetMaxUsableSampleCount());
 				break;
 			}
 		}
@@ -655,6 +658,7 @@ namespace VulkanImpl
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		createInfo.pQueueCreateInfos = queueCreateInfos.data();
 		deviceFeatures.samplerAnisotropy = VK_TRUE;
+		
 		createInfo.queueCreateInfoCount = static_cast<u32>(queueCreateInfos.size());
 
 		createInfo.pEnabledFeatures = &deviceFeatures;
@@ -666,7 +670,10 @@ namespace VulkanImpl
 		else {
 			createInfo.enabledLayerCount = 0;
 		}
-
+		struct VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderFeature{};
+		dynamicRenderFeature.dynamicRendering = true;
+		dynamicRenderFeature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+		createInfo.pNext = &dynamicRenderFeature;
 		createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 		createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 		if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
@@ -1250,7 +1257,7 @@ namespace VulkanImpl
 		VkPipelineMultisampleStateCreateInfo multisampling{};
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		multisampling.sampleShadingEnable = VK_FALSE;
-		multisampling.rasterizationSamples = Min(MapToSampleCount(renderPassID.pointer->numSamples), msaaSamples);
+		multisampling.rasterizationSamples = MapToSampleCount(msaaSamples);
 		multisampling.minSampleShading = 1.0f; // Optional
 		multisampling.pSampleMask = nullptr; // Optional
 		multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
@@ -1297,7 +1304,14 @@ namespace VulkanImpl
 			throw std::runtime_error("failed to create pipeline layout!");
 		}
 
+		VkPipelineRenderingCreateInfoKHR pipeline_rendering_create_info{};
+		pipeline_rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+		pipeline_rendering_create_info.colorAttachmentCount = 1;
+		pipeline_rendering_create_info.pColorAttachmentFormats = &swapChainImageFormat;
+		pipeline_rendering_create_info.depthAttachmentFormat = depthFormatChosen;
+
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
+		pipelineInfo.pNext = &pipeline_rendering_create_info;
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 		pipelineInfo.stageCount = 2;
 		pipelineInfo.pStages = shaderStages;
@@ -1325,7 +1339,7 @@ namespace VulkanImpl
 
 		pipelineInfo.layout = pipelineLayout;
 
-		pipelineInfo.renderPass = renderPasses[renderPassID.id];
+		pipelineInfo.renderPass = VK_NULL_HANDLE;
 		pipelineInfo.subpass = 0;
 		
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
@@ -1393,104 +1407,18 @@ namespace VulkanImpl
 			return VK_IMAGE_TILING_OPTIMAL;
 	}
 
-
-
-	Graphics::RenderPassID CreateRenderPass(Graphics::RenderPass* renderPass)
-	{
-		Vector<VkAttachmentDescription> attachments;
-
-		VkAttachmentDescription colorAttachment{};
-		colorAttachment.format = MapToVulkanFormat(renderPass->formatType);
-		colorAttachment.samples = MapToSampleCount(renderPass->numSamples);
-		colorAttachment.loadOp = MapToVulkanLoadOp(renderPass->loadOp);
-		colorAttachment.storeOp = MapToVulkanStoreOp(renderPass->storeOp);
-		colorAttachment.stencilLoadOp = MapToVulkanLoadOp(renderPass->stencilLoadOp);
-		colorAttachment.stencilStoreOp = MapToVulkanStoreOp(renderPass->stencilStoreOp);
-		colorAttachment.initialLayout = MapToVulkanImageLayout(renderPass->initialLayout);
-		colorAttachment.finalLayout = MapToVulkanImageLayout(renderPass->finalLayout);
-		attachments.push_back(colorAttachment);
-
-		VkAttachmentReference colorAttachmentRef{};
-		colorAttachmentRef.attachment = 0;
-		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		VkAttachmentDescription depthAttachment{};
-		depthAttachment.format = depthFormatChosen;
-		depthAttachment.samples = MapToSampleCount(renderPass->numSamplesDepth);
-		depthAttachment.loadOp = MapToVulkanLoadOp(renderPass->depthLoadOp);
-		depthAttachment.storeOp = MapToVulkanStoreOp(renderPass->depthStoreOp);
-		depthAttachment.stencilLoadOp = MapToVulkanLoadOp(renderPass->stencilLoadOp);
-		depthAttachment.stencilStoreOp = MapToVulkanStoreOp(renderPass->stencilStoreOp);
-		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		VkAttachmentReference depthAttachmentRef{};
-		depthAttachmentRef.attachment = 1;
-		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		attachments.push_back(depthAttachment);
-
-		VkAttachmentDescription colorAttachmentResolve{};
-		colorAttachmentResolve.format = swapChainImageFormat;
-		colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
-		colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		//colorAttachmentResolve.finalLayout = MapToVulkanImageLayout(renderPass->finalLayout);
-		attachments.push_back(colorAttachmentResolve);
-
-		VkAttachmentReference colorAttachmentResolveRef{};
-		colorAttachmentResolveRef.attachment = 2;
-		colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-
-		VkSubpassDescription subpass{};
-		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpass.colorAttachmentCount = 1;
-		subpass.pColorAttachments = &colorAttachmentRef;
-		subpass.pDepthStencilAttachment = &depthAttachmentRef;
-		subpass.pResolveAttachments = &colorAttachmentResolveRef;
-
-		VkSubpassDependency dependency{};
-		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		dependency.dstSubpass = 0;
-		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-		dependency.srcAccessMask = 0;
-		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-		VkRenderPassCreateInfo renderPassInfo{};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.subpassCount = 1;
-		renderPassInfo.pSubpasses = &subpass;
-		renderPassInfo.pAttachments = attachments.data();
-		renderPassInfo.attachmentCount = attachments.size();
-		renderPassInfo.dependencyCount = 1;
-		renderPassInfo.pDependencies = &dependency;
-
-		auto& renderPassVK = renderPasses.emplace_back();
-		if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPassVK) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create render pass!");
-		}
-		Graphics::RenderPassID id;
-		id.id = renderPasses.size() - 1;
-		id.pointer = renderPass;
-		return id;
-	}
-
-	void CreateColorResources(Graphics::RenderPass* renderPass) {
+	void CreateColorResources(Graphics::Presentation * presentation) {
 		VkFormat colorFormat = swapChainImageFormat;
-		if (renderPass->colorAttachment.textureID.id != 0)
+		if (presentation->colorTextureID.id != 0 && textureImages.size() > presentation->colorTextureID.id)
 		{
-			auto& colorImage = textureImages[renderPass->colorAttachment.textureID.id];
-			auto& colorImageMemory = textureImageMemories[renderPass->colorAttachment.textureID.memoryID];
-			auto& colorImageView = textureImageViews[renderPass->colorAttachment.textureID.viewID];
+			auto& colorImage = textureImages[presentation->colorTextureID.id];
+			auto& colorImageMemory = textureImageMemories[presentation->colorTextureID.memoryID];
+			auto& colorImageView = textureImageViews[presentation->colorTextureID.viewID];
 			vkDestroyImage(VulkanImpl::device, colorImage, nullptr);
 			vkFreeMemory(VulkanImpl::device, colorImageMemory, nullptr);
 			vkDestroyImageView(device, colorImageView, nullptr);
 			CreateImage(swapChainExtent.width, swapChainExtent.height, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				colorImage, colorImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass->numSamples)));
+				colorImage, colorImageMemory, 1, msaaSamples);
 			colorImageView = CreateImageView(colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
 		else
@@ -1498,53 +1426,14 @@ namespace VulkanImpl
 			auto& colorImage = textureImages.emplace_back();
 			auto& colorImageMemory = textureImageMemories.emplace_back();
 			auto& colorImageView = textureImageViews.emplace_back();
-			renderPass->colorAttachment.textureID.id = textureImages.size() - 1;
-			renderPass->colorAttachment.textureID.memoryID = textureImageMemories.size() - 1;
-			renderPass->colorAttachment.textureID.viewID = textureImageViews.size() - 1;
+			presentation->colorTextureID.id = textureImages.size() - 1;
+			presentation->colorTextureID.memoryID = textureImageMemories.size() - 1;
+			presentation->colorTextureID.viewID = textureImageViews.size() - 1;
 			CreateImage(swapChainExtent.width, swapChainExtent.height, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				colorImage, colorImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass->numSamples)));
+				colorImage, colorImageMemory, 1, msaaSamples);
 			colorImageView = CreateImageView(colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
 	
-	}
-	
-	void CreateFramebuffers(SharedPtr<Graphics::RenderPass> renderPass, SharedPtr<Graphics::Presentation> presentation)
-	{
-		if (renderPass->shouldFramebuffersMatchSwapchain)
-		{
-			// TODO able to create non-swapchain frame buffers
-			swapChainFramebuffers.resize(swapChainImageViews.size());
-			for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-
-				Vector<VkImageView> attachments;
-				attachments.push_back(textureImageViews[renderPass->colorAttachment.textureID.viewID]);
-				if (renderPass->writeToDepth)
-					attachments.push_back(textureImageViews[presentation->depthTextureID.viewID]);
-				attachments.push_back(swapChainImageViews[i]);
-				VkFramebufferCreateInfo framebufferInfo{};
-				framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-				auto& renderPassVK = renderPasses[renderPass->renderPassID.id];
-				framebufferInfo.renderPass = renderPassVK;
-				framebufferInfo.attachmentCount = attachments.size();
-				framebufferInfo.pAttachments = attachments.data();
-				framebufferInfo.width = swapChainExtent.width;
-				framebufferInfo.height = swapChainExtent.height;
-				framebufferInfo.layers = 1;
-
-				if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
-					throw std::runtime_error("failed to create framebuffer!");
-				}
-			}
-		}
-		else
-		{
-			// TODO
-			/*for (auto& frameBuffer : renderPass->frameBuffers)
-			{
-				auto& attachments = frameBuffer.textureIDs;
-				VkImageView attachments[] = attachments.data();
-			}*/
-		}
 	}
 
 	void CreateCommandPool()
@@ -1682,28 +1571,76 @@ namespace VulkanImpl
 		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
 			throw std::runtime_error("failed to begin recording command buffer!");
 		}
+
+		const VkImageMemoryBarrier image_memory_barrier{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.image = swapChainImages[commandList.imageIndex],
+			.subresourceRange = {
+			  .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			  .baseMipLevel = 0,
+			  .levelCount = 1,
+			  .baseArrayLayer = 0,
+			  .layerCount = 1,
+			}
+		};
+
+		vkCmdPipelineBarrier(
+			commandBuffer,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,  // srcStageMask
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // dstStageMask
+			0,
+			0,
+			nullptr,
+			0,
+			nullptr,
+			1, // imageMemoryBarrierCount
+			&image_memory_barrier // pImageMemoryBarriers
+		);
 	}
 
-	void BeginRenderPass(Graphics::CommandList commandList, Graphics::RenderPassID renderPassID, Graphics::PipeLineID pipelineID, SharedPtr<Graphics::BasicUniformBuffer> basicUniform, u32 swapID)
+	void BeginRenderPass(Graphics::CommandList commandList, SharedPtr<Graphics::RenderPass> renderPass, Graphics::PipeLineID pipelineID, SharedPtr<Graphics::BasicUniformBuffer> basicUniform, u32 swapID, SharedPtr<Graphics::Presentation> presentation)
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
-		VkRenderPassBeginInfo renderPassInfo{};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		auto& renderPass = renderPasses[renderPassID.id];
-		renderPassInfo.renderPass = renderPass;
-		renderPassInfo.framebuffer = swapChainFramebuffers[commandList.imageIndex];
-
-		renderPassInfo.renderArea.offset = { 0, 0 };
-		renderPassInfo.renderArea.extent = swapChainExtent;
 
 		Vector<VkClearValue> clearValues(2);
 		clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-		renderPassInfo.pClearValues = clearValues.data();
+		VkRenderingAttachmentInfoKHR color_attachment_info{};
+		color_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		color_attachment_info.imageView = textureImageViews[presentation->colorTextureID.viewID];
+		color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		color_attachment_info.loadOp = MapToVulkanLoadOp(renderPass->loadOp);
+		color_attachment_info.storeOp = MapToVulkanStoreOp(renderPass->storeOp);
+		color_attachment_info.clearValue = clearValues[0];
+		color_attachment_info.resolveImageView = swapChainImageViews[commandList.imageIndex];
+		color_attachment_info.resolveImageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		color_attachment_info.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
 
-		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		VkRenderingAttachmentInfoKHR depth_attachment_info{};
+		depth_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		depth_attachment_info.imageView = textureImageViews[presentation->depthTextureID.viewID];
+		depth_attachment_info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depth_attachment_info.loadOp = MapToVulkanLoadOp(renderPass->depthLoadOp);
+		depth_attachment_info.storeOp = MapToVulkanStoreOp(renderPass->depthStoreOp);
+		depth_attachment_info.clearValue = clearValues[1];
+		
+		VkRenderingInfoKHR render_info{};
+		render_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+		VkRect2D render_area{};
+		render_area.extent.width = swapChainExtent.width;
+		render_area.extent.height = swapChainExtent.height;
+		render_info.renderArea = render_area;
+		render_info.layerCount = 1;
+		render_info.colorAttachmentCount = 1;
+		render_info.pColorAttachments = &color_attachment_info;
+		render_info.pDepthAttachment = &depth_attachment_info;
+
+		vkCmdBeginRendering(commandBuffer, &render_info);
+
 		auto& graphicsPipeline = pipelines[pipelineID.id];
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 		VkViewport viewport{};
@@ -1727,9 +1664,23 @@ namespace VulkanImpl
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 
-		vkCmdEndRenderPass(commandBuffer);
+		vkCmdEndRendering(commandBuffer);
 
-		vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+		const VkImageMemoryBarrier image_memory_barrier{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.image = swapChainImages[commandList.imageIndex],
+			.subresourceRange = {
+			  .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			  .baseMipLevel = 0,
+			  .levelCount = 1,
+			  .baseArrayLayer = 0,
+			  .layerCount = 1,
+			}
+		};
+		vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, &image_memory_barrier);
 
 	}
 
@@ -1748,6 +1699,35 @@ namespace VulkanImpl
 	void EndRecordCommandbuffer(Graphics::CommandList commandList)
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
+
+
+		const VkImageMemoryBarrier image_memory_barrier{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+			.image = swapChainImages[commandList.imageIndex],
+			.subresourceRange = {
+			  .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			  .baseMipLevel = 0,
+			  .levelCount = 1,
+			  .baseArrayLayer = 0,
+			  .layerCount = 1,
+			}
+		};
+
+		vkCmdPipelineBarrier(
+			commandBuffer,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // srcStageMask
+			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // dstStageMask
+			0,
+			0,
+			nullptr,
+			0,
+			nullptr,
+			1, // imageMemoryBarrierCount
+			&image_memory_barrier // pImageMemoryBarriers
+		);
 
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
 			throw std::runtime_error("failed to record command buffer!");
@@ -1790,11 +1770,6 @@ namespace VulkanImpl
 		for (auto framebuffer : VulkanImpl::uiFramebuffers) {
 			vkDestroyFramebuffer(VulkanImpl::device, framebuffer, nullptr);
 		}
-
-		for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
-			vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
-		}
-
 
 		for (size_t i = 0; i < swapChainImageViews.size(); i++) {
 			vkDestroyImageView(device, swapChainImageViews[i], nullptr);
@@ -2305,7 +2280,7 @@ namespace VulkanImpl
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), uiCommandBuffers[bufferIdx]);
 
 		// End and submit render pass
-		vkCmdEndRenderPass(uiCommandBuffers[bufferIdx]);
+		 vkCmdEndRenderPass(uiCommandBuffers[bufferIdx]);
 
 		if (vkEndCommandBuffer(uiCommandBuffers[bufferIdx]) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to record command buffers!");
@@ -2325,9 +2300,8 @@ namespace VulkanImpl
 
 		CreateSwapChain(context.presentation->swapChainDetails, windowVK);
 		CreateSwapchainImageViews();
-		CreateColorResources(context.renderPass.get());
-		CreateDepthResources(context.presentation.get(), context.renderPass.get());
-		CreateFramebuffers(context.renderPass, context.presentation);
+		CreateColorResources(context.presentation.get());
+		CreateDepthResources(context.presentation.get());
 
 		// ImGUI
 		if (context.shouldRenderUI)
@@ -2354,6 +2328,9 @@ namespace Graphics
 
 		// TODO should be here?
 		VulkanImpl::CreateSyncObjects();
+		Texture defaultTexture;
+		vec4 * fakeData = new vec4{ 0,0,0,0 };
+		VulkanImpl::CreateTextureImage(defaultTexture, (stbi_uc*)fakeData, 1, 1, 1);
 	}
 
 	bool Device::BeginRecording(Graphics::RenderContext& context)
@@ -2361,11 +2338,6 @@ namespace Graphics
 		SharedPtr<Graphics::RenderPass> renderPass = context.renderPass;
 		const u32 frameID = context.frameID;
 
-		if (!renderPass->isFrameBufferCreated)
-		{
-			VulkanImpl::CreateFramebuffers(renderPass, context.presentation);
-			renderPass->isFrameBufferCreated = true;
-		}
 		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		// wait for previous frame to finish
 		auto pipelineID = context.renderPass->pso->pipelineID.id;
@@ -2513,7 +2485,7 @@ namespace Graphics
 		auto pipelineID = context.renderPass->pso->pipelineID.id;
 		auto& commandList = GetCommandList(swapID);
 	
-		VulkanImpl::BeginRenderPass(commandList, renderPass->renderPassID, renderPass->pso->pipelineID, context.renderPass->pso->uniformDesc, swapID);
+		VulkanImpl::BeginRenderPass(commandList, renderPass, renderPass->pso->pipelineID, context.renderPass->pso->uniformDesc, swapID, context.presentation);
 	}
 
 	void Device::EndRenderPass(Graphics::RenderContext& context)
@@ -2589,8 +2561,6 @@ namespace Graphics
 			vkDestroyPipelineLayout(VulkanImpl::device, layout, nullptr);
 		for (auto& pipeline : VulkanImpl::pipelines)
 			vkDestroyPipeline(VulkanImpl::device, pipeline, nullptr);
-		for (auto renderpass : VulkanImpl::renderPasses)
-			vkDestroyRenderPass(VulkanImpl::device, renderpass, nullptr);
 		vkDestroyDevice(VulkanImpl::device, nullptr);
 
 		if (VulkanImpl::enableValidationLayers) {
@@ -2611,12 +2581,16 @@ namespace Graphics
 		VulkanImpl::MAX_FRAMES_IN_FLIGHT = this->swapChainDetails.targetImageCount;
 		this->window = window;
 		VulkanImpl::CreateSurface((GLFWwindow*)window);
+
+		VulkanImpl::msaaSamples = VulkanImpl::MapToSampleCount(maxMSAASamples);
 	}
 
 	void Presentation::InitSwapChain()
 	{
 		VulkanImpl::CreateSwapChain(this->swapChainDetails, this->window);
 		VulkanImpl::CreateSwapchainImageViews();
+		VulkanImpl::CreateColorResources(this);
+		VulkanImpl::CreateDepthResources(this);
 
 	}
 
@@ -2722,15 +2696,6 @@ namespace Graphics
 	void UniformBuffer::UpdateUniformBuffer(int frameID)
 	{
 		VulkanImpl::UpdateUniformBuffer(GetData(), GetBufferSize(), *this, frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT);
-	}
-
-	// RenderPass
-	void RenderPass::Init(SharedPtr<Graphics::Presentation> presentation)
-	{
-		VulkanImpl::CreateColorResources(this);
-		VulkanImpl::CreateDepthResources(presentation.get(), this);
-
-		renderPassID = VulkanImpl::CreateRenderPass(this);
 	}
 
 	Geometry::Geometry(Texture mainTexture)
