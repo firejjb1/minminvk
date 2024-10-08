@@ -267,7 +267,7 @@ namespace VulkanImpl
 				depthFormatChosen = format;
 			}
 		}
-		if (presentation->depthTextureID.id != 0)
+		if (presentation->depthTextureID.id != 0 && textureImages.size() > presentation->depthTextureID.id)
 		{
 			// depth resources already exist
 			VkImage& depthImage = textureImages[presentation->depthTextureID.id];
@@ -277,7 +277,7 @@ namespace VulkanImpl
 			vkFreeMemory(VulkanImpl::device, depthImageMemory, nullptr);
 			vkDestroyImageView(device, depthImageView, nullptr);
 			CreateImage(swapChainExtent.width, swapChainExtent.height, depthFormatChosen, tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				depthImage, depthImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass == nullptr ? 64 : renderPass->numSamplesDepth)));
+				depthImage, depthImageMemory, 1, msaaSamples);
 			depthImageView = CreateImageView(depthImage, depthFormatChosen, VK_IMAGE_ASPECT_DEPTH_BIT);
 		}
 		else
@@ -290,7 +290,7 @@ namespace VulkanImpl
 			presentation->depthTextureID.viewID = textureImageViews.size() - 1;
 
 			CreateImage(swapChainExtent.width, swapChainExtent.height, depthFormatChosen, tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-				depthImage, depthImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass == nullptr ? 64 : renderPass->numSamplesDepth)));
+				depthImage, depthImageMemory, 1, msaaSamples);
 			depthImageView = CreateImageView(depthImage, depthFormatChosen, VK_IMAGE_ASPECT_DEPTH_BIT);
 		}
 	}
@@ -609,7 +609,7 @@ namespace VulkanImpl
 		for (const auto& device : devices) {
 			if (isDeviceSuitable(device)) {
 				physicalDevice = device;
-				msaaSamples = GetMaxUsableSampleCount();
+				msaaSamples = Min(msaaSamples, GetMaxUsableSampleCount());
 				break;
 			}
 		}
@@ -1259,7 +1259,7 @@ namespace VulkanImpl
 		VkPipelineMultisampleStateCreateInfo multisampling{};
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		multisampling.sampleShadingEnable = VK_FALSE;
-		multisampling.rasterizationSamples = Min(MapToSampleCount(renderPassID.pointer->numSamples), msaaSamples);
+		multisampling.rasterizationSamples = MapToSampleCount(msaaSamples);
 		multisampling.minSampleShading = 1.0f; // Optional
 		multisampling.pSampleMask = nullptr; // Optional
 		multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
@@ -1418,7 +1418,7 @@ namespace VulkanImpl
 
 		VkAttachmentDescription colorAttachment{};
 		colorAttachment.format = MapToVulkanFormat(renderPass->formatType);
-		colorAttachment.samples = MapToSampleCount(renderPass->numSamples);
+		colorAttachment.samples = MapToSampleCount(msaaSamples);
 		colorAttachment.loadOp = MapToVulkanLoadOp(renderPass->loadOp);
 		colorAttachment.storeOp = MapToVulkanStoreOp(renderPass->storeOp);
 		colorAttachment.stencilLoadOp = MapToVulkanLoadOp(renderPass->stencilLoadOp);
@@ -1433,7 +1433,7 @@ namespace VulkanImpl
 
 		VkAttachmentDescription depthAttachment{};
 		depthAttachment.format = depthFormatChosen;
-		depthAttachment.samples = MapToSampleCount(renderPass->numSamplesDepth);
+		depthAttachment.samples = MapToSampleCount(msaaSamples);
 		depthAttachment.loadOp = MapToVulkanLoadOp(renderPass->depthLoadOp);
 		depthAttachment.storeOp = MapToVulkanStoreOp(renderPass->depthStoreOp);
 		depthAttachment.stencilLoadOp = MapToVulkanLoadOp(renderPass->stencilLoadOp);
@@ -1496,18 +1496,18 @@ namespace VulkanImpl
 		return id;
 	}
 
-	void CreateColorResources(Graphics::RenderPass* renderPass) {
+	void CreateColorResources(Graphics::Presentation * presentation) {
 		VkFormat colorFormat = swapChainImageFormat;
-		if (renderPass->colorAttachment.textureID.id != 0)
+		if (presentation->colorTextureID.id != 0 && textureImages.size() > presentation->colorTextureID.id)
 		{
-			auto& colorImage = textureImages[renderPass->colorAttachment.textureID.id];
-			auto& colorImageMemory = textureImageMemories[renderPass->colorAttachment.textureID.memoryID];
-			auto& colorImageView = textureImageViews[renderPass->colorAttachment.textureID.viewID];
+			auto& colorImage = textureImages[presentation->colorTextureID.id];
+			auto& colorImageMemory = textureImageMemories[presentation->colorTextureID.memoryID];
+			auto& colorImageView = textureImageViews[presentation->colorTextureID.viewID];
 			vkDestroyImage(VulkanImpl::device, colorImage, nullptr);
 			vkFreeMemory(VulkanImpl::device, colorImageMemory, nullptr);
 			vkDestroyImageView(device, colorImageView, nullptr);
 			CreateImage(swapChainExtent.width, swapChainExtent.height, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				colorImage, colorImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass->numSamples)));
+				colorImage, colorImageMemory, 1, msaaSamples);
 			colorImageView = CreateImageView(colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
 		else
@@ -1515,11 +1515,11 @@ namespace VulkanImpl
 			auto& colorImage = textureImages.emplace_back();
 			auto& colorImageMemory = textureImageMemories.emplace_back();
 			auto& colorImageView = textureImageViews.emplace_back();
-			renderPass->colorAttachment.textureID.id = textureImages.size() - 1;
-			renderPass->colorAttachment.textureID.memoryID = textureImageMemories.size() - 1;
-			renderPass->colorAttachment.textureID.viewID = textureImageViews.size() - 1;
+			presentation->colorTextureID.id = textureImages.size() - 1;
+			presentation->colorTextureID.memoryID = textureImageMemories.size() - 1;
+			presentation->colorTextureID.viewID = textureImageViews.size() - 1;
 			CreateImage(swapChainExtent.width, swapChainExtent.height, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				colorImage, colorImageMemory, 1, Min(msaaSamples, MapToSampleCount(renderPass->numSamples)));
+				colorImage, colorImageMemory, 1, msaaSamples);
 			colorImageView = CreateImageView(colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
 	
@@ -1534,7 +1534,7 @@ namespace VulkanImpl
 			for (size_t i = 0; i < swapChainImageViews.size(); i++) {
 
 				Vector<VkImageView> attachments;
-				attachments.push_back(textureImageViews[renderPass->colorAttachment.textureID.viewID]);
+				attachments.push_back(textureImageViews[presentation->colorTextureID.viewID]);
 				if (renderPass->writeToDepth)
 					attachments.push_back(textureImageViews[presentation->depthTextureID.viewID]);
 				attachments.push_back(swapChainImageViews[i]);
@@ -1753,7 +1753,7 @@ namespace VulkanImpl
 		
 		VkRenderingAttachmentInfoKHR color_attachment_info{};
 		color_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		color_attachment_info.imageView = textureImageViews[renderPass->colorAttachment.textureID.viewID];
+		color_attachment_info.imageView = textureImageViews[presentation->colorTextureID.viewID];
 		color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
 		color_attachment_info.loadOp = MapToVulkanLoadOp(renderPass->loadOp);
 		color_attachment_info.storeOp = MapToVulkanStoreOp(renderPass->storeOp);
@@ -2448,7 +2448,7 @@ namespace VulkanImpl
 
 		CreateSwapChain(context.presentation->swapChainDetails, windowVK);
 		CreateSwapchainImageViews();
-		CreateColorResources(context.renderPass.get());
+		CreateColorResources(context.presentation.get());
 		CreateDepthResources(context.presentation.get(), context.renderPass.get());
 		CreateFramebuffers(context.renderPass, context.presentation);
 
@@ -2477,6 +2477,9 @@ namespace Graphics
 
 		// TODO should be here?
 		VulkanImpl::CreateSyncObjects();
+		Texture defaultTexture;
+		vec4 * fakeData = new vec4{ 0,0,0,0 };
+		VulkanImpl::CreateTextureImage(defaultTexture, (stbi_uc*)fakeData, 1, 1, 1);
 	}
 
 	bool Device::BeginRecording(Graphics::RenderContext& context)
@@ -2734,12 +2737,16 @@ namespace Graphics
 		VulkanImpl::MAX_FRAMES_IN_FLIGHT = this->swapChainDetails.targetImageCount;
 		this->window = window;
 		VulkanImpl::CreateSurface((GLFWwindow*)window);
+
+		VulkanImpl::msaaSamples = VulkanImpl::MapToSampleCount(maxMSAASamples);
 	}
 
 	void Presentation::InitSwapChain()
 	{
 		VulkanImpl::CreateSwapChain(this->swapChainDetails, this->window);
 		VulkanImpl::CreateSwapchainImageViews();
+		VulkanImpl::CreateColorResources(this);
+		VulkanImpl::CreateDepthResources(this);
 
 	}
 
@@ -2850,9 +2857,6 @@ namespace Graphics
 	// RenderPass
 	void RenderPass::Init(SharedPtr<Graphics::Presentation> presentation)
 	{
-		VulkanImpl::CreateColorResources(this);
-		VulkanImpl::CreateDepthResources(presentation.get(), this);
-
 		renderPassID = VulkanImpl::CreateRenderPass(this);
 	}
 

@@ -28,6 +28,7 @@ namespace Graphics
 
 		TextureID depthTextureID;
 		TextureID colorTextureID;
+		u32 maxMSAASamples = 4;
 
 		SwapChainDetails swapChainDetails;
 

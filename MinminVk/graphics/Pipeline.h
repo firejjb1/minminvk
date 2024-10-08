@@ -161,7 +161,6 @@ namespace Graphics
 		bool isFrameBufferCreated = false;
 
 		Texture::FormatType formatType = Texture::FormatType::BGRA_SRGB;
-		u32 numSamples = 4;
 		enum class AttachmentOpType { CLEAR, STORE, DONTCARE };
 		AttachmentOpType loadOp = AttachmentOpType::CLEAR;
 		AttachmentOpType storeOp = AttachmentOpType::STORE;
@@ -175,14 +174,6 @@ namespace Graphics
 		Texture::LayoutType finalLayout = Texture::LayoutType::COLOR_ATTACHMENT;
 
 		bool writeToDepth = true;
-		u32 numSamplesDepth = 4;
-
-		struct ColorAttachment
-		{
-			TextureID textureID;
-		};
-
-		ColorAttachment colorAttachment;
 
 		struct SubPass
 		{

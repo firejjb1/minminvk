@@ -458,16 +458,16 @@ namespace Graphics
 
 
 			// pass 2 - hair
-			/*renderContext.renderPass = forwardParticlePass;
+			renderContext.renderPass = forwardParticlePass;
 			device->BeginRenderPass(renderContext);
 
 			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->node->worldMatrix;
 			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
-			device->EndRenderPass(renderContext);*/
+			device->EndRenderPass(renderContext);
 
 			// pass 3 transparent meshes
-			/*renderContext.renderPass = forwardTransparentPass;
+			renderContext.renderPass = forwardTransparentPass;
 			device->BeginRenderPass(renderContext);
 			{
 				for (auto& mesh : gltfMeshes)
@@ -476,7 +476,7 @@ namespace Graphics
 						mesh->Draw(renderContext);
 				}
 			}
-			device->EndRenderPass(renderContext);*/
+			device->EndRenderPass(renderContext);
 
 			// UI pass
 			renderContext.shouldRenderUI = true;
