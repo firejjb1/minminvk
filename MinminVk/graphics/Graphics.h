@@ -420,7 +420,6 @@ namespace Graphics
 		{
 			// pass 1 - meshes
 			renderContext.renderPass = forwardPass;
-			//renderContext.renderPass = forwardParticlePass;
 
 			bool success = device->BeginRecording(renderContext);
 			if (!success)

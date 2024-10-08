@@ -53,11 +53,9 @@ namespace VulkanImpl
 	Vector<VkImageView> swapChainImageViews;
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
-	Vector<VkRenderPass> renderPasses;
 	Vector<VkDescriptorSetLayout> descriptorSetLayouts;
 	Vector<VkPipelineLayout> pipelineLayouts;
 	Vector<VkPipeline> pipelines;
-	Vector<VkFramebuffer> swapChainFramebuffers;
 	VkCommandPool commandPool;
 	Vector<VkCommandBuffer> commandBuffers;
 	Vector<VkCommandBuffer> computeCommandBuffers;
@@ -240,7 +238,7 @@ namespace VulkanImpl
 		return VK_SAMPLE_COUNT_1_BIT;
 	}
 
-	void CreateDepthResources(Graphics::Presentation* presentation, Graphics::RenderPass* renderPass = nullptr)
+	void CreateDepthResources(Graphics::Presentation* presentation)
 	{		
 		Vector<VkFormat> candidates;
 		if (presentation->depthFormatType == Graphics::Presentation::DepthFormatType::D32)
@@ -1341,7 +1339,6 @@ namespace VulkanImpl
 
 		pipelineInfo.layout = pipelineLayout;
 
-		//pipelineInfo.renderPass = renderPasses[renderPassID.id];
 		pipelineInfo.renderPass = VK_NULL_HANDLE;
 		pipelineInfo.subpass = 0;
 		
@@ -1410,92 +1407,6 @@ namespace VulkanImpl
 			return VK_IMAGE_TILING_OPTIMAL;
 	}
 
-
-
-	Graphics::RenderPassID CreateRenderPass(Graphics::RenderPass* renderPass)
-	{
-		Vector<VkAttachmentDescription> attachments;
-
-		VkAttachmentDescription colorAttachment{};
-		colorAttachment.format = MapToVulkanFormat(renderPass->formatType);
-		colorAttachment.samples = MapToSampleCount(msaaSamples);
-		colorAttachment.loadOp = MapToVulkanLoadOp(renderPass->loadOp);
-		colorAttachment.storeOp = MapToVulkanStoreOp(renderPass->storeOp);
-		colorAttachment.stencilLoadOp = MapToVulkanLoadOp(renderPass->stencilLoadOp);
-		colorAttachment.stencilStoreOp = MapToVulkanStoreOp(renderPass->stencilStoreOp);
-		colorAttachment.initialLayout = MapToVulkanImageLayout(renderPass->initialLayout);
-		colorAttachment.finalLayout = MapToVulkanImageLayout(renderPass->finalLayout);
-		attachments.push_back(colorAttachment);
-
-		VkAttachmentReference colorAttachmentRef{};
-		colorAttachmentRef.attachment = 0;
-		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		VkAttachmentDescription depthAttachment{};
-		depthAttachment.format = depthFormatChosen;
-		depthAttachment.samples = MapToSampleCount(msaaSamples);
-		depthAttachment.loadOp = MapToVulkanLoadOp(renderPass->depthLoadOp);
-		depthAttachment.storeOp = MapToVulkanStoreOp(renderPass->depthStoreOp);
-		depthAttachment.stencilLoadOp = MapToVulkanLoadOp(renderPass->stencilLoadOp);
-		depthAttachment.stencilStoreOp = MapToVulkanStoreOp(renderPass->stencilStoreOp);
-		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		VkAttachmentReference depthAttachmentRef{};
-		depthAttachmentRef.attachment = 1;
-		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		attachments.push_back(depthAttachment);
-
-		VkAttachmentDescription colorAttachmentResolve{};
-		colorAttachmentResolve.format = swapChainImageFormat;
-		colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
-		colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		//colorAttachmentResolve.finalLayout = MapToVulkanImageLayout(renderPass->finalLayout);
-		attachments.push_back(colorAttachmentResolve);
-
-		VkAttachmentReference colorAttachmentResolveRef{};
-		colorAttachmentResolveRef.attachment = 2;
-		colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-
-		VkSubpassDescription subpass{};
-		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpass.colorAttachmentCount = 1;
-		subpass.pColorAttachments = &colorAttachmentRef;
-		subpass.pDepthStencilAttachment = &depthAttachmentRef;
-		subpass.pResolveAttachments = &colorAttachmentResolveRef;
-
-		VkSubpassDependency dependency{};
-		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		dependency.dstSubpass = 0;
-		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-		dependency.srcAccessMask = 0;
-		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-		VkRenderPassCreateInfo renderPassInfo{};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.subpassCount = 1;
-		renderPassInfo.pSubpasses = &subpass;
-		renderPassInfo.pAttachments = attachments.data();
-		renderPassInfo.attachmentCount = attachments.size();
-		renderPassInfo.dependencyCount = 1;
-		renderPassInfo.pDependencies = &dependency;
-
-		auto& renderPassVK = renderPasses.emplace_back();
-		if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPassVK) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create render pass!");
-		}
-		Graphics::RenderPassID id;
-		id.id = renderPasses.size() - 1;
-		id.pointer = renderPass;
-		return id;
-	}
-
 	void CreateColorResources(Graphics::Presentation * presentation) {
 		VkFormat colorFormat = swapChainImageFormat;
 		if (presentation->colorTextureID.id != 0 && textureImages.size() > presentation->colorTextureID.id)
@@ -1523,45 +1434,6 @@ namespace VulkanImpl
 			colorImageView = CreateImageView(colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
 	
-	}
-	
-	void CreateFramebuffers(SharedPtr<Graphics::RenderPass> renderPass, SharedPtr<Graphics::Presentation> presentation)
-	{
-		if (renderPass->shouldFramebuffersMatchSwapchain)
-		{
-			// TODO able to create non-swapchain frame buffers
-			swapChainFramebuffers.resize(swapChainImageViews.size());
-			for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-
-				Vector<VkImageView> attachments;
-				attachments.push_back(textureImageViews[presentation->colorTextureID.viewID]);
-				if (renderPass->writeToDepth)
-					attachments.push_back(textureImageViews[presentation->depthTextureID.viewID]);
-				attachments.push_back(swapChainImageViews[i]);
-				VkFramebufferCreateInfo framebufferInfo{};
-				framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-				auto& renderPassVK = renderPasses[renderPass->renderPassID.id];
-				framebufferInfo.renderPass = renderPassVK;
-				framebufferInfo.attachmentCount = attachments.size();
-				framebufferInfo.pAttachments = attachments.data();
-				framebufferInfo.width = swapChainExtent.width;
-				framebufferInfo.height = swapChainExtent.height;
-				framebufferInfo.layers = 1;
-
-				if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
-					throw std::runtime_error("failed to create framebuffer!");
-				}
-			}
-		}
-		else
-		{
-			// TODO
-			/*for (auto& frameBuffer : renderPass->frameBuffers)
-			{
-				auto& attachments = frameBuffer.textureIDs;
-				VkImageView attachments[] = attachments.data();
-			}*/
-		}
 	}
 
 	void CreateCommandPool()
@@ -1732,25 +1604,11 @@ namespace VulkanImpl
 	void BeginRenderPass(Graphics::CommandList commandList, SharedPtr<Graphics::RenderPass> renderPass, Graphics::PipeLineID pipelineID, SharedPtr<Graphics::BasicUniformBuffer> basicUniform, u32 swapID, SharedPtr<Graphics::Presentation> presentation)
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
-		//VkRenderPassBeginInfo renderPassInfo{};
-		//renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		//auto& renderPass = renderPasses[renderPassID.id];
-		//renderPassInfo.renderPass = renderPass;
-		//renderPassInfo.framebuffer = swapChainFramebuffers[commandList.imageIndex];
-
-		//renderPassInfo.renderArea.offset = { 0, 0 };
-		//renderPassInfo.renderArea.extent = swapChainExtent;
 
 		Vector<VkClearValue> clearValues(2);
 		clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
 		clearValues[1].depthStencil = { 1.0f, 0 };
-		
-		//renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-		//renderPassInfo.pClearValues = clearValues.data();
 
-		//vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-		
 		VkRenderingAttachmentInfoKHR color_attachment_info{};
 		color_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
 		color_attachment_info.imageView = textureImageViews[presentation->colorTextureID.viewID];
@@ -1806,7 +1664,6 @@ namespace VulkanImpl
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 
-		//vkCmdEndRenderPass(commandBuffer);
 		vkCmdEndRendering(commandBuffer);
 
 		const VkImageMemoryBarrier image_memory_barrier{
@@ -1913,11 +1770,6 @@ namespace VulkanImpl
 		for (auto framebuffer : VulkanImpl::uiFramebuffers) {
 			vkDestroyFramebuffer(VulkanImpl::device, framebuffer, nullptr);
 		}
-
-		for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
-			vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
-		}
-
 
 		for (size_t i = 0; i < swapChainImageViews.size(); i++) {
 			vkDestroyImageView(device, swapChainImageViews[i], nullptr);
@@ -2449,8 +2301,7 @@ namespace VulkanImpl
 		CreateSwapChain(context.presentation->swapChainDetails, windowVK);
 		CreateSwapchainImageViews();
 		CreateColorResources(context.presentation.get());
-		CreateDepthResources(context.presentation.get(), context.renderPass.get());
-		CreateFramebuffers(context.renderPass, context.presentation);
+		CreateDepthResources(context.presentation.get());
 
 		// ImGUI
 		if (context.shouldRenderUI)
@@ -2487,11 +2338,6 @@ namespace Graphics
 		SharedPtr<Graphics::RenderPass> renderPass = context.renderPass;
 		const u32 frameID = context.frameID;
 
-		if (!renderPass->isFrameBufferCreated)
-		{
-			VulkanImpl::CreateFramebuffers(renderPass, context.presentation);
-			renderPass->isFrameBufferCreated = true;
-		}
 		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		// wait for previous frame to finish
 		auto pipelineID = context.renderPass->pso->pipelineID.id;
@@ -2715,8 +2561,6 @@ namespace Graphics
 			vkDestroyPipelineLayout(VulkanImpl::device, layout, nullptr);
 		for (auto& pipeline : VulkanImpl::pipelines)
 			vkDestroyPipeline(VulkanImpl::device, pipeline, nullptr);
-		for (auto renderpass : VulkanImpl::renderPasses)
-			vkDestroyRenderPass(VulkanImpl::device, renderpass, nullptr);
 		vkDestroyDevice(VulkanImpl::device, nullptr);
 
 		if (VulkanImpl::enableValidationLayers) {
@@ -2852,12 +2696,6 @@ namespace Graphics
 	void UniformBuffer::UpdateUniformBuffer(int frameID)
 	{
 		VulkanImpl::UpdateUniformBuffer(GetData(), GetBufferSize(), *this, frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT);
-	}
-
-	// RenderPass
-	void RenderPass::Init(SharedPtr<Graphics::Presentation> presentation)
-	{
-		renderPassID = VulkanImpl::CreateRenderPass(this);
 	}
 
 	Geometry::Geometry(Texture mainTexture)

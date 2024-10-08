@@ -7,11 +7,13 @@ The project is built using CMake.
 
 #### Requirements
 - CMake
-- Vulkan SDK 1.1+
+- Vulkan SDK 1.3+
+- C++20 compiler
 
 #### Platforms
 - Windows
-- MacOS
+- MacOS (tentative)
+- Debian X11 (tentative)
 
 ### Features
 - Vulkan abstraction, all Vulkan functionalities inside graphics/backend/VulkanImpl.cpp

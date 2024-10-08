@@ -200,11 +200,9 @@ namespace Graphics
 		RenderPass(SharedPtr<GraphicsPipeline> pso, SharedPtr<Presentation> presentation, AttachmentOpType loadOp = AttachmentOpType::CLEAR, AttachmentOpType storeOp = AttachmentOpType::STORE) : pso{pso}, loadOp{loadOp}, storeOp{storeOp}
 			,depthLoadOp{loadOp}, depthStoreOp{storeOp}
 		{
-			Init(presentation);
 			pso->Init(renderPassID);
 		}
 
-		void Init(SharedPtr<Presentation> presentation);
 	};
 
 	struct PushConstant
