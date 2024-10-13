@@ -457,6 +457,7 @@ namespace Graphics
 
 	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardTransparentPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes)
 	{
+		u32 curNumNodes = nodeManager.cyclicIndex;
 		tinygltf::Model model;
 		Util::IO::ReadGLTF(model, filename);
 		Vector<std::pair<SharedPtr<GLTFMesh>, Vector<int>>> nodeToJoints;
@@ -778,7 +779,8 @@ namespace Graphics
 			{
 				for (auto n : nodeManager.nodes)
 				{
-					if (n && n->gltfID == jointID)
+					// if multiple skeletal mesh, start adding the joints relevant to the present one
+					if (n && n->nodeID.id > curNumNodes && n->gltfID == jointID)
 					{
 						joints.push_back(n);
 					}

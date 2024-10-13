@@ -1666,21 +1666,7 @@ namespace VulkanImpl
 
 		vkCmdEndRendering(commandBuffer);
 
-		const VkImageMemoryBarrier image_memory_barrier{
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-			.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-			.image = swapChainImages[commandList.imageIndex],
-			.subresourceRange = {
-			  .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			  .baseMipLevel = 0,
-			  .levelCount = 1,
-			  .baseArrayLayer = 0,
-			  .layerCount = 1,
-			}
-		};
-		vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, &image_memory_barrier);
+		vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
 
 	}
 

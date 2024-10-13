@@ -30,10 +30,10 @@
 //#define GLTF_FILE "AnimatedCube/AnimatedCube.gltf"
 //#define GLTF_FILE "RiggedSimple/RiggedSimple.gltf"
 //#define GLTF_FILE "RiggedFigure/RiggedFigure.gltf"
-//#define GLTF_FILE "CesiumMan/CesiumMan.gltf"
+#define GLTF_FILE2 "CesiumMan/CesiumMan.gltf"
 //#define GLTF_FILE "AnimatedMorphCube/AnimatedMorphCube.gltf"
 //#define GLTF_FILE "CesiumMilkTruck/CesiumMilkTruck.gltf"
-//#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
+#define GLTF_FILE3 "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/BoomBoxWithAxes/glTF/BoomBoxWithAxes.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/SimpleMorph/glTF/SimpleMorph.gltf"
@@ -205,6 +205,9 @@ namespace Graphics
 			headMesh->node = nodeManager->AddNode(Math::Translate(Math::Rotate(mat4(1), Math::PI, vec3(0, 0, 1)), vec3(0,1,-2)), camera->node->nodeID, Node::NodeType::MESH_NODE);
 			// GLTF
 			Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
+			gltfMeshes[0]->node->modelMatrix = Math::Translate(mat4(1), vec3(100, 100, 0));
+			Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE2), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
+			//	Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE3), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
 
 		}
 
