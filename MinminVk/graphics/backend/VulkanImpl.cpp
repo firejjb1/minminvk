@@ -1646,8 +1646,13 @@ namespace VulkanImpl
 		VkViewport viewport{};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
+		f32 adjustedWidth = presentation->swapChainDetails.aspectRatio * swapChainExtent.height; 
+		f32 adjustedHeight = 1.f / presentation->swapChainDetails.aspectRatio * swapChainExtent.width;
 		viewport.width = static_cast<float>(swapChainExtent.width);
 		viewport.height = static_cast<float>(swapChainExtent.height);
+
+		// ensure only full width is displayed
+			viewport.height = adjustedHeight;
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
@@ -2283,6 +2288,8 @@ namespace VulkanImpl
 		}
 		vkDeviceWaitIdle(device);
 		CleanupSwapChain();
+		context.presentation->swapChainDetails.width = width;
+		context.presentation->swapChainDetails.height = height;
 
 		CreateSwapChain(context.presentation->swapChainDetails, windowVK);
 		CreateSwapchainImageViews();
