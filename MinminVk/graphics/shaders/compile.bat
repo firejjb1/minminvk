@@ -7,3 +7,7 @@ glslc particles.vert -o particlesvert.spv
 glslc particles.frag -o particlesfrag.spv
 glslc skinnedmesh.vert -o skinnedmeshvert.spv
 glslc computevertex.comp -o computevertex.spv
+glslc gbuffer.vert -o gbuffervert.spv
+glslc gbuffer.frag -o gbufferfrag.spv
+glslc fsquad.vert -o fsquadvert.spv 
+glslc fsquad.frag -o fsquadfrag.spv

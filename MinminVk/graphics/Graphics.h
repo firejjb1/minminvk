@@ -445,7 +445,7 @@ namespace Graphics
 			{
 				
 				vikingRoom->Draw(renderContext);
-				
+
 				for (auto& mesh : gltfMeshes)
 				{
 					// opaque or mask alpha
@@ -456,8 +456,15 @@ namespace Graphics
 				headMesh->Draw(renderContext);
 
 			}
-			device->EndRenderPass(renderContext);
+			{
+				// full screen quad
+				//forwardPipeline->uniformDesc->transformUniform.view = mat4(1);
+				//forwardPipeline->uniformDesc->transformUniform.proj = mat4(1);
+				//forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
+				//quad->Draw(renderContext);
+			}
 
+			device->EndRenderPass(renderContext);
 
 			// pass 2 - hair
 			renderContext.renderPass = forwardParticlePass;

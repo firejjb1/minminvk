@@ -34,7 +34,8 @@ namespace VulkanImpl
 	};
 	const std::vector<const char*> deviceExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME
+		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+		"VK_KHR_dynamic_rendering_local_read"
 	};
 
 	void* windowVK;
@@ -2702,15 +2703,24 @@ namespace Graphics
 		: Geometry(mainTexture ) 
 	{
 		vertexDesc = MakeShared<BasicVertex>( std::move(Vector<BasicVertex::Vertex>{
-			{ {-0.5f, -0.5f, 0.f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.f, 0.f, 1.f}},
-			{{0.5f, -0.5f, 0.f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.f, 0.f, 1.f}},
-			{{0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.f, 0.f, 1.f}},
-			{{-0.5f, 0.5f, 0.f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}, {0.f, 0.f, 1.f}},
+			{ {-1.0f, -1.0f, 0.01f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.f, 0.f, 1.f}},
+			{{1.0f, -1.0f, 0.01f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.f, 0.f, 1.f}},
+			{{1.0f, 1.0f, 0.01f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.f, 0.f, 1.f}},
+			{{-1.0f, 1.0f, 0.01f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}, {0.f, 0.f, 1.f}},
 		})
 		);
 		VulkanImpl::CreateVertexBuffer(*this);
 		VulkanImpl::CreateIndexBuffer(*this);
-
+		material = MakeShared<PBRMaterial>();
+		materialUniformBuffer.pbrMaterial = material.get();
+		material->albedoTexture = mainTexture;
+		material->material->hasAlbedoTex = 1;
+		Vector<Graphics::Texture> textures{};
+		textures.push_back(material->albedoTexture);
+		textures.push_back(material->metallicTexture);
+		textures.push_back(material->normalTexture);
+		textures.push_back(material->occlusionTexture);
+		textures.push_back(material->emissiveTexture);
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			Vector<Graphics::Texture>{ this->mainTexture}
 		);
