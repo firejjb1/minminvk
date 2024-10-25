@@ -1,25 +1,9 @@
 #version 450
 
-layout (location = 0) in vec4 inPos;
-layout (location = 1) in vec3 inNormal;
-
-layout (binding = 0) uniform UBO 
-{
-	mat4 projection;
-	mat4 model;
-	mat4 view;
-} ubo;
-
 layout (location = 0) out vec3 outNormal;
 layout (location = 1) out vec4 outColor;
 layout (location = 2) out vec3 outWorldPos;
 layout (location = 3) out vec2 outTexCoord;
-
-layout(push_constant) uniform SceneNode {
-	mat4 matrix;
-	vec4 color;
-} sceneNode;
-
 
 layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
@@ -51,7 +35,7 @@ void main()
     vec3 normalW = normalize(vec3(pushConst.inverseTransposeModel * vec4(normalize(normal), 0)));
     outNormal = normalW;
 	
-	outColor = vec4(fragColor, 1);
+	outColor = vec4(inColor, 1);
 
     outTexCoord = inTexCoord;
 

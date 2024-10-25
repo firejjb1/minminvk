@@ -10,6 +10,8 @@
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
+#define GBUFFER_VERTEX_SHADER "gbuffervert.spv"
+#define GBUFFER_FRAG_SHADER "gbufferfrag.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
 #define PARTICLE_COMP_LSC_SHADER "particlelsc.spv"
 #define PARTICLE_COMP_ELC_WIND_SHADER "particleelcwind.spv"
@@ -43,6 +45,10 @@
 //#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
 #define GLTF_FILE "lain2/lain_anim.gltf"
 //#define GLTF_FILE "testBlend/testBlend.gltf"
+
+
+#define USE_DEFERRED
+
 
 namespace Graphics
 {
@@ -168,9 +174,22 @@ namespace Graphics
 		i32 height = presentation->swapChainDetails.height;
 		camera = MakeShared<Camera>(*nodeManager, UI::cameraPosition, vec3(0.0f, 1.0f, 0.0f), UI::cameraLookDirection, 45, 0.1f, 1000.f, width, height);
 
-		// forward pass
+		// graphics passes
 		{
 			auto uniformBuffer = MakeShared<BasicUniformBuffer>();
+			
+	#ifdef USE_DEFERRED
+			forwardPipeline = MakeShared<GraphicsPipeline>(
+				MakeShared<Shader>(concat_str(SHADERS_DIR, GBUFFER_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
+				MakeShared<Shader>(concat_str(SHADERS_DIR, GBUFFER_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
+				MakeShared<BasicVertex>(),
+				uniformBuffer,
+				Vector<Texture>{},
+				Vector<SharedPtr<Buffer>>{}
+			);
+			forwardPipeline->renderType = GraphicsPipeline::RenderType::RENDER_DEFERRED;
+			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
+	#else
 			forwardPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
@@ -179,9 +198,10 @@ namespace Graphics
 				Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{}
 			);
-	
 			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
 
+			
+	#endif
 			forwardTransparentPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
@@ -262,8 +282,6 @@ namespace Graphics
 			particleRenderPipeline->depthWriteEnable = false;
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 
-
-		
 			for (auto mesh : gltfMeshes)
 			{
 				// use the first mesh with skeleton or blend shape to init the pipeline

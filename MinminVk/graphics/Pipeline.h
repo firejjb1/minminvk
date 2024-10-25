@@ -34,9 +34,22 @@ namespace Graphics
 	struct GraphicsPipeline : public Pipeline
 	{
 		RenderPassID parentRenderPassID;
-		// shaders, states, resources
+
+		enum class RenderType
+		{
+			RENDER_FORWARD,
+			RENDER_DEFERRED
+		};
+
+		RenderType renderType = RenderType::RENDER_FORWARD;
+
+		// forward pass shaders
 		SharedPtr<Shader> vertexShader;
 		SharedPtr<Shader> fragmentShader;
+
+		// composition pass shaders (only for deferred rendering)
+		SharedPtr<Shader> composeVertexShader;
+		SharedPtr<Shader> composeFragShader;
 
 		// pipeline states 
 		enum class StateType 

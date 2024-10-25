@@ -30,7 +30,7 @@ void main()
 	// Ambient part
 	vec3 fragcolor  = albedo.rgb * ambient;
 	
-    vec3 L = -uboPass.lightDirection;
+    vec3 L = -uboPass.lightDirection.xyz;
 
     float NdotL = max(0.0, dot(normalize(normal), normalize(L)));
     vec3 diffuse = uboPass.lightIntensity.rgb * albedo.rgb * NdotL;
