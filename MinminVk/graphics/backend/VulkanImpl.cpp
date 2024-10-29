@@ -1614,8 +1614,8 @@ namespace VulkanImpl
 		color_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
 		color_attachment_info.imageView = textureImageViews[presentation->colorTextureID.viewID];
 		color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		color_attachment_info.loadOp = MapToVulkanLoadOp(renderPass->loadOp);
-		color_attachment_info.storeOp = MapToVulkanStoreOp(renderPass->storeOp);
+		color_attachment_info.loadOp = MapToVulkanLoadOp(renderPass->subpasses[0].attachments[0].loadOp);
+		color_attachment_info.storeOp = MapToVulkanStoreOp(renderPass->subpasses[0].attachments[0].storeOp);
 		color_attachment_info.clearValue = clearValues[0];
 		color_attachment_info.resolveImageView = swapChainImageViews[commandList.imageIndex];
 		color_attachment_info.resolveImageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
@@ -1625,8 +1625,8 @@ namespace VulkanImpl
 		depth_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
 		depth_attachment_info.imageView = textureImageViews[presentation->depthTextureID.viewID];
 		depth_attachment_info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		depth_attachment_info.loadOp = MapToVulkanLoadOp(renderPass->depthLoadOp);
-		depth_attachment_info.storeOp = MapToVulkanStoreOp(renderPass->depthStoreOp);
+		depth_attachment_info.loadOp = MapToVulkanLoadOp(renderPass->subpasses[0].attachments[0].depthLoadOp);
+		depth_attachment_info.storeOp = MapToVulkanStoreOp(renderPass->subpasses[0].attachments[0].depthStoreOp);
 		depth_attachment_info.clearValue = clearValues[1];
 		
 		VkRenderingInfoKHR render_info{};
@@ -2334,8 +2334,6 @@ namespace Graphics
 
 		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		// wait for previous frame to finish
-		auto pipelineID = context.renderPass->pso->pipelineID.id;
-
 		vkWaitForFences(VulkanImpl::device, 1, &VulkanImpl::pipelineInFlightFences[VulkanImpl::fenceIndexGraphics][swapID], VK_TRUE, UINT64_MAX);
 		// acquire an image from the swap chain
 		u32 imageIndex;
@@ -2370,7 +2368,7 @@ namespace Graphics
 		Vector<VkSemaphore> waitSemaphores;
 		Vector<VkPipelineStageFlags> waitStages;
 
-		for (auto& pipelineToWait : context.renderPass->pso->pipelinesToWait)
+		for (auto& pipelineToWait : context.renderPass->subpasses[context.subPass].pso->pipelinesToWait)
 		{
 			waitSemaphores.push_back(VulkanImpl::pipelineWaitSemaphore[pipelineToWait.id][swapID]);
 			waitStages.push_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
@@ -2476,10 +2474,10 @@ namespace Graphics
 		SharedPtr<Graphics::RenderPass> renderPass = context.renderPass;
 		const u32 frameID = context.frameID;
 		u32 swapID = frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
-		auto pipelineID = context.renderPass->pso->pipelineID.id;
+		auto pso = context.renderPass->subpasses[context.subPass].pso;
 		auto& commandList = GetCommandList(swapID);
 	
-		VulkanImpl::BeginRenderPass(commandList, renderPass, renderPass->pso->pipelineID, context.renderPass->pso->uniformDesc, swapID, context.presentation);
+		VulkanImpl::BeginRenderPass(commandList, renderPass, pso->pipelineID, pso->uniformDesc, swapID, context.presentation);
 	}
 
 	void Device::EndRenderPass(Graphics::RenderContext& context)
@@ -2865,7 +2863,7 @@ namespace Graphics
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);
 
-		VulkanImpl::Draw(commandList, *this, context.renderPass->pso, context.renderPass->pso->descriptorPoolID, swapID, (context.updateFrameID) % VulkanImpl::MAX_FRAMES_IN_FLIGHT);
+		VulkanImpl::Draw(commandList, *this, context.renderPass->subpasses[context.subPass].pso, context.renderPass->subpasses[context.subPass].pso->descriptorPoolID, swapID, (context.updateFrameID) % VulkanImpl::MAX_FRAMES_IN_FLIGHT);
 	}
 
 	Texture::Texture(String filename, FormatType formatType, bool autoMipchain)
@@ -2905,7 +2903,8 @@ namespace Graphics
 	{
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);
-		VulkanImpl::DrawBuffer(commandList, *this, numVertex, swapID, context.renderPass->pso->descriptorPoolID, context.renderPass->pso->uniformDesc, context.renderPass->pso->pipelineID);
+		auto pso = context.renderPass->subpasses[context.subPass].pso;
+		VulkanImpl::DrawBuffer(commandList, *this, numVertex, swapID, pso->descriptorPoolID, pso->uniformDesc, pso->pipelineID);
 	}
 
 	UIRender::UIRender(SharedPtr<Presentation> presentation)

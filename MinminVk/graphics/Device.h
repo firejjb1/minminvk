@@ -13,6 +13,7 @@ namespace Graphics
 		u32 frameID = 0;
 		u32 updateFrameID = 0;
 		SharedPtr<RenderPass> renderPass;
+		u32 subPass = 0;
 		SharedPtr<Presentation> presentation;
 		SharedPtr<Device> device;
 		bool shouldRenderUI = false;

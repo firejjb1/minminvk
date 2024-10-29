@@ -12,6 +12,8 @@
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
 #define GBUFFER_VERTEX_SHADER "gbuffervert.spv"
 #define GBUFFER_FRAG_SHADER "gbufferfrag.spv"
+#define DEFERRED_VERTEX_SHADER "fsquadvert.spv"
+#define DEFERRED_FRAG_SHADER "fsquadfrag.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
 #define PARTICLE_COMP_LSC_SHADER "particlelsc.spv"
 #define PARTICLE_COMP_ELC_WIND_SHADER "particleelcwind.spv"
@@ -188,7 +190,9 @@ namespace Graphics
 				Vector<SharedPtr<Buffer>>{}
 			);
 			forwardPipeline->renderType = GraphicsPipeline::RenderType::RENDER_DEFERRED;
-			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
+			Vector<RenderPass::Attachment> gbufferAttachments{ RenderPass::Attachment{} };
+			Vector<RenderPass::SubPass> subpasses{ RenderPass::SubPass{ forwardPipeline, gbufferAttachments } };
+			forwardPass = MakeShared<RenderPass>(subpasses);
 	#else
 			forwardPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
@@ -198,7 +202,7 @@ namespace Graphics
 				Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{}
 			);
-			forwardPass = MakeShared<RenderPass>(forwardPipeline, presentation);
+			forwardPass = MakeShared<RenderPass>(forwardPipeline);
 
 			
 	#endif
@@ -213,7 +217,7 @@ namespace Graphics
 			forwardTransparentPipeline->blendEnabled = true;
 			forwardTransparentPipeline->depthTestEnable = true;
 			forwardTransparentPipeline->depthWriteEnable = false;
-			forwardTransparentPass = MakeShared<RenderPass>(forwardTransparentPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
+			forwardTransparentPass = MakeShared<RenderPass>(forwardTransparentPipeline, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 
 			quad = MakeShared<Quad>(forwardPipeline, texture);
 
@@ -225,7 +229,8 @@ namespace Graphics
 			headMesh->node = nodeManager->AddNode(Math::Translate(Math::Rotate(mat4(1), Math::PI, vec3(0, 0, 1)), vec3(0,1,-2)), camera->node->nodeID, Node::NodeType::MESH_NODE);
 			// GLTF
 			Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
-			gltfMeshes[0]->node->modelMatrix = Math::Translate(mat4(1), vec3(100, 100, 0));
+			// TODO: implement a way to manipulate mesh nodes easily
+			// gltfMeshes[0]->node->modelMatrix = Math::Translate(mat4(1), vec3(100, 200, 0));
 			Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE2), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
 			//	Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE3), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
 
@@ -280,7 +285,7 @@ namespace Graphics
 			particleRenderPipeline->blendEnabled = true;
 			particleRenderPipeline->depthTestEnable = true;
 			particleRenderPipeline->depthWriteEnable = false;
-			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, presentation, Graphics::RenderPass::AttachmentOpType::DONTCARE);
+			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, Graphics::RenderPass::AttachmentOpType::DONTCARE);
 
 			for (auto mesh : gltfMeshes)
 			{
@@ -488,7 +493,8 @@ namespace Graphics
 			renderContext.renderPass = forwardParticlePass;
 			device->BeginRenderPass(renderContext);
 
-			renderContext.renderPass->pso->uniformDesc->transformUniform.model = headMesh->node->worldMatrix;
+			// TODO: find better way to attach hair
+			renderContext.renderPass->subpasses[0].pso->uniformDesc->transformUniform.model = headMesh->node->worldMatrix;
 			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
 			device->EndRenderPass(renderContext);
