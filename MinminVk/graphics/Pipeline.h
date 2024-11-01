@@ -8,6 +8,7 @@
 namespace Graphics
 {
 	struct RenderPass;
+	struct Attachment;
 	struct ComputePass;
 	struct Pipeline;
 	struct VertexDesc;
@@ -35,13 +36,11 @@ namespace Graphics
 	{
 		RenderPassID parentRenderPassID;
 
-		enum class RenderType
+	/*	enum class RenderType
 		{
 			RENDER_FORWARD,
 			RENDER_DEFERRED
-		};
-
-		RenderType renderType = RenderType::RENDER_FORWARD;
+		};*/
 
 		// shaders
 		SharedPtr<Shader> vertexShader;
@@ -157,38 +156,37 @@ namespace Graphics
 			SharedPtr<BasicUniformBuffer> uniformDesc, Vector<Texture> textures, Vector<SharedPtr<Buffer>> buffers)
 			: vertexShader{ vertexShader }, fragmentShader{ fragmentShader }, vertexDesc{ vertexDesc }, uniformDesc{ uniformDesc }, textures { textures }, buffers{ buffers } 
 		{
-			renderType = RenderType::RENDER_FORWARD;
-		}
-		
-		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShader, Vector<Texture> textures, Vector<SharedPtr<Buffer>> buffers)
-			: vertexShader{ vertexShader }, fragmentShader{ fragmentShader }, textures{ textures }, buffers{ buffers }
-		{
-			renderType = RenderType::RENDER_DEFERRED;
-		}
+		}	
 
-		void Init(RenderPassID);
+		void Init(RenderPassID, Vector<Attachment>& attachments);
+	};
+
+	enum class AttachmentOpType { CLEAR, STORE, DONTCARE };
+
+	struct Attachment
+	{
+		Texture::FormatType formatType = Texture::FormatType::BGRA_SRGB;
+		AttachmentOpType loadOp = AttachmentOpType::CLEAR;
+		AttachmentOpType storeOp = AttachmentOpType::STORE;
+		AttachmentOpType stencilLoadOp = AttachmentOpType::DONTCARE;
+		AttachmentOpType stencilStoreOp = AttachmentOpType::DONTCARE;
+		AttachmentOpType depthLoadOp = AttachmentOpType::CLEAR;
+		AttachmentOpType depthStoreOp = AttachmentOpType::STORE;
+		Texture::LayoutType initialLayout = Texture::LayoutType::INPUT_ATTACHMENT;
+		Texture::LayoutType finalLayout = Texture::LayoutType::INPUT_ATTACHMENT;
+		Texture::UsageType usageType = Texture::UsageType::INPUT_ATTACHMENT;
+
+		Texture texture;
+
+		Attachment(Texture::FormatType formatType = Texture::FormatType::RGBA8_UNORM, AttachmentOpType loadOp = AttachmentOpType::CLEAR, AttachmentOpType storeOp = AttachmentOpType::STORE, 
+			Texture::UsageType usageType = EnumBitwiseOr(Texture::UsageType::INPUT_ATTACHMENT, Texture::UsageType::COLOR_ATTACHMENT));
+
+		void Recreate(u32 width, u32 height);
 	};
 
 	struct RenderPass
 	{
 		RenderPassID renderPassID;
-
-		enum class AttachmentOpType { CLEAR, STORE, DONTCARE };
-
-		struct Attachment
-		{
-			Texture::FormatType formatType = Texture::FormatType::BGRA_SRGB;
-			AttachmentOpType loadOp = AttachmentOpType::CLEAR;
-			AttachmentOpType storeOp = AttachmentOpType::STORE;
-			AttachmentOpType stencilLoadOp = AttachmentOpType::DONTCARE;
-			AttachmentOpType stencilStoreOp = AttachmentOpType::DONTCARE;
-			AttachmentOpType depthLoadOp = AttachmentOpType::CLEAR;
-			AttachmentOpType depthStoreOp = AttachmentOpType::STORE;
-			Texture::LayoutType initialLayout = Texture::LayoutType::UNDEFINED;
-			Texture::LayoutType finalLayout = Texture::LayoutType::COLOR_ATTACHMENT;
-			
-			i32 textureViewID = -1;
-		};
 
 		struct SubPass
 		{
@@ -203,19 +201,23 @@ namespace Graphics
 		RenderPass(SharedPtr<GraphicsPipeline> pso, AttachmentOpType loadOp = AttachmentOpType::CLEAR, AttachmentOpType storeOp = AttachmentOpType::STORE)
 		{
 			SubPass& mainPass = subpasses.emplace_back(SubPass{ pso });
-			Attachment& mainAttachment = mainPass.attachments.emplace_back();
-			mainAttachment.loadOp = loadOp;
-			mainAttachment.storeOp = storeOp;
+			Attachment framebuffer(Texture::FormatType::BGRA_SRGB);
+			framebuffer.loadOp = loadOp;
+			framebuffer.storeOp = storeOp;
+			framebuffer.depthLoadOp = loadOp;
+			framebuffer.depthStoreOp = storeOp;
+
+			mainPass.attachments.push_back(framebuffer);
 
 			for (auto &subpass : subpasses)
-				subpass.pso->Init(renderPassID);
+				subpass.pso->Init(renderPassID, subpass.attachments);
 		}
 
 		RenderPass(Vector<SubPass> subpasses) : 
 			subpasses{ subpasses }
 		{
 			for (auto& subpass : subpasses)
-				subpass.pso->Init(renderPassID);
+				subpass.pso->Init(renderPassID, subpass.attachments);
 		}
 
 	};

@@ -50,6 +50,7 @@ namespace Graphics
 
 		void BeginRenderPass(Graphics::RenderContext& context);
 		void EndRenderPass(Graphics::RenderContext& context);
+		void BeginSubPass(Graphics::RenderContext& context);
 
 		void CleanUp();
 	};

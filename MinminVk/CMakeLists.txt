@@ -8,7 +8,7 @@ include_directories(external/glm)
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL OFF FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL OFF FORCE)
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL OFF FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL OFF FORCE) 
 set(GLFW_INSTALL OFF CACHE BOOL OFF FORCE)
 set(GLFW_LIBRARY_TYPE OFF CACHE BOOL "STATIC" FORCE)
 add_subdirectory(external/glfw)
@@ -31,10 +31,10 @@ IF(UNIX AND NOT APPLE)
 ENDIF()
 
 IF(WIN32)
-	IF (NOT Vulkan_FOUND)
+	IF (NOT Vulkan_FOUND) 
 		find_library(Vulkan_LIBRARY NAMES vulkan-1 vulkan PATHS ${CMAKE_SOURCE_DIR}/libs/vulkan)
 		IF (Vulkan_LIBRARY)
-			set(Vulkan_FOUND ON)
+			set(Vulkan_FOUND ON) 
 			MESSAGE("Using bundled Vulkan library version")
 		ENDIF()
 	ENDIF()
@@ -113,7 +113,7 @@ add_library(imgui
 		# Here implementation
         external/imgui/backends/imgui_impl_vulkan.cpp
         external/imgui/backends/imgui_impl_vulkan.h
-        external/imgui/backends/imgui_impl_glfw.cpp
+        external/imgui/backends/imgui_impl_glfw.cpp 
         external/imgui/backends/imgui_impl_glfw.h
 
 	    external/imgui/imconfig.h)
@@ -156,7 +156,7 @@ IF(WIN32)
 ELSEIF(APPLE)
 	link_libraries(${Vulkan_LIBRARY} "-framework AppKit" "-framework QuartzCore")
 ELSE(WIN32)
-	link_libraries(${XCB_LIBRARIES} ${Vulkan_LIBRARY} ${Vulkan_LIBRARY} ${DIRECTFB_LIBRARIES} ${WAYLAND_CLIENT_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+	link_libraries(${XCB_LIBRARIES} ${Vulkan_LIBRARY} ${DIRECTFB_LIBRARIES} ${WAYLAND_CLIENT_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 ENDIF(WIN32)
 
 add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES})
@@ -167,23 +167,26 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 IF(APPLE)
 	target_compile_definitions(${PROJECT_NAME} PUBLIC APPLE)
-ENDIF(APPLE)
+ENDIF(APPLE) 
 
-target_compile_definitions(${PROJECT_NAME} PUBLIC SHADERS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/")
-target_compile_definitions(${PROJECT_NAME} PUBLIC IMAGES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/images/")
+target_compile_definitions(${PROJECT_NAME} PUBLIC SHADERS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/graphics/shaders/") 
+target_compile_definitions(${PROJECT_NAME} PUBLIC IMAGES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/images/") 
 target_compile_definitions(${PROJECT_NAME} PUBLIC OBJ_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/obj/")
 target_compile_definitions(${PROJECT_NAME} PUBLIC HAIR_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/hair/")
 target_compile_definitions(${PROJECT_NAME} PUBLIC GLTF_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/gltf/")
 
 # disable validation layers, etc
-#target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
+# target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
 
-# define vulkan implementation. only supports vulkan for now
+# use deferred rendering with dynamic local read
+# target_compile_definitions(${PROJECT_NAME} PUBLIC USE_DEFERRED)
+
+# define vulkan implementation. only supports vulkan for now 
 target_compile_definitions(${PROJECT_NAME} PUBLIC VULKAN_IMPL)
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
 
-target_link_libraries(${PROJECT_NAME} ${Vulkan_LIBRARY} ${LIBS})
+target_link_libraries(${PROJECT_NAME} ${Vulkan_LIBRARY} ${LIBS}) 
 
 if(WIN32)
 	add_custom_target(run_bat_file

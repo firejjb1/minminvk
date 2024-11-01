@@ -4,6 +4,7 @@ layout (location = 0) out vec3 outNormal;
 layout (location = 1) out vec4 outColor;
 layout (location = 2) out vec3 outWorldPos;
 layout (location = 3) out vec2 outTexCoord;
+layout(location = 4) out mat3 fragTBN;
 
 layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
@@ -38,5 +39,11 @@ void main()
 	outColor = vec4(inColor, 1);
 
     outTexCoord = inTexCoord;
+
+    vec3 tangentW = normalize(vec3(pushConst.modelMatrix * vec4(normalize(inTangent.xyz), 0)));
+    //tangentW = normalize(tangentW - dot(tangentW, normalW) * normalW);
+    vec3 bitangentW = cross(normalW, tangentW) * inTangent.w;
+
+    fragTBN = mat3(tangentW, normalize(bitangentW), normalW);
 
 }

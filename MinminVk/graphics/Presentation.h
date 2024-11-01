@@ -33,6 +33,8 @@ namespace Graphics
 
 		SwapChainDetails swapChainDetails;
 
+		Vector<Attachment> fullscreenAttachments;
+
 		// driver and window system integration
 		void Init(void* window);
 

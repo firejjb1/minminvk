@@ -30,7 +30,7 @@
 
 //#define GLTF_FILE "Cube/Cube.gltf"
 //#define GLTF_FILE "BoxAnimated/BoxAnimated.gltf"
-//#define GLTF_FILE "BoxVertexColors/BoxVertexColors.gltf"
+//#define GLTF_FILE2 "BoxVertexColors/BoxVertexColors.gltf"
 //#define GLTF_FILE "AnimatedCube/AnimatedCube.gltf"
 //#define GLTF_FILE "RiggedSimple/RiggedSimple.gltf"
 //#define GLTF_FILE "RiggedFigure/RiggedFigure.gltf"
@@ -47,10 +47,6 @@
 //#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
 #define GLTF_FILE "lain2/lain_anim.gltf"
 //#define GLTF_FILE "testBlend/testBlend.gltf"
-
-
-#define USE_DEFERRED
-
 
 namespace Graphics
 {
@@ -109,6 +105,9 @@ namespace Graphics
 	ComputeContext computeContext;
 	SharedPtr<Presentation> presentation;
 	SharedPtr<GraphicsPipeline> forwardPipeline;
+#ifdef USE_DEFERRED
+	SharedPtr<GraphicsPipeline> deferredPipeline;
+#endif
 	SharedPtr<RenderPass> forwardPass;
 	SharedPtr<GraphicsPipeline> forwardTransparentPipeline;
 	SharedPtr<RenderPass> forwardTransparentPass;
@@ -189,9 +188,37 @@ namespace Graphics
 				Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{}
 			);
-			forwardPipeline->renderType = GraphicsPipeline::RenderType::RENDER_DEFERRED;
-			Vector<RenderPass::Attachment> gbufferAttachments{ RenderPass::Attachment{} };
-			Vector<RenderPass::SubPass> subpasses{ RenderPass::SubPass{ forwardPipeline, gbufferAttachments } };
+			Attachment framebuffer(Texture::FormatType::BGRA_SRGB);
+			Attachment albedo(Texture::FormatType::RGBA8_UNORM);
+			Attachment positionDepth(Texture::FormatType::RGB16_SFLOAT);
+			Attachment normal(Texture::FormatType::RGB16_SFLOAT);
+			Attachment specular(Texture::FormatType::RGBA8_UNORM);
+			albedo.texture.binding.binding = 1;
+			positionDepth.texture.binding.binding = 2;
+			normal.texture.binding.binding = 3;
+			specular.texture.binding.binding = 4;
+
+			deferredPipeline = MakeShared<GraphicsPipeline>(
+				MakeShared<Shader>(concat_str(SHADERS_DIR, DEFERRED_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
+				MakeShared<Shader>(concat_str(SHADERS_DIR, DEFERRED_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
+				MakeShared<BasicVertex>(),
+				uniformBuffer,
+				Vector<Texture>{albedo.texture, positionDepth.texture, normal.texture, specular.texture},
+				Vector<SharedPtr<Buffer>>{}
+			);
+
+			deferredPipeline->depthTestEnable = true;
+			deferredPipeline->depthWriteEnable = false;
+			
+			Vector<Attachment> gbufferAttachments{framebuffer, albedo, positionDepth, normal, specular };
+			presentation->fullscreenAttachments.push_back(albedo);
+			presentation->fullscreenAttachments.push_back(positionDepth);
+			presentation->fullscreenAttachments.push_back(normal);
+			presentation->fullscreenAttachments.push_back(specular);
+			Vector<RenderPass::SubPass> subpasses{
+				RenderPass::SubPass{ .pso = forwardPipeline, .attachments = gbufferAttachments } ,
+				RenderPass::SubPass{ .pso = deferredPipeline, .attachments = gbufferAttachments }
+			};
 			forwardPass = MakeShared<RenderPass>(subpasses);
 	#else
 			forwardPipeline = MakeShared<GraphicsPipeline>(
@@ -203,8 +230,6 @@ namespace Graphics
 				Vector<SharedPtr<Buffer>>{}
 			);
 			forwardPass = MakeShared<RenderPass>(forwardPipeline);
-
-			
 	#endif
 			forwardTransparentPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
@@ -217,9 +242,14 @@ namespace Graphics
 			forwardTransparentPipeline->blendEnabled = true;
 			forwardTransparentPipeline->depthTestEnable = true;
 			forwardTransparentPipeline->depthWriteEnable = false;
-			forwardTransparentPass = MakeShared<RenderPass>(forwardTransparentPipeline, Graphics::RenderPass::AttachmentOpType::DONTCARE);
+			forwardTransparentPass = MakeShared<RenderPass>(forwardTransparentPipeline, Graphics::AttachmentOpType::DONTCARE);
 
+#ifdef USE_DEFERRED
+			quad = MakeShared<Quad>(deferredPipeline, texture);
+#else
 			quad = MakeShared<Quad>(forwardPipeline, texture);
+#endif // USE_DEFERRED
+
 
 			// OBJ
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline, texture, concat_str(OBJ_DIR, VIKING_MODEL));
@@ -285,7 +315,7 @@ namespace Graphics
 			particleRenderPipeline->blendEnabled = true;
 			particleRenderPipeline->depthTestEnable = true;
 			particleRenderPipeline->depthWriteEnable = false;
-			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, Graphics::RenderPass::AttachmentOpType::DONTCARE);
+			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, Graphics::AttachmentOpType::DONTCARE);
 
 			for (auto mesh : gltfMeshes)
 			{
@@ -481,10 +511,14 @@ namespace Graphics
 			}
 			{
 				// full screen quad
-				//forwardPipeline->uniformDesc->transformUniform.view = mat4(1);
-				//forwardPipeline->uniformDesc->transformUniform.proj = mat4(1);
-				//forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
-				//quad->Draw(renderContext);
+#ifdef USE_DEFERRED
+				renderContext.subPass++;
+				device->BeginSubPass(renderContext);
+			/*	deferredPipeline->uniformDesc->transformUniform.view = mat4(1);
+				deferredPipeline->uniformDesc->transformUniform.proj = mat4(1);
+				deferredPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;*/
+				quad->Draw(renderContext);
+#endif
 			}
 
 			device->EndRenderPass(renderContext);
