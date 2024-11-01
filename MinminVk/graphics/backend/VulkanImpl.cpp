@@ -1969,6 +1969,8 @@ namespace VulkanImpl
 					texDescriptorWrite.descriptorType = EnumBitwiseAnd(textures[imageIndex].usageType, Graphics::Texture::UsageType::INPUT_ATTACHMENT) ? VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 					texDescriptorWrite.descriptorCount = 1;
 					texDescriptorWrite.pImageInfo = &imageInfo;
+					textures[imageIndex].textureID.descriptorPoolID = descriptorPoolID;
+					textures[imageIndex].textureID.descriptorSetID = i;
 					imageIndex++;
 				}
 			}
@@ -2363,9 +2365,20 @@ namespace VulkanImpl
 		CreateSwapchainImageViews();
 		CreateColorResources(context.presentation.get());
 		CreateDepthResources(context.presentation.get());
-		
-		for (Graphics::Attachment& fullscreenAttachment : context.presentation->fullscreenAttachments)
-			fullscreenAttachment.Recreate(width, height);
+		for (auto& psoAttachment : context.presentation->psoAttachmentSwapchainDependent)
+		{
+			Vector<Graphics::Attachment> atts = psoAttachment.attachments;
+			Vector<Graphics::Texture> texturesToUpdate;
+
+			for (Graphics::Attachment& fullscreenAttachment : atts)
+			{
+				fullscreenAttachment.Recreate(width, height);
+				texturesToUpdate.push_back(fullscreenAttachment.texture);
+			}
+			psoAttachment.pso->UpdateTextures(texturesToUpdate);
+
+		}
+
 		// ImGUI
 		if (context.shouldRenderUI)
 		{
@@ -2699,7 +2712,7 @@ namespace Graphics
 		// first set: per frame uniform
 		int layoutID = VulkanImpl::CreateDescriptorSetLayout(allBuffers, this->textures);
 		this->layoutID = layoutID;
-		VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, allBuffers, this->textures);
+		this->setID = VulkanImpl::CreateDescriptorSets(layoutID, VulkanImpl::MAX_FRAMES_IN_FLIGHT, poolID, allBuffers, this->textures);
 
 		// second set layout: per mesh material textures
 		Texture baseColor;
@@ -2717,6 +2730,17 @@ namespace Graphics
 
 		pipelineID = VulkanImpl::CreateGraphicsPipeline(vertexShader, fragmentShader, this, renderPassID, attachments);
 
+	}
+
+	void GraphicsPipeline::UpdateTextures(const Vector<Texture>& textures)
+	{
+		this->textures = textures;
+		Vector<Graphics::Buffer*> allBuffers;
+		allBuffers.push_back(this->uniformDesc.get());
+		for (auto buffer : this->buffers)
+			allBuffers.push_back(buffer.get());
+
+		VulkanImpl::UpdateDescriptorSets(this->descriptorPoolID.id, allBuffers, this->textures, this->setID, VulkanImpl::MAX_FRAMES_IN_FLIGHT);
 	}
 
 	void ComputePipeline::Init()

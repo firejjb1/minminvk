@@ -34,10 +34,10 @@
 //#define GLTF_FILE "AnimatedCube/AnimatedCube.gltf"
 //#define GLTF_FILE "RiggedSimple/RiggedSimple.gltf"
 //#define GLTF_FILE "RiggedFigure/RiggedFigure.gltf"
-#define GLTF_FILE2 "CesiumMan/CesiumMan.gltf"
+//#define GLTF_FILE2 "CesiumMan/CesiumMan.gltf"
 //#define GLTF_FILE "AnimatedMorphCube/AnimatedMorphCube.gltf"
 //#define GLTF_FILE "CesiumMilkTruck/CesiumMilkTruck.gltf"
-#define GLTF_FILE3 "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
+//#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/BoomBoxWithAxes/glTF/BoomBoxWithAxes.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
 //#define GLTF_FILE "../../../../glTF-Sample-Models/2.0/SimpleMorph/glTF/SimpleMorph.gltf"
@@ -207,14 +207,20 @@ namespace Graphics
 				Vector<SharedPtr<Buffer>>{}
 			);
 
+			Presentation::PsoAttachmentSwapDependent psoAttachmentsToRebuid;
+			psoAttachmentsToRebuid.pso = deferredPipeline;
+			psoAttachmentsToRebuid.attachments.push_back(albedo);
+			psoAttachmentsToRebuid.attachments.push_back(positionDepth);
+			psoAttachmentsToRebuid.attachments.push_back(normal);
+			psoAttachmentsToRebuid.attachments.push_back(specular);
+
+			presentation->psoAttachmentSwapchainDependent.push_back(psoAttachmentsToRebuid);
+
 			deferredPipeline->depthTestEnable = true;
 			deferredPipeline->depthWriteEnable = false;
 			
 			Vector<Attachment> gbufferAttachments{framebuffer, albedo, positionDepth, normal, specular };
-			presentation->fullscreenAttachments.push_back(albedo);
-			presentation->fullscreenAttachments.push_back(positionDepth);
-			presentation->fullscreenAttachments.push_back(normal);
-			presentation->fullscreenAttachments.push_back(specular);
+
 			Vector<RenderPass::SubPass> subpasses{
 				RenderPass::SubPass{ .pso = forwardPipeline, .attachments = gbufferAttachments } ,
 				RenderPass::SubPass{ .pso = deferredPipeline, .attachments = gbufferAttachments }
@@ -261,7 +267,7 @@ namespace Graphics
 			Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
 			// TODO: implement a way to manipulate mesh nodes easily
 			// gltfMeshes[0]->node->modelMatrix = Math::Translate(mat4(1), vec3(100, 200, 0));
-			Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE2), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
+			//Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE2), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
 			//	Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE3), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
 
 		}
@@ -514,9 +520,7 @@ namespace Graphics
 #ifdef USE_DEFERRED
 				renderContext.subPass++;
 				device->BeginSubPass(renderContext);
-			/*	deferredPipeline->uniformDesc->transformUniform.view = mat4(1);
-				deferredPipeline->uniformDesc->transformUniform.proj = mat4(1);
-				deferredPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;*/
+
 				quad->Draw(renderContext);
 #endif
 			}

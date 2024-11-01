@@ -36,12 +36,6 @@ namespace Graphics
 	{
 		RenderPassID parentRenderPassID;
 
-	/*	enum class RenderType
-		{
-			RENDER_FORWARD,
-			RENDER_DEFERRED
-		};*/
-
 		// shaders
 		SharedPtr<Shader> vertexShader;
 		SharedPtr<Shader> fragmentShader;
@@ -151,6 +145,7 @@ namespace Graphics
 		u32 perMeshLayoutID;
 
 		u32 layoutID;
+		u32 setID;
 
 		GraphicsPipeline(SharedPtr<Shader> vertexShader, SharedPtr<Shader> fragmentShader, SharedPtr<VertexDesc> vertexDesc, 
 			SharedPtr<BasicUniformBuffer> uniformDesc, Vector<Texture> textures, Vector<SharedPtr<Buffer>> buffers)
@@ -159,6 +154,8 @@ namespace Graphics
 		}	
 
 		void Init(RenderPassID, Vector<Attachment>& attachments);
+
+		void UpdateTextures(const Vector<Texture>& textures);
 	};
 
 	enum class AttachmentOpType { CLEAR, STORE, DONTCARE };

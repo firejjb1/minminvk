@@ -33,7 +33,12 @@ namespace Graphics
 
 		SwapChainDetails swapChainDetails;
 
-		Vector<Attachment> fullscreenAttachments;
+		struct PsoAttachmentSwapDependent
+		{
+			Vector<Attachment> attachments;
+			SharedPtr<GraphicsPipeline> pso;
+		};
+		Vector<PsoAttachmentSwapDependent> psoAttachmentSwapchainDependent;
 
 		// driver and window system integration
 		void Init(void* window);
