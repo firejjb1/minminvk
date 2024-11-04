@@ -60,6 +60,7 @@ namespace Graphics
 			u32 blendShapeCount;
 			u32 normalizedBlendShapes;
 			u32 blend_weight_stride;
+			u32 padding;
 		};
 		ComputeVertexConstant vertexConstant;
 
@@ -294,7 +295,7 @@ namespace Graphics
 		SharedPtr<VertexDesc> vertexDesc;
 
 		Vector<u16> indices = {
-			0, 1, 2, 2, 3, 0
+			0, 2, 1, 2, 0, 3
 		};
 	public:
 

@@ -14,6 +14,7 @@ namespace Graphics
 			u32 targetImageCount = 2;
 			u32 width;
 			u32 height;
+			f32 aspectRatio = 16.f / 9.f;
 			Texture::FormatType format = Texture::FormatType::RGBA8_SRGB;
 			enum class ColorSpaceType { SRGB_NOLINEAR };
 			ColorSpaceType colorSpace = ColorSpaceType::SRGB_NOLINEAR;
@@ -31,6 +32,13 @@ namespace Graphics
 		u32 maxMSAASamples = 4;
 
 		SwapChainDetails swapChainDetails;
+
+		struct PsoAttachmentSwapDependent
+		{
+			Vector<Attachment> attachments;
+			SharedPtr<GraphicsPipeline> pso;
+		};
+		Vector<PsoAttachmentSwapDependent> psoAttachmentSwapchainDependent;
 
 		// driver and window system integration
 		void Init(void* window);

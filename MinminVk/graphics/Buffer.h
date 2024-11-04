@@ -82,7 +82,6 @@ namespace Graphics
             vec4 lightDirection = vec4(1);
             vec4 cameraPosition;
             vec4 lightIntensity = vec4(1);
-            alignas(16) mat4 jointMatrices[jointMatricesSize];
         };
 
         TransformUniform transformUniform;

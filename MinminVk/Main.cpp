@@ -12,8 +12,8 @@
 
 namespace Application
 {
-    const uint32_t WIDTH = 800;
-    const uint32_t HEIGHT = 600;
+    const uint32_t WIDTH = 1600;
+    const uint32_t HEIGHT = 900;
     GLFWwindow* window;
 
     u32 frameID = 0;

@@ -28,10 +28,12 @@ namespace Graphics
 		u32 memoryID = 0; // texture memory
 		u32 viewID = 0; // texture image view
 		u32 samplerID = 0;
+		u32 descriptorSetID = 0;
+		u32 descriptorPoolID = 0;
 	};
 	struct Texture
 	{
-		enum class FormatType { RGBA8_UNORM, RGBA8_SRGB, RGB8_UNORM, BGRA_SRGB, R10G10B10A2_UNORM_PACK32, COUNT };
+		enum class FormatType { RGBA8_UNORM, RGBA8_SRGB, RGB8_UNORM, BGRA_SRGB, R10G10B10A2_UNORM_PACK32, RGB16_SFLOAT, COUNT };
 		FormatType formatType = FormatType::RGBA8_UNORM;
 		ResourceBinding binding;
 
@@ -42,6 +44,7 @@ namespace Graphics
 			TRANSFER_DST,
 			READ_ONLY,
 			DEPTH_ATTACHMENT,
+			INPUT_ATTACHMENT,
 			UNDEFINED 
 		};
 		
@@ -54,7 +57,8 @@ namespace Graphics
 			SAMPLED = 32,
 			DEPTH_ATTACHMENT = 64,
 			STORAGE = 128,
-			UNDEFINED = 256
+			INPUT_ATTACHMENT = 256,
+			UNDEFINED = 512
 		};
 
 		UsageType usageType = EnumBitwiseOr(EnumBitwiseOr(UsageType::TRANSFER_DST, UsageType::SAMPLED), UsageType::TRANSFER_SRC);
@@ -76,6 +80,9 @@ namespace Graphics
 		u32 mipLevels = 1;
 
 		u32 depth = 1;
+
+		Texture::LayoutType initialLayout = Texture::LayoutType::TRANSFER_DST;
+		Texture::LayoutType finalLayout = Texture::LayoutType::READ_ONLY;
 
 		Texture(String filename, FormatType formatType = FormatType::RGBA8_SRGB, bool autoMipChain = false);
 

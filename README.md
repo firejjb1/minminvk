@@ -7,17 +7,18 @@ The project is built using CMake.
 
 #### Requirements
 - CMake
-- Vulkan SDK 1.3+
+- Vulkan SDK 1.3.280+
 - C++20 compiler
 
 #### Platforms
 - Windows
 - MacOS (tentative)
-- Debian X11 (tentative)
+- Linux (tentative)
 
 ### Features
 - Vulkan abstraction, all Vulkan functionalities inside graphics/backend/VulkanImpl.cpp
 - graphics pipeline, compute pipeline
+- choose between forward or deferred rendering with local read (TBDR). search "USE_DEFERRED" in CMakeLists.txt
 - parse OBJ files
 - parse GLTF files 
 - support GLTF animation, including skinned animation and morph targets
