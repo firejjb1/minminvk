@@ -455,8 +455,9 @@ namespace Graphics
 		}
 	}
 
-	void Import::LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardTransparentPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes)
+	SharedPtr<Node> Import::LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardTransparentPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes)
 	{
+		SharedPtr<Node> gltfRoot = nodeManager.AddNode(mat4(1), NodeID(0), Node::NodeType::EMPTY_NODE);
 		u32 curNumNodes = nodeManager.cyclicIndex;
 		tinygltf::Model model;
 		Util::IO::ReadGLTF(model, filename);
@@ -515,7 +516,7 @@ namespace Graphics
 			std::deque<std::pair<u32, u32>> nodesStack; // node id (gltf ID) and parent id (engine ID). kinda confusing but need to track both
 			for (auto& node : scene.nodes)
 			{
-				nodesStack.push_back(std::make_pair<u32, u32>(node, 0));
+				nodesStack.push_back(std::make_pair<u32, u32>(node, gltfRoot->nodeID.id));
 			}
 
 			for (auto& material : model.materials)
@@ -789,6 +790,7 @@ namespace Graphics
 
 			node->SetJoints(joints);
 		}
+		return gltfRoot;
 		// reading first mesh only
 		//auto& mesh = model.meshes[0];
 
