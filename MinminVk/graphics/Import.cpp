@@ -457,7 +457,7 @@ namespace Graphics
 
 	SharedPtr<Node> Import::LoadGLTF(const String& filename, NodeManager& nodeManager, SharedPtr<GraphicsPipeline> forwardPipeline, SharedPtr<GraphicsPipeline> forwardTransparentPipeline, Vector<SharedPtr<GLTFMesh>>& newMeshes)
 	{
-		SharedPtr<Node> gltfRoot = nodeManager.AddNode(mat4(1), NodeID(0), Node::NodeType::EMPTY_NODE);
+		SharedPtr<Node> gltfRoot = nodeManager.AddNode(mat4(1), NodeID{.id=0}, Node::NodeType::EMPTY_NODE);
 		u32 curNumNodes = nodeManager.cyclicIndex;
 		tinygltf::Model model;
 		Util::IO::ReadGLTF(model, filename);

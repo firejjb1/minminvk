@@ -484,7 +484,7 @@ namespace VulkanImpl
 		}
 
 		for (const auto& nonSupportedExtension : requiredExtensions)
-			DebugPrint("Device extensions not supported: %s\n", nonSupportedExtension);
+			DebugPrint("Device extensions not supported: %s\n", nonSupportedExtension.c_str());
 
 		return requiredExtensions.empty();
 	}
