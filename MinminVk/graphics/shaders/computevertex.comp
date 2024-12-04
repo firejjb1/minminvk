@@ -36,12 +36,12 @@ src_bone_weights;
 
 
 layout(set = 0, binding = 3) uniform SkeletonData {
-	mat4 data[128];
+	mat4 data[512];
 }
 bone_transforms;
 
 layout(set = 0, binding = 4) uniform BlendShapeWeights {
-	vec4 data[2];
+	vec4 data[2]; // TODO expand to 8
 }
 blend_shape_weights;
 

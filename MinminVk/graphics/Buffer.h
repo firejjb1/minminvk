@@ -115,7 +115,7 @@ namespace Graphics
 
     struct SkeletonUniformBuffer : UniformBuffer
     {
-        static const u32 jointMatricesSize = 128;
+        static const u32 jointMatricesSize = 512;
 
         Vector<mat4> data;
 

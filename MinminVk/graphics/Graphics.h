@@ -47,6 +47,7 @@
 //#define GLTF_FILE "AlphaBlendModeTest/AlphaBlendModeTest.gltf"
 #define GLTF_FILE "lain2/lain_anim.gltf"
 #define GLTF_FILE3 "testBlend/testBlend.gltf"
+#define GLTF_ELLEN_JOE "ellen_joe_by_ghost73/scene.gltf"
 
 namespace Graphics
 {
@@ -272,6 +273,9 @@ namespace Graphics
 			gltf2->modelMatrix = Math::Translate(Math::Scale(mat4(1), vec3(0.2f)), vec3(5.f, 0.5f, 0));
 			auto gltf3 = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE3), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
 			gltf3->modelMatrix = Math::Scale(mat4(1), vec3(0.2f));
+
+			auto ellengltf = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_ELLEN_JOE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
+			ellengltf->modelMatrix = Math::Translate(Math::Rotate(mat4(1), -Math::PI / 2, vec3(0, 1, 0)), vec3(-1, 0.5f, -5));
 		}
 
 		// Compute Passes

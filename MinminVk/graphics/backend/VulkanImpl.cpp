@@ -2957,7 +2957,6 @@ namespace Graphics
 		{
 			morphWeightData->data[i] = node->morphWeights[i];
 		}
-		
 	}
 
 

@@ -5,3 +5,4 @@ CMakeSettings.json
 out/
 .vscode/
 **/.DS_STORE
+graphics/shaders/*.spv
