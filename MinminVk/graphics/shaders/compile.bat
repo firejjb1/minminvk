@@ -11,3 +11,5 @@ glslc gbuffer.vert -o gbuffervert.spv
 glslc gbuffer.frag -o gbufferfrag.spv
 glslc fsquad.vert -o fsquadvert.spv 
 glslc fsquad.frag -o fsquadfrag.spv
+glslc skybox.vert -o skyboxvert.spv
+glslc skybox.frag -o skyboxfrag.spv

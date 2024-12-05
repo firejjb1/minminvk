@@ -146,7 +146,8 @@ namespace VulkanImpl
 	}
 
 	void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, 
-		VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, u32 mipLevels = 1, VkSampleCountFlagBits numSamples = VK_SAMPLE_COUNT_1_BIT) {
+		VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, u32 mipLevels = 1,
+		VkSampleCountFlagBits numSamples = VK_SAMPLE_COUNT_1_BIT, bool isCubemap = false) {
 		VkImageCreateInfo imageInfo{};
 		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -161,6 +162,11 @@ namespace VulkanImpl
 		imageInfo.usage = usage;
 		imageInfo.samples = numSamples;
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		if (isCubemap)
+		{
+			imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+			imageInfo.arrayLayers = 6;
+		}
 
 		if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create image!");
@@ -203,7 +209,7 @@ namespace VulkanImpl
 		return VK_SAMPLE_COUNT_1_BIT;
 	}
 
-	VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, u32 mipLevels = 1) {
+	VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, u32 mipLevels = 1, bool isCubemap = false) {
 		VkImageViewCreateInfo viewInfo{};
 		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		viewInfo.image = image;
@@ -214,7 +220,11 @@ namespace VulkanImpl
 		viewInfo.subresourceRange.levelCount = mipLevels;
 		viewInfo.subresourceRange.baseArrayLayer = 0;
 		viewInfo.subresourceRange.layerCount = 1;
-
+		if (isCubemap)
+		{
+			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+			viewInfo.subresourceRange.layerCount = 6;
+		}
 		VkImageView imageView;
 		if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create texture image view!");
@@ -863,7 +873,8 @@ namespace VulkanImpl
 	}
 
 	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, 
-		u32 mipLevels = 1, VkCommandBuffer * cmdBuffer = nullptr, VkAccessFlags srcAccessMask = -1, VkAccessFlags dstAccessMask = -1, VkPipelineStageFlags srcStage = -1, VkPipelineStageFlags dstStage = -1) {
+		u32 mipLevels = 1, VkCommandBuffer * cmdBuffer = nullptr, VkAccessFlags srcAccessMask = -1, 
+		VkAccessFlags dstAccessMask = -1, VkPipelineStageFlags srcStage = -1, VkPipelineStageFlags dstStage = -1, bool isCubemap = false) {
 		VkCommandBuffer commandBuffer = cmdBuffer ? *cmdBuffer : BeginSingleTimeCommands();
 
 		VkImageMemoryBarrier barrier{};
@@ -877,7 +888,7 @@ namespace VulkanImpl
 		barrier.subresourceRange.baseMipLevel = 0;
 		barrier.subresourceRange.levelCount = mipLevels;
 		barrier.subresourceRange.baseArrayLayer = 0;
-		barrier.subresourceRange.layerCount = 1;
+		barrier.subresourceRange.layerCount = isCubemap ? 6 : 1;
 		VkPipelineStageFlags sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		VkPipelineStageFlags destinationStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
@@ -925,7 +936,7 @@ namespace VulkanImpl
 	{
 		auto vertexData = geometry.GetVertexData();
 		const u8* vertices = vertexData->GetVertices();
-		VkDeviceSize bufferSize = sizeof(u8) * vertexData->GetVerticesCount();
+		VkDeviceSize bufferSize = vertexData->GetVerticesCount() * vertexData->GetVertexSize();
 
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
@@ -1353,8 +1364,9 @@ namespace VulkanImpl
 		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 		depthStencil.depthTestEnable = pipeline->depthTestEnable ? VK_TRUE : VK_FALSE;
 		depthStencil.depthWriteEnable = pipeline->depthWriteEnable ? VK_TRUE : VK_FALSE;
-		depthStencil.depthCompareOp = pipeline->depthCompareOp == Graphics::GraphicsPipeline::DepthCompareOpType::LESS ? VK_COMPARE_OP_LESS : VK_COMPARE_OP_GREATER;
-		depthStencil.depthBoundsTestEnable = VK_FALSE;
+		depthStencil.depthCompareOp = pipeline->depthCompareOp == Graphics::GraphicsPipeline::DepthCompareOpType::LESS ? VK_COMPARE_OP_LESS 
+			: pipeline->depthCompareOp == Graphics::GraphicsPipeline::DepthCompareOpType::LEQUAL ? VK_COMPARE_OP_LESS_OR_EQUAL : VK_COMPARE_OP_GREATER;
+		depthStencil.depthBoundsTestEnable = VK_TRUE;
 		depthStencil.minDepthBounds = 0.0f; // Optional
 		depthStencil.maxDepthBounds = 1.0f; // Optional
 		depthStencil.stencilTestEnable = VK_FALSE;
@@ -1568,8 +1580,11 @@ namespace VulkanImpl
 			vkCmdSetCullMode(commandBuffer, VK_CULL_MODE_NONE);
 		else 
 			vkCmdSetCullMode(commandBuffer, VK_CULL_MODE_BACK_BIT);
-
-		vkCmdDrawIndexed(commandBuffer, static_cast<u32>(geometry.GetIndicesData().size()), 1, 0, 0, 0);
+		u32 indicesCount = static_cast<u32>(geometry.GetIndicesData().size());
+		if (indicesCount == 0)
+			vkCmdDraw(commandBuffer, geometry.GetVertexData()->GetVerticesCount(), 1, 0, 0);
+		else 
+			vkCmdDrawIndexed(commandBuffer, indicesCount, 1, 0, 0, 0);
 	}
 
 	void Dispatch(Graphics::CommandList commandList, int pipelineID, int layoutID, int descriptorPoolID, int swapID, vec3 threadSz, vec3 invocationSz, Graphics::PushConstant *pushConstant = nullptr)
@@ -2008,7 +2023,7 @@ namespace VulkanImpl
 		return startNewSetsIndex;
 	}
 
-	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
+	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, bool isCubemap = false) {
 		VkCommandBuffer commandBuffer = BeginSingleTimeCommands();
 		VkBufferImageCopy region{};
 		region.bufferOffset = 0;
@@ -2019,6 +2034,8 @@ namespace VulkanImpl
 		region.imageSubresource.mipLevel = 0;
 		region.imageSubresource.baseArrayLayer = 0;
 		region.imageSubresource.layerCount = 1;
+		if (isCubemap)
+			region.imageSubresource.layerCount = 6;
 
 		region.imageOffset = { 0, 0, 0 };
 		region.imageExtent = {
@@ -2125,9 +2142,12 @@ namespace VulkanImpl
 		EndSingleTimeCommands(commandBuffer);
 	}
 
-	void CreateTextureImage(Graphics::Texture& texture, stbi_uc* pixels, i32 width, i32 height, u32 mipLevels, bool isAttachment = false, bool recreate = false)
+	void CreateTextureImage(Graphics::Texture& texture, stbi_uc* pixels, i32 width, i32 height, u32 mipLevels, bool isAttachment = false,
+		bool recreate = false, bool isCubemap = false, Vector<stbi_uc*> pixelsArray = Vector<stbi_uc*>{})
 	{
 		VkDeviceSize imageSize = width * height * 4;
+		if (isCubemap)
+			imageSize *= 6;
 		assert(width > 0 && height > 0);
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
@@ -2136,7 +2156,16 @@ namespace VulkanImpl
 			CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 			void* data;
 			vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
-			memcpy(data, pixels, static_cast<size_t>(imageSize));
+			if (isCubemap)
+			{
+				VkDeviceSize layerSize = imageSize / 6;
+				for (u8 i = 0; i < 6; ++i)
+				{
+					memcpy(static_cast<u8*>(data)+(layerSize * i), pixelsArray[i], static_cast<size_t>(layerSize));
+				}
+			}
+			else 
+				memcpy(data, pixels, static_cast<size_t>(imageSize));
 			vkUnmapMemory(device, stagingBufferMemory);
 			stbi_image_free(pixels);
 		}
@@ -2158,11 +2187,14 @@ namespace VulkanImpl
 		}
 
 		CreateImage(width, height, MapToVulkanFormat(texture.formatType), MapToVulkanImageTiling(texture.tilingType), MapToVulkanUsageFlags(texture.usageType) | (isAttachment ? VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT : 0),
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory, mipLevels);
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory, mipLevels, 
+			VK_SAMPLE_COUNT_1_BIT, isCubemap);
 
-		textureImageView = CreateImageView(textureImage, MapToVulkanFormat(texture.formatType), VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+		textureImageView = CreateImageView(textureImage, MapToVulkanFormat(texture.formatType), 
+			VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, isCubemap);
 
-		TransitionImageLayout(textureImage, MapToVulkanFormat(texture.formatType), VK_IMAGE_LAYOUT_UNDEFINED, MapToVulkanImageLayout(texture.initialLayout),  mipLevels);
+		TransitionImageLayout(textureImage, MapToVulkanFormat(texture.formatType), VK_IMAGE_LAYOUT_UNDEFINED,
+			MapToVulkanImageLayout(texture.initialLayout), mipLevels, nullptr, -1, -1, -1, -1, true);
 		if (pixels != nullptr)
 		{
 			CopyBufferToImage(stagingBuffer, textureImage, static_cast<u32>(width), static_cast<u32>(height));
@@ -2816,12 +2848,67 @@ namespace Graphics
 		materialUniformBuffer.pbrMaterial = material.get();
 		material->albedoTexture = mainTexture;
 		material->material->hasAlbedoTex = 1;
-		Vector<Graphics::Texture> textures{};
-		textures.push_back(material->albedoTexture);
-		textures.push_back(material->metallicTexture);
-		textures.push_back(material->normalTexture);
-		textures.push_back(material->occlusionTexture);
-		textures.push_back(material->emissiveTexture);
+
+		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
+			Vector<Graphics::Texture>{ this->mainTexture}
+		);
+	}
+
+	Cube::Cube(SharedPtr<GraphicsPipeline> pipeline, Texture mainTexture)
+		: Geometry(mainTexture ) 
+	{
+		vertexDesc = MakeShared<PosOnlyVertex>( std::move(Vector<PosOnlyVertex::Vertex>{
+		    // positions          
+			{{  -1.0f,  1.0f, -1.0f,}},
+			{{  -1.0f, -1.0f, -1.0f,}},
+			{{  1.0f, -1.0f, -1.0f,}},
+			{{  1.0f, -1.0f, -1.0f,}},
+			{{  1.0f,  1.0f, -1.0f,}},
+			{{  -1.0f,  1.0f, -1.0f,}},
+
+			{{  -1.0f, -1.0f,  1.0f,}},
+			{{  -1.0f, -1.0f, -1.0f,}},
+			{{	-1.0f,  1.0f, -1.0f,}},
+			{{	-1.0f,  1.0f, -1.0f,}},
+			{{	-1.0f,  1.0f,  1.0f,}},
+			{{	-1.0f, -1.0f,  1.0f,}},
+
+			{{	1.0f, -1.0f, -1.0f,}},
+			{{	1.0f, -1.0f,  1.0f,}},
+			{{	1.0f,  1.0f,  1.0f,}},
+			{{	1.0f,  1.0f,  1.0f,}},
+			{{	1.0f,  1.0f, -1.0f,}},
+			{{	1.0f, -1.0f, -1.0f,}},
+
+			{{	-1.0f, -1.0f,  1.0f,}},
+			{{	-1.0f,  1.0f,  1.0f,}},
+			{{	1.0f,  1.0f,  1.0f,}},
+			{{	1.0f,  1.0f,  1.0f,}},
+			{{	1.0f, -1.0f,  1.0f,}},
+			{{	-1.0f, -1.0f,  1.0f,}},
+
+			{{	-1.0f,  1.0f, -1.0f,}},
+			{{	1.0f,  1.0f, -1.0f,}},
+			{{	1.0f,  1.0f,  1.0f,}},
+			{{	1.0f,  1.0f,  1.0f,}},
+			{{	-1.0f,  1.0f,  1.0f,}},
+			{{	-1.0f,  1.0f, -1.0f,}},
+
+			{{	-1.0f, -1.0f, -1.0f,}},
+			{{	-1.0f, -1.0f,  1.0f,}},
+			{{	1.0f, -1.0f, -1.0f,}},
+			{{	1.0f, -1.0f, -1.0f,}},
+			{{	-1.0f, -1.0f,  1.0f,}},
+			{{	1.0f, -1.0f,  1.0f}},
+		})
+		);
+		VulkanImpl::CreateVertexBuffer(*this);
+		// VulkanImpl::CreateIndexBuffer(*this);
+		material = MakeShared<PBRMaterial>();
+		materialUniformBuffer.pbrMaterial = material.get();
+		material->albedoTexture = mainTexture;
+		material->material->hasAlbedoTex = 1;
+
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			Vector<Graphics::Texture>{ this->mainTexture}
 		);
@@ -2945,7 +3032,7 @@ namespace Graphics
 		vertexData->vertexConstant.hasTangent = vertexData->hasTangent ? 1 : 0;
 		vertexData->vertexConstant.hasSkeleton = vertexData->hasSkeleton ? 1 : 0;
 		vertexData->vertexConstant.hasBlendShape = vertexData->hasBlends ? 1 : 0;
-		vertexData->vertexConstant.vertexCount = vertexData->GetVerticesCount() / sizeof(BasicVertex::Vertex);
+		vertexData->vertexConstant.vertexCount = vertexData->GetVerticesCount();
 		vertexData->vertexConstant.vertexStride = sizeof(BasicVertex::Vertex) / sizeof(u32);
 		vertexData->vertexConstant.skinStride = sizeof(BasicVertex::JointWeightVertex) / sizeof(u32);
 		vertexData->vertexConstant.skinWeightOffset = 4;
@@ -2980,6 +3067,22 @@ namespace Graphics
 			mipLevels = static_cast<u32>(std::floor(std::log2(Max(width, height))) + 1);
 		}
 		VulkanImpl::CreateTextureImage(*this, (stbi_uc*)data, width, height, mipLevels);
+		initialized = true;
+	}
+
+	TextureCubemap::TextureCubemap(String right, String left, String top, String bottom, String front, String back)
+	{
+		i32 width = -1;
+		i32 height = -1;
+		stbi_uc* rightData = Util::IO::ReadImage(width, height, right);
+		stbi_uc* leftData = Util::IO::ReadImage(width, height, left);
+		stbi_uc* topData = Util::IO::ReadImage(width, height, top);
+		stbi_uc* bottomData = Util::IO::ReadImage(width, height, bottom);
+		stbi_uc* frontData = Util::IO::ReadImage(width, height, front);
+		stbi_uc* backData = Util::IO::ReadImage(width, height, back);
+		initialLayout = Texture::LayoutType::READ_ONLY;
+		VulkanImpl::CreateTextureImage(*this, nullptr, width, height, 1, false, false, true, 
+			Vector<stbi_uc*>{rightData, leftData, topData, bottomData, frontData, backData });
 		initialized = true;
 	}
 

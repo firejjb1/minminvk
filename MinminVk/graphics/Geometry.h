@@ -40,6 +40,7 @@ namespace Graphics
 		virtual Vector<VertexAttribute> GetVertexAttributes() = 0;
 		virtual u8* GetVertices() = 0;
 		virtual u32 GetVerticesCount() = 0;
+		virtual u32 GetVertexSize() = 0;
 		bool hasTangent = false;
 		bool hasNormal = false;
 		bool hasSkeleton = false;
@@ -73,6 +74,72 @@ namespace Graphics
 		virtual u32 GetMorphVerticesCount() = 0;
 	};
 
+	struct PosOnlyVertex : public VertexDesc
+	{
+		struct Vertex 
+		{
+			vec3 pos;
+		};
+		Vector<Vertex> vertices;
+		PosOnlyVertex() {};
+
+		PosOnlyVertex(Vector<Vertex> &&vertices) : vertices{ vertices } {}
+
+		VertexBinding GetVertexBinding() override
+		{
+			VertexBinding binding;
+			binding.stride = sizeof(Vertex);
+			binding.binding = 0;
+			return binding;
+		}
+
+		Vector<VertexAttribute> GetVertexAttributes() override
+		{
+			VertexAttribute posAttribute;
+			posAttribute.binding = 0;
+			posAttribute.location = 0;
+			posAttribute.offset = offsetof(Vertex, pos);
+			posAttribute.vertexFormatType = VertexAttribute::VertexFormatType::VEC3;
+
+			return Vector<VertexAttribute>{ posAttribute };
+		}
+
+		u8* GetVertices() override
+		{
+			return ((u8*)vertices.data());
+		}
+
+ 		u32 GetVertexSize() override
+		{
+			return sizeof(Vertex);
+		}
+
+		u32 GetVerticesCount() override
+		{
+			return vertices.size();
+		}
+
+		u8* GetSkeletonVertices() override
+		{
+			return nullptr;
+		}
+
+		u32 GetSkeletonVerticesCount() override
+		{
+			return 0;
+		}
+		u8* GetMorphVertices() override
+		{
+			return nullptr;
+		}
+
+		u32 GetMorphVerticesCount() override
+		{
+			return 0;
+		}
+
+	};
+
 	struct BasicVertex : public VertexDesc
 	{
 		struct Vertex 
@@ -86,8 +153,6 @@ namespace Graphics
 			bool operator==(const Vertex& other) const {
 				return pos == other.pos && color == other.color && texCoord == other.texCoord && tangent == other.tangent && normal == other.normal;
 			}
-
-			void test() {}
 		};
 
 		Vector<Vertex> vertices;
@@ -159,10 +224,13 @@ namespace Graphics
 		{
 			return ((u8*)vertices.data());
 		}
-
+		u32 GetVertexSize() override
+		{
+			return sizeof(Vertex);
+		}
 		u32 GetVerticesCount() override
 		{
-			return vertices.size() * sizeof(Vertex) / sizeof(u8);
+			return vertices.size();
 		}
 
 		u8* GetSkeletonVertices() override
@@ -229,10 +297,13 @@ namespace Graphics
 		{
 			return ((u8*)particles.data());
 		}
-
+		u32 GetVertexSize() override
+		{
+			return sizeof(Particle);
+		}
 		u32 GetVerticesCount() override
 		{
-			return particles.size() * sizeof(Particle) / sizeof(u8);
+			return particles.size();
 		}
 		u8* GetSkeletonVertices() override
 		{
@@ -291,15 +362,12 @@ namespace Graphics
 	struct Quad : public Geometry
 	{
 	private:
-
 		SharedPtr<VertexDesc> vertexDesc;
 
 		Vector<u16> indices = {
 			0, 2, 1, 2, 0, 3
 		};
 	public:
-
-
 		Quad(SharedPtr<GraphicsPipeline>, Texture mainTexture);
 
 		SharedPtr<VertexDesc> GetVertexData() override { return vertexDesc; }
@@ -310,6 +378,24 @@ namespace Graphics
 			//modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, 0, 1));
 		}
 
+	};
+
+	struct Cube : public Geometry
+	{
+	private:
+		SharedPtr<VertexDesc> vertexDesc;
+		Vector<u16> indices;
+	public:
+		Cube(SharedPtr<GraphicsPipeline>, Texture mainTexture);
+
+		SharedPtr<VertexDesc> GetVertexData() override { return vertexDesc; }
+		Vector<u16>& GetIndicesData() override { return indices; }
+
+		void Update(f32 deltaTime) override
+		{
+			//modelMatrix = Math::Rotate(modelMatrix, deltaTime * Math::Radians(90), vec3(0, 0, 1));
+		}
+		
 	};
 
 	struct OBJMesh : public Geometry
