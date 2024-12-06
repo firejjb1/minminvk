@@ -1205,8 +1205,10 @@ namespace VulkanImpl
 		vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
 		vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptionsVK.data();
 
+		VkPipelineRasterizationStateCreateInfo rasterizer{};
 		VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
 		inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		rasterizer.lineWidth = 1;
 		switch (pipeline->topologyType)
 		{
 		case Graphics::GraphicsPipeline::TopologyType::TOPO_TRIANGLE_LIST:
@@ -1214,12 +1216,15 @@ namespace VulkanImpl
 			break;
 		case Graphics::GraphicsPipeline::TopologyType::TOPO_POINT_LIST:
 			inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+			rasterizer.lineWidth = pipeline->lineWidth;
 			break;
 		case Graphics::GraphicsPipeline::TopologyType::TOPO_LINE_LIST:
 			inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+			rasterizer.lineWidth = pipeline->lineWidth;
 			break;
 		case Graphics::GraphicsPipeline::TopologyType::TOPO_LINE_STRIP:
 			inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+			rasterizer.lineWidth = pipeline->lineWidth;
 			break;
 		case Graphics::GraphicsPipeline::TopologyType::TOPO_TRIANGLE_STRIP:
 			inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
@@ -1247,7 +1252,6 @@ namespace VulkanImpl
 		viewportState.pScissors = &scissor;
 
 		auto& rasterStates = pipeline->rasterStates;
-		VkPipelineRasterizationStateCreateInfo rasterizer{};
 		rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizer.depthClampEnable = VK_FALSE;
 		if (rasterStates.find(Graphics::GraphicsPipeline::RasterState::RASTER_DEPTH_CLAMP) != rasterStates.cend())
@@ -1257,19 +1261,15 @@ namespace VulkanImpl
 		if (rasterStates.find(Graphics::GraphicsPipeline::RasterState::RASTER_DISCARD) != rasterStates.cend())
 			rasterizer.rasterizerDiscardEnable = VK_TRUE;
 		rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterizer.lineWidth = 1;
 		if (rasterStates.find(Graphics::GraphicsPipeline::RasterState::RASTER_POLYGON_MODE_LINE) != rasterStates.cend())
 		{
-			rasterizer.lineWidth = pipeline->lineWidth;
 			rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
 		}
 		if (rasterStates.find(Graphics::GraphicsPipeline::RasterState::RASTER_POLYGON_MODE_POINT) != rasterStates.cend())
 		{
-			rasterizer.lineWidth = pipeline->lineWidth;
 			rasterizer.polygonMode = VK_POLYGON_MODE_POINT;
 		}
 		
-
 		rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
 		if (rasterStates.find(Graphics::GraphicsPipeline::RasterState::RASTER_CULL_MODE_BOTH) != rasterStates.cend())
 			rasterizer.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
@@ -2025,31 +2025,50 @@ namespace VulkanImpl
 
 	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, bool isCubemap = false) {
 		VkCommandBuffer commandBuffer = BeginSingleTimeCommands();
-		VkBufferImageCopy region{};
+		Vector<VkBufferImageCopy> regions;
+		auto &region = regions.emplace_back();
 		region.bufferOffset = 0;
 		region.bufferRowLength = 0;
 		region.bufferImageHeight = 0;
-
 		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		region.imageSubresource.mipLevel = 0;
 		region.imageSubresource.baseArrayLayer = 0;
 		region.imageSubresource.layerCount = 1;
-		if (isCubemap)
-			region.imageSubresource.layerCount = 6;
-
 		region.imageOffset = { 0, 0, 0 };
 		region.imageExtent = {
 			width,
 			height,
 			1
 		};
+
+		if (isCubemap)
+		{
+			for (int i = 1; i < 6; ++i)
+			{
+				auto &region = regions.emplace_back();
+				region.bufferOffset = width * height * i * 4;
+				region.bufferRowLength = 0;
+				region.bufferImageHeight = 0;
+				region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				region.imageSubresource.mipLevel = 0;
+				region.imageSubresource.baseArrayLayer = i;
+				region.imageSubresource.layerCount = 1;
+				region.imageOffset = { 0, 0, 0 };
+				region.imageExtent = {
+					width,
+					height,
+					1
+				};
+			}
+		}
+		
 		vkCmdCopyBufferToImage(
 			commandBuffer,
 			buffer,
 			image,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			1,
-			&region
+			static_cast<u32>(regions.size()),
+			regions.data()
 		);
 		EndSingleTimeCommands(commandBuffer);
 	}
@@ -2151,7 +2170,7 @@ namespace VulkanImpl
 		assert(width > 0 && height > 0);
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
-		if (pixels != nullptr)
+		if (pixels != nullptr || !pixelsArray.empty())
 		{
 			CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 			void* data;
@@ -2168,6 +2187,13 @@ namespace VulkanImpl
 				memcpy(data, pixels, static_cast<size_t>(imageSize));
 			vkUnmapMemory(device, stagingBufferMemory);
 			stbi_image_free(pixels);
+			if (isCubemap)
+			{
+				for (u8 i = 0; i < 6; ++i)
+				{
+					stbi_image_free(pixelsArray[i]);
+				}
+			}
 		}
 
 		auto& textureImage = recreate ? textureImages[texture.textureID.id] : textureImages.emplace_back();
@@ -2194,14 +2220,15 @@ namespace VulkanImpl
 			VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, isCubemap);
 
 		TransitionImageLayout(textureImage, MapToVulkanFormat(texture.formatType), VK_IMAGE_LAYOUT_UNDEFINED,
-			MapToVulkanImageLayout(texture.initialLayout), mipLevels, nullptr, -1, -1, -1, -1, true);
-		if (pixels != nullptr)
+			MapToVulkanImageLayout(texture.initialLayout), mipLevels, nullptr, -1, -1, -1, -1, isCubemap);
+		if (pixels != nullptr || isCubemap)
 		{
-			CopyBufferToImage(stagingBuffer, textureImage, static_cast<u32>(width), static_cast<u32>(height));
+			CopyBufferToImage(stagingBuffer, textureImage, static_cast<u32>(width), static_cast<u32>(height), isCubemap);
 
 			vkDestroyBuffer(device, stagingBuffer, nullptr);
 			vkFreeMemory(device, stagingBufferMemory, nullptr);
 		}
+
 		if (mipLevels > 1)
 			GenerateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_SRGB, width, height, mipLevels);
 		else 
@@ -2850,7 +2877,7 @@ namespace Graphics
 		material->material->hasAlbedoTex = 1;
 
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
-			Vector<Graphics::Texture>{ this->mainTexture}
+			Vector<Graphics::Texture>{ this->mainTexture }
 		);
 	}
 

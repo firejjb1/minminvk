@@ -204,7 +204,7 @@ namespace Graphics
 				Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{}
 			);
-			forwardPass = MakeShared<RenderPass>(forwardPipeline);
+			forwardPass = MakeShared<RenderPass>(forwardPipeline, Graphics::AttachmentOpType::DONTCARE);
 	#endif
 			forwardTransparentPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
@@ -229,18 +229,16 @@ namespace Graphics
 
 			);
 			skyboxPipeline->depthWriteEnable = false;
-			skyboxPipeline->depthTestEnable = true;
 			skyboxPipeline->depthCompareOp = GraphicsPipeline::DepthCompareOpType::LEQUAL;
-			skyboxPass = MakeShared<RenderPass>(skyboxPipeline, Graphics::AttachmentOpType::DONTCARE);
+			skyboxPass = MakeShared<RenderPass>(skyboxPipeline);
+
+			cube = MakeShared<Cube>(skyboxPipeline, textureSkybox);
 
 #ifdef USE_DEFERRED
 			quad = MakeShared<Quad>(deferredPipeline, texture);
-			cube = MakeShared<Cube>(deferredPipeline, textureSkybox);
 #else
 			quad = MakeShared<Quad>(forwardPipeline, texture);
-			cube = MakeShared<Cube>(forwardPipeline, textureSkybox);
 #endif // USE_DEFERRED
-
 
 			// OBJ
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline, texture, concat_str(OBJ_DIR, VIKING_MODEL));
@@ -311,6 +309,7 @@ namespace Graphics
 			particleRenderPipeline->blendEnabled = true;
 			particleRenderPipeline->depthTestEnable = true;
 			particleRenderPipeline->depthWriteEnable = false;
+			particleRenderPipeline->lineWidth = 10;
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, Graphics::AttachmentOpType::DONTCARE);
 
 			for (auto mesh : gltfMeshes)
@@ -468,13 +467,19 @@ namespace Graphics
 
 		updateTimeAccumulator += deltaTime;
 		Update(fixedDeltaTime);
+
+		bool success = device->BeginRecording(renderContext);
+		assert(success);
+		// pass 0 skybox
+		renderContext.renderPass = skyboxPass;
+		device->BeginRenderPass(renderContext);
+		cube->Draw(renderContext);
+		device->EndRenderPass(renderContext);
 		// forward passes
 		{
 			// pass 1 - meshes
 			renderContext.renderPass = forwardPass;
 
-			bool success = device->BeginRecording(renderContext);
-			assert(success);
 			// view projection
  			{
  				forwardPipeline->uniformDesc->transformUniform.view = camera->GetCameraMatrix();
@@ -514,12 +519,6 @@ namespace Graphics
  			}
 
  			device->EndRenderPass(renderContext);
-
-			// pass 1.5 skybox
-			renderContext.renderPass = skyboxPass;
-			device->BeginRenderPass(renderContext);
-			cube->Draw(renderContext);
-			device->EndRenderPass(renderContext);
 
 			 // pass 2 - hair
 			 renderContext.renderPass = forwardParticlePass;
