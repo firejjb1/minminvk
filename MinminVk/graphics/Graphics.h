@@ -158,6 +158,8 @@ namespace Graphics
 				Vector<SharedPtr<Buffer>>{}
 			);
 			Attachment framebuffer(Texture::FormatType::BGRA_SRGB);
+			framebuffer.loadOp = Graphics::AttachmentOpType::DONTCARE;
+			framebuffer.depthLoadOp = Graphics::AttachmentOpType::DONTCARE;
 			Attachment albedo(Texture::FormatType::RGBA8_UNORM);
 			Attachment positionDepth(Texture::FormatType::RGB16_SFLOAT);
 			Attachment normal(Texture::FormatType::RGB16_SFLOAT);
@@ -187,7 +189,8 @@ namespace Graphics
 
 			deferredPipeline->depthTestEnable = true;
 			deferredPipeline->depthWriteEnable = false;
-			
+			deferredPipeline->blendEnabled = true;
+
 			Vector<Attachment> gbufferAttachments{framebuffer, albedo, positionDepth, normal, specular };
 
 			Vector<RenderPass::SubPass> subpasses{
