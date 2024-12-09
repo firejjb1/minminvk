@@ -89,4 +89,11 @@ namespace Graphics
 		Texture() { }
 	};
 
+	struct TextureCubemap : Texture
+	{
+		Texture textures[6];
+
+		TextureCubemap(String right, String left, String top, String bottom, String front, String back);
+	};
+
 }

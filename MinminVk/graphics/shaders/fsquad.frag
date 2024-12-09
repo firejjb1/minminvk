@@ -65,6 +65,7 @@ void main()
     vec3 emissive = vec3(albedo.a, specular.b, specular.a);
     l_color += emissive;
     
-	outColor = vec4(l_color, 1);
+    // HACK: set alpha 0 if albedo is zero so that skybox can render 
+	outColor = vec4(l_color, (albedo.r * albedo.g * albedo.b) > 0);
 	//outColor = vec4(inUV, 0, 1);
 }

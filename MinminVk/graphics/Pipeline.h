@@ -120,7 +120,7 @@ namespace Graphics
 
 		bool depthTestEnable = true;
 		bool depthWriteEnable = true;
-		enum class DepthCompareOpType { LESS, GREATER };
+		enum class DepthCompareOpType { LESS, GREATER, LEQUAL };
 		DepthCompareOpType depthCompareOp = DepthCompareOpType::LESS;
 
 		// not supported

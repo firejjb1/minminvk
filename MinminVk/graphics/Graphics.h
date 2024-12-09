@@ -27,6 +27,14 @@
 #define VIKING_MODEL "viking_room.obj"
 #define HEAD_MODEL "head.obj"
 #define HAIR_DATA_FILE "hairdata.txt"
+#define SKYBOX_RIGHT "skybox/right.jpg"
+#define SKYBOX_LEFT "skybox/left.jpg"
+#define SKYBOX_TOP "skybox/top.jpg"
+#define SKYBOX_BOTTOM "skybox/bottom.jpg"
+#define SKYBOX_FRONT "skybox/front.jpg"
+#define SKYBOX_BACK "skybox/back.jpg"
+#define SKYBOX_VERTEX_SHADER "skyboxvert.spv"
+#define SKYBOX_FRAG_SHADER "skyboxfrag.spv"
 
 //#define GLTF_FILE "Cube/Cube.gltf"
 //#define GLTF_FILE "BoxAnimated/BoxAnimated.gltf"
@@ -51,54 +59,7 @@
 
 namespace Graphics
 {
-	struct ParticlesUniformBuffer : UniformBuffer
-	{
-		struct Uniform
-		{
-			mat4 prevHead = mat4(1);
-			mat4 curHead = mat4(1);
-			float deltaTime;
-			u32 numVertexPerStrand;
-			u32 frame;
 
-			f32 windStrength = 3;
-			vec4 windDirection = vec4(-1.f, -0.f, 0.f, 0.f);
-			f32 shockStrength = 50;
-			u32 elcIteration = 10;
-			f32 stiffnessLocal = 0.5f;
-			f32 stiffnessGlobal = 0.1f;
-			f32 effectiveRangeGlobal = 1.f;
-			f32 capsuleRadius = 0.11f;
-		};
-
-		Uniform uniform;
-
-		const ResourceBinding GetBinding() const override
-		{
-			ResourceBinding uboBinding;
-			uboBinding.binding = 0;
-			uboBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
-			return uboBinding;
-		}
-
-		void* GetData() override
-		{
-			return (void*)&uniform;
-		}
-
-		const BufferType GetBufferType() const override { return Buffer::BufferType::UNIFORM; }
-		const AccessType GetAccessType() const override
-		{
-			return AccessType::READONLY;
-		}
-		const u32 GetBufferSize() const override { return sizeof(uniform); }
-		const BufferUsageType GetUsageType() const override {
-			return Buffer::BufferUsageType::BUFFER_UNIFORM;
-		}
-
-		ParticlesUniformBuffer() { Init(); }
-
-	};
 
 	SharedPtr<Device> device;
 	SharedPtr<NodeManager> nodeManager;
@@ -112,9 +73,12 @@ namespace Graphics
 	SharedPtr<RenderPass> forwardPass;
 	SharedPtr<GraphicsPipeline> forwardTransparentPipeline;
 	SharedPtr<RenderPass> forwardTransparentPass;
+	SharedPtr<GraphicsPipeline> skyboxPipeline;
+	SharedPtr<RenderPass> skyboxPass;
 	SharedPtr<RenderPass> forwardParticlePass;
 	SharedPtr<UIRender> uiRender;
 	SharedPtr<Quad> quad;
+	SharedPtr<Cube> cube;
 	SharedPtr<OBJMesh> vikingRoom;
 	SharedPtr<OBJMesh> headMesh;
 	Vector<SharedPtr<GLTFMesh>> gltfMeshes;
@@ -171,7 +135,11 @@ namespace Graphics
 		Texture texture(concat_str(IMAGES_DIR, VIKING_IMAGE));
 		texture.binding.binding = 0;
 		texture.binding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
-		
+
+		TextureCubemap textureSkybox(concat_str(IMAGES_DIR, SKYBOX_RIGHT),concat_str(IMAGES_DIR, SKYBOX_LEFT),concat_str(IMAGES_DIR, SKYBOX_TOP),concat_str(IMAGES_DIR, SKYBOX_BOTTOM),concat_str(IMAGES_DIR, SKYBOX_FRONT),concat_str(IMAGES_DIR, SKYBOX_BACK));
+		textureSkybox.binding.binding = 1;
+		texture.binding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
+
 		i32 width = presentation->swapChainDetails.width;
 		i32 height = presentation->swapChainDetails.height;
 		camera = MakeShared<Camera>(*nodeManager, UI::cameraPosition, vec3(0.0f, 1.0f, 0.0f), UI::cameraLookDirection, 45, 0.1f, 1000.f, width, height);
@@ -190,6 +158,8 @@ namespace Graphics
 				Vector<SharedPtr<Buffer>>{}
 			);
 			Attachment framebuffer(Texture::FormatType::BGRA_SRGB);
+			framebuffer.loadOp = Graphics::AttachmentOpType::DONTCARE;
+			framebuffer.depthLoadOp = Graphics::AttachmentOpType::DONTCARE;
 			Attachment albedo(Texture::FormatType::RGBA8_UNORM);
 			Attachment positionDepth(Texture::FormatType::RGB16_SFLOAT);
 			Attachment normal(Texture::FormatType::RGB16_SFLOAT);
@@ -219,7 +189,8 @@ namespace Graphics
 
 			deferredPipeline->depthTestEnable = true;
 			deferredPipeline->depthWriteEnable = false;
-			
+			deferredPipeline->blendEnabled = true;
+
 			Vector<Attachment> gbufferAttachments{framebuffer, albedo, positionDepth, normal, specular };
 
 			Vector<RenderPass::SubPass> subpasses{
@@ -236,7 +207,7 @@ namespace Graphics
 				Vector<Texture>{},
 				Vector<SharedPtr<Buffer>>{}
 			);
-			forwardPass = MakeShared<RenderPass>(forwardPipeline);
+			forwardPass = MakeShared<RenderPass>(forwardPipeline, Graphics::AttachmentOpType::DONTCARE);
 	#endif
 			forwardTransparentPipeline = MakeShared<GraphicsPipeline>(
 				MakeShared<Shader>(concat_str(SHADERS_DIR, TRIANGLE_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
@@ -251,12 +222,26 @@ namespace Graphics
 			forwardTransparentPipeline->depthWriteEnable = false;
 			forwardTransparentPass = MakeShared<RenderPass>(forwardTransparentPipeline, Graphics::AttachmentOpType::DONTCARE);
 
+			skyboxPipeline = MakeShared<GraphicsPipeline>(
+				MakeShared<Shader>(concat_str(SHADERS_DIR, SKYBOX_VERTEX_SHADER), Shader::ShaderType::SHADER_VERTEX, "main"),
+				MakeShared<Shader>(concat_str(SHADERS_DIR, SKYBOX_FRAG_SHADER), Shader::ShaderType::SHADER_FRAGMENT, "main"),
+				MakeShared<PosOnlyVertex>(),
+				uniformBuffer,
+				Vector<Texture>{ textureSkybox },
+				Vector<SharedPtr<Buffer>>{}
+
+			);
+			skyboxPipeline->depthWriteEnable = false;
+			skyboxPipeline->depthCompareOp = GraphicsPipeline::DepthCompareOpType::LEQUAL;
+			skyboxPass = MakeShared<RenderPass>(skyboxPipeline);
+
+			cube = MakeShared<Cube>(skyboxPipeline, textureSkybox);
+
 #ifdef USE_DEFERRED
 			quad = MakeShared<Quad>(deferredPipeline, texture);
 #else
 			quad = MakeShared<Quad>(forwardPipeline, texture);
 #endif // USE_DEFERRED
-
 
 			// OBJ
 			vikingRoom = MakeShared<OBJMesh>(forwardPipeline, texture, concat_str(OBJ_DIR, VIKING_MODEL));
@@ -327,6 +312,7 @@ namespace Graphics
 			particleRenderPipeline->blendEnabled = true;
 			particleRenderPipeline->depthTestEnable = true;
 			particleRenderPipeline->depthWriteEnable = false;
+			particleRenderPipeline->lineWidth = 10;
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, Graphics::AttachmentOpType::DONTCARE);
 
 			for (auto mesh : gltfMeshes)
@@ -484,76 +470,80 @@ namespace Graphics
 
 		updateTimeAccumulator += deltaTime;
 		Update(fixedDeltaTime);
+
+		bool success = device->BeginRecording(renderContext);
+		assert(success);
+		// pass 0 skybox
+		renderContext.renderPass = skyboxPass;
+		device->BeginRenderPass(renderContext);
+		cube->Draw(renderContext);
+		device->EndRenderPass(renderContext);
 		// forward passes
 		{
 			// pass 1 - meshes
 			renderContext.renderPass = forwardPass;
 
-			bool success = device->BeginRecording(renderContext);
-			if (!success)
-				return;
 			// view projection
-			{
-				forwardPipeline->uniformDesc->transformUniform.view = camera->GetCameraMatrix();
-				i32 width = presentation->swapChainDetails.width;
-				i32 height = presentation->swapChainDetails.height;
-				forwardPipeline->uniformDesc->transformUniform.proj = camera->GetProjectionMatrix();
-				forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
-				forwardPipeline->uniformDesc->transformUniform.cameraPosition = vec4(camera->GetPosition(), 1);
-				forwardPipeline->uniformDesc->transformUniform.lightDirection = vec4(UI::lightDirection, 0);
-				forwardPipeline->uniformDesc->transformUniform.lightIntensity = vec4(UI::lightIntensity, 1);
+ 			{
+ 				forwardPipeline->uniformDesc->transformUniform.view = camera->GetCameraMatrix();
+ 				i32 width = presentation->swapChainDetails.width;
+ 				i32 height = presentation->swapChainDetails.height;
+ 				forwardPipeline->uniformDesc->transformUniform.proj = camera->GetProjectionMatrix();
+ 				forwardPipeline->uniformDesc->transformUniform.proj[1][1] *= -1;
+ 				forwardPipeline->uniformDesc->transformUniform.cameraPosition = vec4(camera->GetPosition(), 1);
+ 				forwardPipeline->uniformDesc->transformUniform.lightDirection = vec4(UI::lightDirection, 0);
+ 				forwardPipeline->uniformDesc->transformUniform.lightIntensity = vec4(UI::lightIntensity, 1);
 
-				particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
-				particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
-			}
-			device->BeginRenderPass(renderContext);
-			{
+ 				particleRenderPipeline->uniformDesc->transformUniform.proj = forwardPipeline->uniformDesc->transformUniform.proj;
+ 				particleRenderPipeline->uniformDesc->transformUniform.view = forwardPipeline->uniformDesc->transformUniform.view;
+ 			}
+ 			device->BeginRenderPass(renderContext);
+ 			{
 				
-				vikingRoom->Draw(renderContext);
+ 				vikingRoom->Draw(renderContext);
+ 				for (auto& mesh : gltfMeshes)
+ 				{
+ 					// opaque or mask alpha
+ 					if (mesh->material->material->alphaMode != PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
+ 						mesh->Draw(renderContext);
+ 				}
 
-				for (auto& mesh : gltfMeshes)
-				{
-					// opaque or mask alpha
-					if (mesh->material->material->alphaMode != PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
-						mesh->Draw(renderContext);
-				}
+ 				headMesh->Draw(renderContext);
 
-				headMesh->Draw(renderContext);
+ 			}
+ 			{
+ 				// full screen quad
+ #ifdef USE_DEFERRED
+ 				renderContext.subPass++;
+ 				device->BeginSubPass(renderContext);
 
-			}
-			{
-				// full screen quad
-#ifdef USE_DEFERRED
-				renderContext.subPass++;
-				device->BeginSubPass(renderContext);
+ 				quad->Draw(renderContext);
+ #endif
+ 			}
 
-				quad->Draw(renderContext);
-#endif
-			}
+ 			device->EndRenderPass(renderContext);
 
-			device->EndRenderPass(renderContext);
+			 // pass 2 - hair
+			 renderContext.renderPass = forwardParticlePass;
+			 device->BeginRenderPass(renderContext);
 
-			// pass 2 - hair
-			renderContext.renderPass = forwardParticlePass;
-			device->BeginRenderPass(renderContext);
+			 // TODO: find better way to attach hair
+			 renderContext.renderPass->subpasses[0].pso->uniformDesc->transformUniform.model = headMesh->node->worldMatrix;
+			 particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
-			// TODO: find better way to attach hair
-			renderContext.renderPass->subpasses[0].pso->uniformDesc->transformUniform.model = headMesh->node->worldMatrix;
-			particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
+			 device->EndRenderPass(renderContext);
 
-			device->EndRenderPass(renderContext);
-
-			// pass 3 transparent meshes
-			renderContext.renderPass = forwardTransparentPass;
-			device->BeginRenderPass(renderContext);
-			{
-				for (auto& mesh : gltfMeshes)
-				{
-					if (mesh->material->material->alphaMode == PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
-						mesh->Draw(renderContext);
-				}
-			}
-			device->EndRenderPass(renderContext);
+			 // pass 3 transparent meshes
+			 renderContext.renderPass = forwardTransparentPass;
+			 device->BeginRenderPass(renderContext);
+			 {
+			 	for (auto& mesh : gltfMeshes)
+			 	{
+			 		if (mesh->material->material->alphaMode == PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
+			 			mesh->Draw(renderContext);
+			 	}
+			 }
+			 device->EndRenderPass(renderContext);
 
 			// UI pass
 			renderContext.shouldRenderUI = true;

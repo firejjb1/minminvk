@@ -293,4 +293,53 @@ namespace Graphics
         // only if also a vertex buffer
         void DrawBuffer(RenderContext& context, u32 numVertex);
     };
+
+    struct ParticlesUniformBuffer : UniformBuffer
+	{
+		struct Uniform
+		{
+			mat4 prevHead = mat4(1);
+			mat4 curHead = mat4(1);
+			float deltaTime;
+			u32 numVertexPerStrand;
+			u32 frame;
+
+			f32 windStrength = 3;
+			vec4 windDirection = vec4(-1.f, -0.f, 0.f, 0.f);
+			f32 shockStrength = 50;
+			u32 elcIteration = 10;
+			f32 stiffnessLocal = 0.5f;
+			f32 stiffnessGlobal = 0.1f;
+			f32 effectiveRangeGlobal = 1.f;
+			f32 capsuleRadius = 0.11f;
+		};
+
+		Uniform uniform;
+
+		const ResourceBinding GetBinding() const override
+		{
+			ResourceBinding uboBinding;
+			uboBinding.binding = 0;
+			uboBinding.shaderStageType = ResourceBinding::ShaderStageType::COMPUTE;
+			return uboBinding;
+		}
+
+		void* GetData() override
+		{
+			return (void*)&uniform;
+		}
+
+		const BufferType GetBufferType() const override { return Buffer::BufferType::UNIFORM; }
+		const AccessType GetAccessType() const override
+		{
+			return AccessType::READONLY;
+		}
+		const u32 GetBufferSize() const override { return sizeof(uniform); }
+		const BufferUsageType GetUsageType() const override {
+			return Buffer::BufferUsageType::BUFFER_UNIFORM;
+		}
+
+		ParticlesUniformBuffer() { Init(); }
+
+	};
 }
