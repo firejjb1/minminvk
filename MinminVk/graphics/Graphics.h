@@ -94,6 +94,7 @@ namespace Graphics
 	Vector<Texture> computeTextures{};
 	u32 numVertexPerStrand = 16;
 	SharedPtr<Camera> camera;
+	SharedPtr<Node> headNode;
 
 	const f32 fixedDeltaTime = 0.016f;
 	f32 updateTimeAccumulator = 0.f;
@@ -249,8 +250,17 @@ namespace Graphics
 			
 			headMesh = MakeShared<OBJMesh>(forwardPipeline, concat_str(HAIR_DIR, HEAD_MODEL));
 			headMesh->node = nodeManager->AddNode(Math::Translate(Math::Rotate(mat4(1), Math::PI, vec3(0, 0, 1)), vec3(0,1,-2)), camera->node->nodeID, Node::NodeType::MESH_NODE);
+			headNode = headMesh->node;
 			// GLTF
 			SharedPtr<Node> gltf1 = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
+			for (auto node : nodeManager->nodes)
+			{
+				if (!node || node->name == "hair_0")
+				{
+					//headNode = node;
+					break;
+				}
+			}
 			// TODO: implement a way to manipulate mesh nodes easily
 			gltf1->modelMatrix = Math::Translate(mat4(1), vec3(-1, 1.5f, 0));
 			SharedPtr<Node> gltf2 = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE2), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
@@ -259,8 +269,8 @@ namespace Graphics
 			auto gltf3 = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE3), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
 			gltf3->modelMatrix = Math::Scale(mat4(1), vec3(0.2f));
 
-			auto ellengltf = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_ELLEN_JOE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
-			ellengltf->modelMatrix = Math::Translate(Math::Rotate(mat4(1), -Math::PI / 2, vec3(0, 1, 0)), vec3(-1, 0.5f, -5));
+			//auto ellengltf = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_ELLEN_JOE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
+			//ellengltf->modelMatrix = Math::Translate(Math::Rotate(mat4(1), -Math::PI / 2, vec3(0, 1, 0)), vec3(-1, 0.5f, -5));
 		}
 
 		// Compute Passes
@@ -375,7 +385,7 @@ namespace Graphics
 			if (curSteps > maxUpdateStepsPerFrame)
 				break;
 
-			auto prevHeadMat = headMesh->node->worldMatrix;
+			auto prevHeadMat = headNode->worldMatrix;
 			camera->Update(fixedDeltaTime);
 			nodeManager->Update(fixedDeltaTime);
 			// all the fixed updates
@@ -390,14 +400,14 @@ namespace Graphics
 					particleUniformBuffer->uniform.stiffnessGlobal = UI::stiffnessGlobal;
 					particleUniformBuffer->uniform.effectiveRangeGlobal = UI::effectiveRangeGlobal;
 					particleUniformBuffer->uniform.capsuleRadius = UI::capsuleRadius;
-					particleUniformBuffer->uniform.prevHead = Math::Inverse(headMesh->node->worldMatrix) * prevHeadMat;
+					particleUniformBuffer->uniform.prevHead = Math::Inverse(headNode->worldMatrix) * prevHeadMat;
 
 					if (UI::rotateHead)
 						headMesh->Update(fixedDeltaTime);
 					if (UI::resetHeadPos)
-						headMesh->node->worldMatrix = mat4(1);
+						headNode->worldMatrix = mat4(1);
 
-					particleUniformBuffer->uniform.curHead = Math::Inverse(headMesh->node->worldMatrix) * headMesh->node->worldMatrix;
+					particleUniformBuffer->uniform.curHead = mat4(1);
 
 					particleUniformBuffer->uniform.deltaTime = fixedDeltaTime;
 					particleUniformBuffer->uniform.numVertexPerStrand = numVertexPerStrand;
@@ -528,7 +538,7 @@ namespace Graphics
 			 device->BeginRenderPass(renderContext);
 
 			 // TODO: find better way to attach hair
-			 renderContext.renderPass->subpasses[0].pso->uniformDesc->transformUniform.model = headMesh->node->worldMatrix;
+			 renderContext.renderPass->subpasses[0].pso->uniformDesc->transformUniform.model = headNode->worldMatrix;
 			 particleBuffer->DrawBuffer(renderContext, particleBuffer->GetBufferSize() / sizeof(ParticleVertex::Particle));
 
 			 device->EndRenderPass(renderContext);

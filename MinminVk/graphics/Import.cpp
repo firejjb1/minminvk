@@ -677,7 +677,7 @@ namespace Graphics
 				else if (node.mesh >= 0)
 					nodeType = Node::NodeType::MESH_NODE;
 			
-				auto newNode = nodeManager.AddNode(modelMatrix, parentID, nodeType);
+				auto newNode = nodeManager.AddNode(modelMatrix, parentID, nodeType, node.name);
 			
 				if (nodeType == Node::MESH_NODE )
 				{

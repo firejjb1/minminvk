@@ -18,6 +18,7 @@ namespace Graphics
 		enum NodeType { EMPTY_NODE, MESH_NODE, CAMERA_NODE, BONE_NODE, ROOT_NODE, SKINNED_MESH_NODE };
 		NodeType nodeType = EMPTY_NODE;
 		
+		String name;
 		NodeID nodeID;
 		NodeID parentNodeID;
 		Vector<NodeID> childrenIDs;
@@ -66,12 +67,13 @@ namespace Graphics
 			nodes[newNode->parentNodeID.id]->childrenIDs.push_back(newNode->nodeID);
 		}
 
-		SharedPtr<Node> AddNode(mat4 modelMatrix, NodeID parentID, Node::NodeType nodeType)
+		SharedPtr<Node> AddNode(mat4 modelMatrix, NodeID parentID, Node::NodeType nodeType, String name = "")
 		{
 			SharedPtr<Node> newNode = MakeShared<Node>();
 			newNode->nodeID.id = cyclicIndex;
 			newNode->nodeType = nodeType;
 			newNode->modelMatrix = modelMatrix;
+			newNode->name = name;
 			nodes[cyclicIndex] = newNode;
 			AddParent(newNode, parentID);
 			
