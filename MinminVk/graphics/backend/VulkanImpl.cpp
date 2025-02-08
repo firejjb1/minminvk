@@ -692,7 +692,7 @@ namespace VulkanImpl
 		sync2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
 		sync2.synchronization2 = true;
 		dynamicRenderFeature.pNext = &sync2;
-		struct VkPhysicalDeviceDynamicRenderingLocalReadFeaturesKHR localread{};
+		struct VkPhysicalDeviceDynamicRenderingLocalReadFeatures localread{};
 		localread.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_LOCAL_READ_FEATURES_KHR;
 		localread.dynamicRenderingLocalRead = true;
 		sync2.pNext = &localread;
