@@ -323,6 +323,7 @@ namespace Graphics
 			particleRenderPipeline->depthTestEnable = true;
 			particleRenderPipeline->depthWriteEnable = false;
 			particleRenderPipeline->lineWidth = 10;
+			particleRenderPipeline->dynamicStates.insert(GraphicsPipeline::StateType::LINE_WIDTH);
 			forwardParticlePass = MakeShared<RenderPass>(particleRenderPipeline, Graphics::AttachmentOpType::DONTCARE);
 
 			for (auto mesh : gltfMeshes)

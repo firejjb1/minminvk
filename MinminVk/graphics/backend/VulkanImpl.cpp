@@ -673,6 +673,7 @@ namespace VulkanImpl
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		createInfo.pQueueCreateInfos = queueCreateInfos.data();
 		deviceFeatures.samplerAnisotropy = VK_TRUE;
+		deviceFeatures.wideLines = VK_TRUE;
 		
 		createInfo.queueCreateInfoCount = static_cast<u32>(queueCreateInfos.size());
 
@@ -892,19 +893,47 @@ namespace VulkanImpl
 		VkPipelineStageFlags sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		VkPipelineStageFlags destinationStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
-		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+		if (oldLayout == newLayout)
+		{
+			return;
+		}
+		else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
 			barrier.srcAccessMask = 0;
 			barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
 			sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 			destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 		}
 		else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
 			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
 			sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 			destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		}
+		else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ)
+		{
+			barrier.srcAccessMask = 0;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		}
+		else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+			barrier.srcAccessMask = 0;
+			barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+			sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		
+		}
+		else if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
+			barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			barrier.dstAccessMask = 0;
+			sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+
+		}
+		else
+		{
+			DebugPrint("Unsupported transition %d %d", oldLayout, newLayout);
+			throw std::invalid_argument("unsupported layout transition!");
 		}
 
 		if (dstAccessMask != -1)
@@ -915,9 +944,6 @@ namespace VulkanImpl
 			sourceStage = srcStage;
 		if (dstStage != -1)
 			destinationStage = dstStage;
-		/*else {
-			throw std::invalid_argument("unsupported layout transition!");
-		}*/
 
 		vkCmdPipelineBarrier(
 			commandBuffer,
@@ -1159,8 +1185,10 @@ namespace VulkanImpl
 			case Graphics::GraphicsPipeline::StateType::STATE_VIEWPORT:
 				dynamicStatesVK.push_back(VK_DYNAMIC_STATE_VIEWPORT);
 				break;
+			case Graphics::GraphicsPipeline::StateType::LINE_WIDTH:
+				dynamicStatesVK.push_back(VK_DYNAMIC_STATE_LINE_WIDTH);
+				break;
 			}
-
 		}
 		VkPipelineDynamicStateCreateInfo dynamicState{};
 		dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -1424,7 +1452,7 @@ namespace VulkanImpl
 		if (layout == Graphics::Texture::LayoutType::DEPTH_ATTACHMENT)
 			return VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 		if (layout == Graphics::Texture::LayoutType::READ_ONLY)
-			return VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
+			return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		if (layout == Graphics::Texture::LayoutType::TRANSFER_DST)
 			return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		if (layout == Graphics::Texture::LayoutType::INPUT_ATTACHMENT)
@@ -1763,7 +1791,7 @@ namespace VulkanImpl
 		vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
 	}
 
-	void DrawBuffer(Graphics::CommandList commandList, Graphics::Buffer& buffer, u32 bufferSize, u32 swapID, Graphics::DescriptorPoolID &descriptorPoolID, SharedPtr<Graphics::BasicUniformBuffer> basicUniform, Graphics::PipeLineID pipelineID)
+	void DrawBuffer(Graphics::CommandList commandList, Graphics::Buffer& buffer, u32 bufferSize, u32 swapID, Graphics::DescriptorPoolID &descriptorPoolID, SharedPtr<Graphics::BasicUniformBuffer> basicUniform, Graphics::PipeLineID pipelineID, int lineWidth = 0)
 	{
 		VkCommandBuffer commandBuffer = commandBuffers[commandList.commandListID];
 		VkDeviceSize offsets[] = { 0 };
@@ -1771,7 +1799,7 @@ namespace VulkanImpl
 		UpdateUniformBuffer(basicUniform->GetData(), basicUniform->GetBufferSize(), *basicUniform, swapID);
 
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[pipelineID.id], 0, 1, &(descriptorSetsPerPool[descriptorPoolID.id][swapID]), 0, nullptr);
-
+		vkCmdSetLineWidth(commandBuffer, lineWidth);
 		vkCmdDraw(commandBuffer, bufferSize, 1, 0, 0);
 	}
 
@@ -2232,7 +2260,7 @@ namespace VulkanImpl
 		if (mipLevels > 1)
 			GenerateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_SRGB, width, height, mipLevels);
 		else 
-			TransitionImageLayout(textureImage, MapToVulkanFormat(texture.formatType), MapToVulkanImageLayout(texture.initialLayout), MapToVulkanImageLayout(texture.finalLayout), mipLevels);
+			TransitionImageLayout(textureImage, MapToVulkanFormat(texture.formatType), MapToVulkanImageLayout(texture.initialLayout), MapToVulkanImageLayout(texture.finalLayout), mipLevels, nullptr, -1, -1, -1, -1, isCubemap);
 
 	}
 
@@ -3107,7 +3135,6 @@ namespace Graphics
 		stbi_uc* bottomData = Util::IO::ReadImage(width, height, bottom);
 		stbi_uc* frontData = Util::IO::ReadImage(width, height, front);
 		stbi_uc* backData = Util::IO::ReadImage(width, height, back);
-		initialLayout = Texture::LayoutType::READ_ONLY;
 		VulkanImpl::CreateTextureImage(*this, nullptr, width, height, 1, false, false, true, 
 			Vector<stbi_uc*>{rightData, leftData, topData, bottomData, frontData, backData });
 		initialized = true;
@@ -3136,7 +3163,7 @@ namespace Graphics
 		u32 swapID = context.frameID % VulkanImpl::MAX_FRAMES_IN_FLIGHT;
 		auto& commandList = context.device->GetCommandList(swapID);
 		auto pso = context.renderPass->subpasses[context.subPass].pso;
-		VulkanImpl::DrawBuffer(commandList, *this, numVertex, swapID, pso->descriptorPoolID, pso->uniformDesc, pso->pipelineID);
+		VulkanImpl::DrawBuffer(commandList, *this, numVertex, swapID, pso->descriptorPoolID, pso->uniformDesc, pso->pipelineID, pso->lineWidth);
 	}
 
 	UIRender::UIRender(SharedPtr<Presentation> presentation)

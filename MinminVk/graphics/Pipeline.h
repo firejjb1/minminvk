@@ -45,13 +45,14 @@ namespace Graphics
 		{
 			STATE_VIEWPORT,
 			STATE_SCISSOR,
-			STATE_BLEND_CONST
+			STATE_BLEND_CONST,
+			LINE_WIDTH
 		};
 
 		// states that can be dynamic
 		Set<StateType> dynamicStates = {
 			StateType::STATE_VIEWPORT,
-			StateType::STATE_SCISSOR
+			StateType::STATE_SCISSOR,
 		};
 
 		enum class TopologyType
