@@ -86,6 +86,7 @@ namespace Application
                     ImGui::Text("Hair Parameters");
                     bool resetHead = ImGui::Button("Reset Head Position");
                     UI::resetHeadPos = resetHead;
+                    ImGui::Checkbox("Hide Static hair mesh", &UI::hideStaticHair);
                     ImGui::Checkbox("Rotate Head", &UI::rotateHead);
                     ImGui::SliderFloat("Wind Strength", &UI::windStrength, 0, 100);
                     ImGui::InputFloat3("Wind Direction", glm::value_ptr(UI::windDirection));
