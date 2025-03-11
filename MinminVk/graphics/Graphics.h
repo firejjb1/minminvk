@@ -258,7 +258,7 @@ namespace Graphics
 			{
 				if (node->name == "hair_0")
 				{
-					headNode = nodeManager->AddNode(Math::Translate(Math::Rotate(Math::Scale(mat4(1), vec3(1.15f)), -Math::PI / 2.f, vec3(1, 0, 0)), vec3(0, 1.44f, 0)), node->nodeID, Node::NodeType::MESH_NODE);
+					headNode = nodeManager->AddNode(Math::Translate(Math::Rotate(Math::Rotate(Math::Scale(mat4(1), vec3(1.15f)), -Math::PI / 2.f, vec3(1, 0, 0)), -Math::PI / 2.f, vec3(0,1,0)), vec3(0, 1.43f, 0)), node->nodeID, Node::NodeType::MESH_NODE);
 					break;
 				}
 			}
