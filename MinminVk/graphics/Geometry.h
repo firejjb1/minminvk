@@ -434,6 +434,11 @@ namespace Graphics
 			this->joints = joints;
 		}
 
+		Vector<SharedPtr<Node>>& GetJoints()
+		{
+			return joints;
+		}
+
 		void Update(f32 deltaTime) override;
 	};
 

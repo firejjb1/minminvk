@@ -249,26 +249,38 @@ namespace Graphics
 			vikingRoom->node->worldMatrix = Math::Translate(vikingRoom->node->worldMatrix, vec3(0, -2.5f, -5));
 			
 			headMesh = MakeShared<OBJMesh>(forwardPipeline, concat_str(HAIR_DIR, HEAD_MODEL));
-			headMesh->node = nodeManager->AddNode(Math::Translate(Math::Rotate(mat4(1), Math::PI, vec3(0, 0, 1)), vec3(0,1,-2)), camera->node->nodeID, Node::NodeType::MESH_NODE);
-			headNode = headMesh->node;
+			//headMesh->node = nodeManager->AddNode(Math::Translate(Math::Rotate(mat4(1), Math::PI, vec3(0, 0, 1)), vec3(0,1,-2)), camera->node->nodeID, Node::NodeType::MESH_NODE);
+			//headNode = headMesh->node;
 			// GLTF
 			SharedPtr<Node> gltf1 = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
+
 			for (auto node : nodeManager->nodes)
 			{
-				if (!node || node->name == "hair_0")
+				if (node->name == "hair_0")
 				{
-					//headNode = node;
+					headNode = nodeManager->AddNode(Math::Translate(Math::Rotate(Math::Rotate(Math::Scale(mat4(1), vec3(1.15f)), -Math::PI / 2.f, vec3(1, 0, 0)), -Math::PI / 2.f, vec3(0,1,0)), vec3(0, 1.43f, 0)), node->nodeID, Node::NodeType::MESH_NODE);
+// 			headMesh->node = nodeManager->AddNode(Math::Translate(Math::Rotate(mat4(1), Math::PI, vec3(0, 0, 1)), vec3(0,1,-2)), camera->node->nodeID, Node::NodeType::MESH_NODE);
+// 			headNode = headMesh->node;
+// 			// GLTF
+// 			SharedPtr<Node> gltf1 = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
+// 			for (auto node : nodeManager->nodes)
+// 			{
+// 				if (!node || node->name == "hair_0")
+// 				{
+// 					//headNode = node;
 					break;
 				}
 			}
 			// TODO: implement a way to manipulate mesh nodes easily
 			gltf1->modelMatrix = Math::Translate(mat4(1), vec3(-1, 1.5f, 0));
 			SharedPtr<Node> gltf2 = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE2), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
+
 			DebugPrint("num gltf meshes: %d\n", gltfMeshes.size());
 			gltf2->modelMatrix = Math::Translate(Math::Scale(mat4(1), vec3(0.2f)), vec3(5.f, 0.5f, 0));
 			auto gltf3 = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE3), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
 			gltf3->modelMatrix = Math::Scale(mat4(1), vec3(0.2f));
 
+			// slow due to skeletal matrix update on cpu
 			//auto ellengltf = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_ELLEN_JOE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
 			//ellengltf->modelMatrix = Math::Translate(Math::Rotate(mat4(1), -Math::PI / 2, vec3(0, 1, 0)), vec3(-1, 0.5f, -5));
 		}
@@ -400,7 +412,8 @@ namespace Graphics
 					particleUniformBuffer->uniform.stiffnessGlobal = UI::stiffnessGlobal;
 					particleUniformBuffer->uniform.effectiveRangeGlobal = UI::effectiveRangeGlobal;
 					particleUniformBuffer->uniform.capsuleRadius = UI::capsuleRadius;
-					particleUniformBuffer->uniform.prevHead = Math::Inverse(headNode->worldMatrix) * prevHeadMat;
+					mat4 worldHair = headNode->worldMatrix;
+					particleUniformBuffer->uniform.prevHead = Math::Inverse(worldHair) * prevHeadMat;
 
 					if (UI::rotateHead)
 						headMesh->Update(fixedDeltaTime);
@@ -513,6 +526,8 @@ namespace Graphics
  				vikingRoom->Draw(renderContext);
  				for (auto& mesh : gltfMeshes)
  				{
+					if (UI::hideStaticHair && mesh->node->name == "hair_0")
+						continue;
  					// opaque or mask alpha
  					if (mesh->material->material->alphaMode != PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
  						mesh->Draw(renderContext);
