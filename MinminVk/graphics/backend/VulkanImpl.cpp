@@ -2232,7 +2232,7 @@ namespace VulkanImpl
 		if (mipLevels > 1)
 			GenerateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_SRGB, width, height, mipLevels);
 		else 
-			TransitionImageLayout(textureImage, MapToVulkanFormat(texture.formatType), MapToVulkanImageLayout(texture.initialLayout), MapToVulkanImageLayout(texture.finalLayout), mipLevels);
+			TransitionImageLayout(textureImage, MapToVulkanFormat(texture.formatType), MapToVulkanImageLayout(texture.initialLayout), MapToVulkanImageLayout(texture.finalLayout), mipLevels, nullptr, -1, -1, -1, -1, isCubemap);
 
 	}
 
@@ -3107,7 +3107,6 @@ namespace Graphics
 		stbi_uc* bottomData = Util::IO::ReadImage(width, height, bottom);
 		stbi_uc* frontData = Util::IO::ReadImage(width, height, front);
 		stbi_uc* backData = Util::IO::ReadImage(width, height, back);
-		initialLayout = Texture::LayoutType::READ_ONLY;
 		VulkanImpl::CreateTextureImage(*this, nullptr, width, height, 1, false, false, true, 
 			Vector<stbi_uc*>{rightData, leftData, topData, bottomData, frontData, backData });
 		initialized = true;

@@ -259,15 +259,6 @@ namespace Graphics
 				if (node->name == "hair_0")
 				{
 					headNode = nodeManager->AddNode(Math::Translate(Math::Rotate(Math::Rotate(Math::Scale(mat4(1), vec3(1.15f)), -Math::PI / 2.f, vec3(1, 0, 0)), -Math::PI / 2.f, vec3(0,1,0)), vec3(0, 1.43f, 0)), node->nodeID, Node::NodeType::MESH_NODE);
-// 			headMesh->node = nodeManager->AddNode(Math::Translate(Math::Rotate(mat4(1), Math::PI, vec3(0, 0, 1)), vec3(0,1,-2)), camera->node->nodeID, Node::NodeType::MESH_NODE);
-// 			headNode = headMesh->node;
-// 			// GLTF
-// 			SharedPtr<Node> gltf1 = Import::LoadGLTF(concat_str(GLTF_DIR, GLTF_FILE), *nodeManager, forwardPipeline, forwardTransparentPipeline, gltfMeshes);
-// 			for (auto node : nodeManager->nodes)
-// 			{
-// 				if (!node || node->name == "hair_0")
-// 				{
-// 					//headNode = node;
 					break;
 				}
 			}
