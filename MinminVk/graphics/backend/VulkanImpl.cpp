@@ -100,7 +100,7 @@ namespace VulkanImpl
 		void* pUserData) {
 
 		if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-			DebugPrint("%s\n", pCallbackData->pMessage);
+			DebugPrint("%s\n----------------------------------\n", pCallbackData->pMessage);
 
 		return VK_FALSE;
 	}
