@@ -29,7 +29,7 @@ namespace Graphics
             float alphaCutoff = 1;
             float occlusionStrength = 1;
         };
-        UniquePtr<MaterialData> material;
+        UniquePtr<MaterialData> materialData;
 
         Texture albedoTexture;
         Texture metallicTexture;
@@ -39,7 +39,7 @@ namespace Graphics
 
         PBRMaterial()
         {
-            material = MakeUnique<MaterialData>();
+            materialData = MakeUnique<MaterialData>();
             albedoTexture.binding.binding = 0;
             metallicTexture.binding.binding = 1;
             normalTexture.binding.binding = 2;
@@ -54,7 +54,7 @@ namespace Graphics
 
         void* GetData() override 
         {
-            return (void *)material.get();
+            return (void *)materialData.get();
         }
     };
 }

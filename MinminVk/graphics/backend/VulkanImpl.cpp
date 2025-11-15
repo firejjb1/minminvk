@@ -1576,7 +1576,7 @@ namespace VulkanImpl
 
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[pipelineID], 0, 2, descriptorSets, 0, nullptr);
 
-		if (geometry.material->material->isDoubleSided)
+		if (geometry.material->materialData->isDoubleSided)
 			vkCmdSetCullMode(commandBuffer, VK_CULL_MODE_NONE);
 		else 
 			vkCmdSetCullMode(commandBuffer, VK_CULL_MODE_BACK_BIT);
@@ -2874,7 +2874,7 @@ namespace Graphics
 		material = MakeShared<PBRMaterial>();
 		materialUniformBuffer.pbrMaterial = material.get();
 		material->albedoTexture = mainTexture;
-		material->material->hasAlbedoTex = 1;
+		material->materialData->hasAlbedoTex = 1;
 
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			Vector<Graphics::Texture>{ this->mainTexture }
@@ -2934,7 +2934,7 @@ namespace Graphics
 		material = MakeShared<PBRMaterial>();
 		materialUniformBuffer.pbrMaterial = material.get();
 		material->albedoTexture = mainTexture;
-		material->material->hasAlbedoTex = 1;
+		material->materialData->hasAlbedoTex = 1;
 
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			Vector<Graphics::Texture>{ this->mainTexture}
@@ -2952,7 +2952,7 @@ namespace Graphics
 		material = MakeShared<PBRMaterial>();
 		materialUniformBuffer.pbrMaterial = material.get();
 		material->albedoTexture = mainTexture;
-		material->material->hasAlbedoTex = 1;
+		material->materialData->hasAlbedoTex = 1;
 		Vector<Graphics::Texture> textures{};
 		textures.push_back(material->albedoTexture);
 		textures.push_back(material->metallicTexture);

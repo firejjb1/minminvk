@@ -528,19 +528,19 @@ namespace Graphics
 	
 				vec4 baseColor = vec4(colorVec[0], colorVec[1], colorVec[2], colorVec[3]);
 				auto pbr = MakeShared<PBRMaterial>();
-				pbr->material->baseColor = baseColor;
-				pbr->material->metallic = metallic;
-				pbr->material->roughness = roughness;
-				pbr->material->emissiveColor = vec4(emissiveVec[0], emissiveVec[1], emissiveVec[2], 0);
-				pbr->material->hasAlbedoTex = material.pbrMetallicRoughness.baseColorTexture.index >= 0;
-				pbr->material->hasNormalTex = material.normalTexture.index >= 0;
-				pbr->material->hasOcclusionTex = material.occlusionTexture.index >= 0;
-				pbr->material->hasMetallicRoughnessTex = material.pbrMetallicRoughness.metallicRoughnessTexture.index >= 0;
-				pbr->material->hasEmissiveTex = material.emissiveTexture.index >= 0;
-				pbr->material->isDoubleSided = material.doubleSided ? 1 : 0;
-				pbr->material->alphaMode = material.alphaMode == "OPAQUE" ? PBRMaterial::ALPHA_MODE::ALPHA_OPAQUE : material.alphaMode == "MASK" ? PBRMaterial::ALPHA_MODE::ALPHA_MASK : PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT;
-				pbr->material->alphaCutoff = material.alphaCutoff;
-				pbr->material->occlusionStrength = material.occlusionTexture.strength;
+				pbr->materialData->baseColor = baseColor;
+				pbr->materialData->metallic = metallic;
+				pbr->materialData->roughness = roughness;
+				pbr->materialData->emissiveColor = vec4(emissiveVec[0], emissiveVec[1], emissiveVec[2], 0);
+				pbr->materialData->hasAlbedoTex = material.pbrMetallicRoughness.baseColorTexture.index >= 0;
+				pbr->materialData->hasNormalTex = material.normalTexture.index >= 0;
+				pbr->materialData->hasOcclusionTex = material.occlusionTexture.index >= 0;
+				pbr->materialData->hasMetallicRoughnessTex = material.pbrMetallicRoughness.metallicRoughnessTexture.index >= 0;
+				pbr->materialData->hasEmissiveTex = material.emissiveTexture.index >= 0;
+				pbr->materialData->isDoubleSided = material.doubleSided ? 1 : 0;
+				pbr->materialData->alphaMode = material.alphaMode == "OPAQUE" ? PBRMaterial::ALPHA_MODE::ALPHA_OPAQUE : material.alphaMode == "MASK" ? PBRMaterial::ALPHA_MODE::ALPHA_MASK : PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT;
+				pbr->materialData->alphaCutoff = material.alphaCutoff;
+				pbr->materialData->occlusionStrength = material.occlusionTexture.strength;
 
 				pbrMaterials.push_back(pbr);
 			}
@@ -685,7 +685,7 @@ namespace Graphics
 					for (auto primitive : gltfMesh.primitives)
 					{
 						auto pipeline = forwardPipeline;
-						if (primitive.material >= 0 && pbrMaterials[primitive.material]->material->alphaMode == Graphics::PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
+						if (primitive.material >= 0 && pbrMaterials[primitive.material]->materialData->alphaMode == Graphics::PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
 						{
 							pipeline = forwardTransparentPipeline;
 						}
@@ -731,7 +731,7 @@ namespace Graphics
 					for (auto primitive : gltfMesh.primitives)
 					{
 						auto pipeline = forwardPipeline;
-						if (primitive.material >= 0 && pbrMaterials[primitive.material]->material->alphaMode == Graphics::PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
+						if (primitive.material >= 0 && pbrMaterials[primitive.material]->materialData->alphaMode == Graphics::PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
 						{
 							pipeline = forwardTransparentPipeline;
 						}

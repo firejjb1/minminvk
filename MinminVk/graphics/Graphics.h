@@ -520,7 +520,7 @@ namespace Graphics
 					if (UI::hideStaticHair && mesh->node->name == "hair_0")
 						continue;
  					// opaque or mask alpha
- 					if (mesh->material->material->alphaMode != PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
+ 					if (mesh->material->materialData->alphaMode != PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
  						mesh->Draw(renderContext);
  				}
 
@@ -555,7 +555,7 @@ namespace Graphics
 			 {
 			 	for (auto& mesh : gltfMeshes)
 			 	{
-			 		if (mesh->material->material->alphaMode == PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
+			 		if (mesh->material->materialData->alphaMode == PBRMaterial::ALPHA_MODE::ALPHA_TRANSPARENT)
 			 			mesh->Draw(renderContext);
 			 	}
 			 }
