@@ -179,13 +179,13 @@ namespace Graphics
 				Vector<SharedPtr<Buffer>>{}
 			);
 
+			// RecreateSwapchain needs to recreate these attachments
 			Presentation::PsoAttachmentSwapDependent psoAttachmentsToRebuid;
 			psoAttachmentsToRebuid.pso = deferredPipeline;
 			psoAttachmentsToRebuid.attachments.push_back(albedo);
 			psoAttachmentsToRebuid.attachments.push_back(positionDepth);
 			psoAttachmentsToRebuid.attachments.push_back(normal);
 			psoAttachmentsToRebuid.attachments.push_back(specular);
-
 			presentation->psoAttachmentSwapchainDependent.push_back(psoAttachmentsToRebuid);
 
 			deferredPipeline->depthTestEnable = true;

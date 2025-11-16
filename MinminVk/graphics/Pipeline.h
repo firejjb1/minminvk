@@ -26,6 +26,7 @@ namespace Graphics
 	{
 		// assigned by order they are created, starting with 1
 		PipeLineID pipelineID;
+
 		DescriptorPoolID descriptorPoolID;
 		Vector<PipeLineID> pipelinesToWait;
 

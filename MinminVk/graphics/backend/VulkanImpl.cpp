@@ -2424,6 +2424,7 @@ namespace VulkanImpl
 		CreateSwapchainImageViews();
 		CreateColorResources(context.presentation.get());
 		CreateDepthResources(context.presentation.get());
+#ifdef USE_DEFERRED
 		for (auto& psoAttachment : context.presentation->psoAttachmentSwapchainDependent)
 		{
 			Vector<Graphics::Attachment> atts = psoAttachment.attachments;
@@ -2437,6 +2438,7 @@ namespace VulkanImpl
 			psoAttachment.pso->UpdateTextures(texturesToUpdate);
 
 		}
+#endif
 
 		// ImGUI
 		if (context.shouldRenderUI)
