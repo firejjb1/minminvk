@@ -9,9 +9,17 @@
 #include <UI.h>
 
 #define TRIANGLE_VERTEX_SHADER "trianglevert.spv"
+#ifdef USE_BINDLESS
+#define TRIANGLE_FRAG_SHADER "bindlesstrianglefrag.spv"
+#else 
 #define TRIANGLE_FRAG_SHADER "trianglefrag.spv"
+#endif 
 #define GBUFFER_VERTEX_SHADER "gbuffervert.spv"
+#ifdef USE_BINDLESS
+#define GBUFFER_FRAG_SHADER "bindlessgbufferfrag.spv"
+#else
 #define GBUFFER_FRAG_SHADER "gbufferfrag.spv"
+#endif
 #define DEFERRED_VERTEX_SHADER "fsquadvert.spv"
 #define DEFERRED_FRAG_SHADER "fsquadfrag.spv"
 #define PARTICLE_COMP_SHADER "particles.spv"
@@ -133,13 +141,13 @@ namespace Graphics
 		computeContext.device = device;
 		
 		Sampler linearClampSampler;
-		Texture texture(concat_str(IMAGES_DIR, VIKING_IMAGE));
+	/*	Texture texture(concat_str(IMAGES_DIR, VIKING_IMAGE));
 		texture.binding.binding = 0;
-		texture.binding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
+		texture.binding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;*/
 
 		TextureCubemap textureSkybox(concat_str(IMAGES_DIR, SKYBOX_RIGHT),concat_str(IMAGES_DIR, SKYBOX_LEFT),concat_str(IMAGES_DIR, SKYBOX_TOP),concat_str(IMAGES_DIR, SKYBOX_BOTTOM),concat_str(IMAGES_DIR, SKYBOX_FRONT),concat_str(IMAGES_DIR, SKYBOX_BACK));
 		textureSkybox.binding.binding = 1;
-		texture.binding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
+		textureSkybox.binding.shaderStageType = ResourceBinding::ShaderStageType::FRAGMENT;
 
 		i32 width = presentation->swapChainDetails.width;
 		i32 height = presentation->swapChainDetails.height;
@@ -239,16 +247,16 @@ namespace Graphics
 			cube = MakeShared<Cube>(skyboxPipeline, textureSkybox);
 
 #ifdef USE_DEFERRED
-			quad = MakeShared<Quad>(deferredPipeline, texture);
+			quad = MakeShared<Quad>(deferredPipeline);
 #else
-			quad = MakeShared<Quad>(forwardPipeline, texture);
+			quad = MakeShared<Quad>(forwardPipeline);
 #endif // USE_DEFERRED
 
 			// OBJ
-			vikingRoom = MakeShared<OBJMesh>(forwardPipeline, texture, concat_str(OBJ_DIR, VIKING_MODEL));
+		/*	vikingRoom = MakeShared<OBJMesh>(forwardPipeline, texture, concat_str(OBJ_DIR, VIKING_MODEL));
 			vikingRoom->node->worldMatrix = Math::Translate(vikingRoom->node->worldMatrix, vec3(0, -2.5f, -5));
-			
-			headMesh = MakeShared<OBJMesh>(forwardPipeline, concat_str(HAIR_DIR, HEAD_MODEL));
+			*/
+			//headMesh = MakeShared<OBJMesh>(forwardPipeline, concat_str(HAIR_DIR, HEAD_MODEL));
 			//headMesh->node = nodeManager->AddNode(Math::Translate(Math::Rotate(mat4(1), Math::PI, vec3(0, 0, 1)), vec3(0,1,-2)), camera->node->nodeID, Node::NodeType::MESH_NODE);
 			//headNode = headMesh->node;
 			// GLTF
@@ -406,8 +414,8 @@ namespace Graphics
 					mat4 worldHair = headNode->worldMatrix;
 					particleUniformBuffer->uniform.prevHead = Math::Inverse(worldHair) * prevHeadMat;
 
-					if (UI::rotateHead)
-						headMesh->Update(fixedDeltaTime);
+					//if (UI::rotateHead)
+					//	headMesh->Update(fixedDeltaTime);
 					if (UI::resetHeadPos)
 						headNode->worldMatrix = mat4(1);
 
@@ -471,7 +479,7 @@ namespace Graphics
 					
 				}
 
-				vikingRoom->Update(fixedDeltaTime);
+				// vikingRoom->Update(fixedDeltaTime);
 
 			}
 		}
@@ -488,10 +496,13 @@ namespace Graphics
 		bool success = device->BeginRecording(renderContext);
 		assert(success);
 		// pass 0 skybox
-		renderContext.renderPass = skyboxPass;
-		device->BeginRenderPass(renderContext);
-		cube->Draw(renderContext);
-		device->EndRenderPass(renderContext);
+		{
+			renderContext.renderPass = skyboxPass;
+			device->BeginRenderPass(renderContext);
+			cube->Draw(renderContext);
+			device->EndRenderPass(renderContext);
+		}
+
 		// forward passes
 		{
 			// pass 1 - meshes
@@ -514,7 +525,7 @@ namespace Graphics
  			device->BeginRenderPass(renderContext);
  			{
 				
- 				vikingRoom->Draw(renderContext);
+ 				// vikingRoom->Draw(renderContext);
  				for (auto& mesh : gltfMeshes)
  				{
 					if (UI::hideStaticHair && mesh->node->name == "hair_0")
@@ -524,7 +535,7 @@ namespace Graphics
  						mesh->Draw(renderContext);
  				}
 
- 				headMesh->Draw(renderContext);
+ 				// headMesh->Draw(renderContext);
 
  			}
  			{

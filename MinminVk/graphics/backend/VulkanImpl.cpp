@@ -85,6 +85,25 @@ namespace VulkanImpl
 	Vector<VkFramebuffer> uiFramebuffers;
 	VkDescriptorPool uiDescriptorPool;
 
+#ifdef USE_BINDLESS
+	// Bindless global state
+	VkDescriptorSet globalBindlessSet;
+	int bindlessLayoutID = -1;
+
+	// Texture array tracking
+	u32 nextBindlessTextureIndex = 0;
+	const u32 MAX_BINDLESS_TEXTURES = 10000;
+
+	// Material buffer array
+	VkBuffer materialStorageBuffer;
+	VkDeviceMemory materialStorageBufferMemory;
+	void* materialBufferMapped = nullptr;
+	u32 nextMaterialIndex = 0;
+	const u32 MAX_MATERIALS = 10000;
+	const u32 MATERIAL_DATA_SIZE = sizeof(Graphics::PBRMaterial::MaterialData);
+	VkDescriptorPool bindlessPool;
+#endif
+
 	u32 MAX_FRAMES_IN_FLIGHT = 2;
 	Vector<VkSemaphore> imageAvailableSemaphores;
 	Vector<VkSemaphore> imageFinishedSemaphores;
@@ -688,15 +707,27 @@ namespace VulkanImpl
 		struct VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderFeature{};
 		dynamicRenderFeature.dynamicRendering = true;
 		dynamicRenderFeature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+
 		struct VkPhysicalDeviceSynchronization2Features sync2 {};
 		sync2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
 		sync2.synchronization2 = true;
 		dynamicRenderFeature.pNext = &sync2;
+
 		struct VkPhysicalDeviceDynamicRenderingLocalReadFeatures localread{};
 		localread.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_LOCAL_READ_FEATURES_KHR;
 		localread.dynamicRenderingLocalRead = true;
 		sync2.pNext = &localread;
+#ifdef USE_BINDLESS
+		VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures{};
+		descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+		descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+		descriptorIndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
+		descriptorIndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+		descriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+		descriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
 
+		localread.pNext = &descriptorIndexingFeatures;
+#endif // BINDLESS
 		createInfo.pNext = &dynamicRenderFeature;
 		createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 		createInfo.ppEnabledExtensionNames = deviceExtensions.data();
@@ -1129,6 +1160,186 @@ namespace VulkanImpl
 		return Graphics::PipeLineID{ (u32)pipelineLayouts.size() - 1, pipeline };
 	}
 
+
+#ifdef USE_BINDLESS
+	int CreateBindlessDescriptorSetLayout()
+	{
+		const u32 MAX_TEXTURES = 10000;
+		const u32 MAX_MATERIALS = 10000;
+
+		VkDescriptorSetLayoutBinding bindings[2];
+
+		// Binding 0: Material storage buffer array (all materials)
+		bindings[0].binding = 0;
+		bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		bindings[0].descriptorCount = 1;  // Single buffer containing array of materials
+		bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		bindings[0].pImmutableSamplers = nullptr;
+
+		// Binding 1: Texture array (all textures)
+		bindings[1].binding = 1;
+		bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		bindings[1].descriptorCount = MAX_TEXTURES;
+		bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		bindings[1].pImmutableSamplers = nullptr;
+
+		VkDescriptorBindingFlags bindingFlags[] = {
+			0,  // Binding 0: material buffer - normal
+			VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
+			VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+			VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT  // Binding 1: textures - bindless
+		};
+
+		VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo{};
+		bindingFlagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+		bindingFlagsInfo.bindingCount = 2;
+		bindingFlagsInfo.pBindingFlags = bindingFlags;
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 2;
+		layoutInfo.pBindings = bindings;
+		layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+		layoutInfo.pNext = &bindingFlagsInfo;
+
+		auto& bindlessLayout = descriptorSetLayouts.emplace_back();
+		int layoutID = descriptorSetLayouts.size() - 1;
+
+		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &bindlessLayout) != VK_SUCCESS)
+			throw std::runtime_error("failed to create bindless descriptor set layout!");
+
+		return layoutID;
+	}
+
+	int CreateBindlessDescriptorPool()
+	{
+		VkDescriptorPoolSize poolSizes[] = {
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },           // 1 material buffer
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10000 } // Many textures
+		};
+
+		VkDescriptorPoolCreateInfo poolInfo{};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+		poolInfo.maxSets = 1;  // Only ONE bindless set needed
+		poolInfo.poolSizeCount = 2;
+		poolInfo.pPoolSizes = poolSizes;
+
+		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &bindlessPool) != VK_SUCCESS)
+			throw std::runtime_error("failed to create bindless descriptor pool!");
+
+		return 0;
+	}
+
+	void CreateMaterialStorageBuffer()
+	{
+		VkDeviceSize bufferSize = MAX_MATERIALS * MATERIAL_DATA_SIZE;
+
+		// Create host-visible storage buffer (for easy updates)
+		CreateBuffer(bufferSize,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			materialStorageBuffer, materialStorageBufferMemory);
+
+		// Keep it persistently mapped
+		vkMapMemory(device, materialStorageBufferMemory, 0, bufferSize, 0, &materialBufferMapped);
+	}
+
+	void InitBindlessResources()
+	{
+		// Create layout and pool
+		bindlessLayoutID = CreateBindlessDescriptorSetLayout();
+		CreateBindlessDescriptorPool();
+
+		// Create material storage buffer
+		CreateMaterialStorageBuffer();
+
+		// Allocate the ONE global bindless descriptor set
+		u32 variableDescCount = MAX_BINDLESS_TEXTURES;
+		VkDescriptorSetVariableDescriptorCountAllocateInfo variableCountInfo{};
+		variableCountInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+		variableCountInfo.descriptorSetCount = 1;
+		variableCountInfo.pDescriptorCounts = &variableDescCount;
+
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = bindlessPool;
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = &descriptorSetLayouts[bindlessLayoutID];
+		allocInfo.pNext = &variableCountInfo;
+
+		if (vkAllocateDescriptorSets(device, &allocInfo, &globalBindlessSet) != VK_SUCCESS)
+			throw std::runtime_error("failed to allocate bindless descriptor set!");
+
+		// Bind the material storage buffer to binding 0
+		VkDescriptorBufferInfo bufferInfo{};
+		bufferInfo.buffer = materialStorageBuffer;
+		bufferInfo.offset = 0;
+		bufferInfo.range = MAX_MATERIALS * MATERIAL_DATA_SIZE;
+
+		VkWriteDescriptorSet bufferWrite{};
+		bufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		bufferWrite.dstSet = globalBindlessSet;
+		bufferWrite.dstBinding = 0;
+		bufferWrite.dstArrayElement = 0;
+		bufferWrite.descriptorCount = 1;
+		bufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		bufferWrite.pBufferInfo = &bufferInfo;
+
+		vkUpdateDescriptorSets(device, 1, &bufferWrite, 0, nullptr);
+	}
+
+	u32 RegisterBindlessTexture(Graphics::Texture& texture)
+	{
+		if (nextBindlessTextureIndex >= MAX_BINDLESS_TEXTURES)
+			throw std::runtime_error("exceeded max bindless textures!");
+
+		u32 index = nextBindlessTextureIndex++;
+
+		VkDescriptorImageInfo imageInfo{};
+		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageInfo.imageView = textureImageViews[texture.textureID.viewID];
+		imageInfo.sampler = textureSamplers[texture.textureID.samplerID];
+
+		VkWriteDescriptorSet write{};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = globalBindlessSet;
+		write.dstBinding = 1;           // Binding 1 is texture array
+		write.dstArrayElement = index;
+		write.descriptorCount = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		write.pImageInfo = &imageInfo;
+
+		vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+
+		texture.textureID.descriptorIndex = index;
+		return index;
+	}
+
+	u32 RegisterBindlessMaterial(Graphics::PBRMaterial* material)
+	{
+		if (nextMaterialIndex >= MAX_MATERIALS)
+			throw std::runtime_error("exceeded max bindless materials!");
+
+		u32 index = nextMaterialIndex++;
+
+		// Copy material data to storage buffer at the correct offset
+		void* dst = static_cast<char*>(materialBufferMapped) + (index * MATERIAL_DATA_SIZE);
+		memcpy(dst, material->GetData(), MATERIAL_DATA_SIZE);
+
+		return index;
+	}
+
+	void UpdateBindlessMaterial(u32 index, Graphics::PBRMaterial* material)
+	{
+		void* dst = static_cast<char*>(materialBufferMapped) + (index * MATERIAL_DATA_SIZE);
+		memcpy(dst, material->GetData(), MATERIAL_DATA_SIZE);
+	}
+
+	VkDescriptorSet GetGlobalBindlessSet() { return globalBindlessSet; }
+	int GetBindlessLayoutID() { return bindlessLayoutID; }
+#endif 
+
 	Graphics::PipeLineID CreateGraphicsPipeline(SharedPtr<Graphics::Shader> vertexShader, SharedPtr<Graphics::Shader> fragShader, Graphics::GraphicsPipeline* pipeline, Graphics::RenderPassID renderPassID, Vector<Graphics::Attachment>& attachments)
 	{
 		VkShaderModule vertShaderModule = createShaderModule(vertexShader->shaderCode);
@@ -1302,17 +1513,30 @@ namespace VulkanImpl
 		auto& pipelineLayout = pipelineLayouts.emplace_back();
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+#ifdef USE_BINDLESS
+		pipelineLayoutInfo.setLayoutCount = 2;
+		VkDescriptorSetLayout layouts[] = {
+			descriptorSetLayouts[pipeline->layoutID],   // Set 0: per-frame uniforms
+			descriptorSetLayouts[bindlessLayoutID]      // Set 1: bindless resources
+		};
+		pipelineLayoutInfo.pSetLayouts = layouts;
+#else
+
 		pipelineLayoutInfo.setLayoutCount = 2;
 		VkDescriptorSetLayout layouts[] = { descriptorSetLayouts[pipeline->layoutID], descriptorSetLayouts[pipeline->perMeshLayoutID] };
 		pipelineLayoutInfo.pSetLayouts = layouts;
-
+#endif
 		VkPushConstantRange pushConstantRanges[2];
 		pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // world matrix
 		pushConstantRanges[0].offset = 0; // Start offset
 		pushConstantRanges[0].size = sizeof(mat4) * 2;
 		pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; // texture index
 		pushConstantRanges[1].offset = pushConstantRanges[0].size; // Start offset
+#ifdef USE_BINDLESS
+		pushConstantRanges[1].size = sizeof(u32) + sizeof(Graphics::BindlessPushConstants);  // hasTangent + bindless indices
+#else
 		pushConstantRanges[1].size = sizeof(u32);
+#endif
 		pipelineLayoutInfo.pushConstantRangeCount = 2; // Optional
 		pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges; // Optional
 		if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
@@ -1561,20 +1785,51 @@ namespace VulkanImpl
 
 		UpdateUniformBuffer(geometry.materialUniformBuffer.GetData(), geometry.materialUniformBuffer.GetBufferSize(), geometry.materialUniformBuffer, swapID);
 
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vbs, offsets);
+		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
+		u32 hasTangent = geometry.GetVertexData()->hasTangent ? 1 : 0;
+
+#ifdef USE_BINDLESS
+		// Bind per-frame set (0) and global bindless set (1)
+		auto uniformDescriptorSet = descriptorSetsPerPool[descriptorPoolID.id][swapID];
+		VkDescriptorSet descriptorSets[] = { uniformDescriptorSet, globalBindlessSet };
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipelineLayouts[pipelineID], 0, 2, descriptorSets, 0, nullptr);
+
 		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.node->worldMatrix);
 		glm::mat4 invTModel = Math::InverseTranspose(geometry.node->worldMatrix);
 		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID], VK_SHADER_STAGE_VERTEX_BIT, sizeof(mat4), sizeof(mat4), &invTModel);
-		u32 hasTangent = geometry.GetVertexData()->hasTangent ? 1 : 0;
-		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID], VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(mat4)*2, sizeof(u32), &hasTangent);
+		// Push hasTangent
+		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID],
+			VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(mat4) * 2, sizeof(u32), &hasTangent);
+
+		// Push bindless indices
+		auto* pbrMaterial = static_cast<Graphics::PBRMaterial*>(geometry.material.get());
+		Graphics::BindlessPushConstants bindlessIndices{
+			pbrMaterial->bindlessIndex,
+			pbrMaterial->albedoTexture.textureID.descriptorIndex,
+			pbrMaterial->metallicTexture.textureID.descriptorIndex,
+			pbrMaterial->normalTexture.textureID.descriptorIndex,
+			pbrMaterial->occlusionTexture.textureID.descriptorIndex,
+			pbrMaterial->emissiveTexture.textureID.descriptorIndex
+		};
+		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID],
+			VK_SHADER_STAGE_FRAGMENT_BIT,
+			sizeof(mat4) * 2 + sizeof(u32),  // After matrices and hasTangent
+			sizeof(Graphics::BindlessPushConstants), &bindlessIndices);
+
+#else
+		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &geometry.node->worldMatrix);
+		glm::mat4 invTModel = Math::InverseTranspose(geometry.node->worldMatrix);
+		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID], VK_SHADER_STAGE_VERTEX_BIT, sizeof(mat4), sizeof(mat4), &invTModel);
+		vkCmdPushConstants(commandBuffer, pipelineLayouts[pipelineID], VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(mat4) * 2, sizeof(u32), &hasTangent);
 		//vkCmdPushConstants(commandBuffer, pipelineLayouts[geometry.basicUniform->layoutID], VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(mat4), sizeof(u32), &geometry.mainTexture.textureID.id);
 
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vbs, offsets);
-		vkCmdBindIndexBuffer(commandBuffer, indexBuffers[geometry.geometryID.indexBufferID], 0, VK_INDEX_TYPE_UINT16);
 		auto uniformDescriptorSet = descriptorSetsPerPool[descriptorPoolID.id][swapID];
 		auto perMeshDescriptorSet = descriptorSetsPerPool[descriptorPoolID.id][geometry.geometryID.setID];
 		VkDescriptorSet descriptorSets[] = { uniformDescriptorSet, perMeshDescriptorSet };
-
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts[pipelineID], 0, 2, descriptorSets, 0, nullptr);
+#endif
 
 		if (geometry.material->materialData->isDoubleSided)
 			vkCmdSetCullMode(commandBuffer, VK_CULL_MODE_NONE);
@@ -2234,6 +2489,11 @@ namespace VulkanImpl
 		else 
 			TransitionImageLayout(textureImage, MapToVulkanFormat(texture.formatType), MapToVulkanImageLayout(texture.initialLayout), MapToVulkanImageLayout(texture.finalLayout), mipLevels, nullptr, -1, -1, -1, -1, isCubemap);
 
+#ifdef USE_BINDLESS
+		if (!isAttachment) {
+			RegisterBindlessTexture(texture);
+		}
+#endif
 	}
 
 	VkSamplerAddressMode MapToVulkanAddressMode(Graphics::Sampler::AddressModeType addressMode)
@@ -2459,15 +2719,20 @@ namespace Graphics
 	{
 		VulkanImpl::PickPhysicalDevice();
 		VulkanImpl::CreateLogicalDevice();
+#ifdef USE_BINDLESS
+		VulkanImpl::InitBindlessResources();
+#endif
 		VulkanImpl::CreateCommandPool();
 		commandLists = VulkanImpl::CreateCommandBuffers();
 		computeCommandLists = VulkanImpl::CreateComputeCommandBuffers();
 
 		// TODO should be here?
 		VulkanImpl::CreateSyncObjects();
-		Texture defaultTexture;
+#ifndef USE_BINDLESS
+		// HACK: basically a fake texture so that descriptor sets don't complain. should be removed once bindless is done
 		vec4 * fakeData = new vec4{ 0,0,0,0 };
 		VulkanImpl::CreateTextureImage(defaultTexture, (stbi_uc*)fakeData, 1, 1, 1);
+#endif
 	}
 
 	bool Device::BeginRecording(Graphics::RenderContext& context)
@@ -2645,6 +2910,13 @@ namespace Graphics
 		vkDestroyDescriptorPool(VulkanImpl::device, VulkanImpl::uiDescriptorPool, nullptr);
 		vkDestroyRenderPass(VulkanImpl::device, VulkanImpl::uiRenderPass, nullptr);
 		vkDestroyCommandPool(VulkanImpl::device, VulkanImpl::uiCommandPool, nullptr);
+
+		// Bindless
+#ifdef USE_BINDLESS
+		vkDestroyDescriptorPool(VulkanImpl::device, VulkanImpl::bindlessPool, nullptr);
+		vkDestroyBuffer(VulkanImpl::device, VulkanImpl::materialStorageBuffer, nullptr);
+		vkFreeMemory(VulkanImpl::device, VulkanImpl::materialStorageBufferMemory, nullptr);
+#endif
 
 		for (size_t i = 0; i < VulkanImpl::MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(VulkanImpl::device, VulkanImpl::imageFinishedSemaphores[i], nullptr);
@@ -2861,6 +3133,23 @@ namespace Graphics
 		vertexDesc = MakeShared<BasicVertex>();
 	}
 
+	Quad::Quad(SharedPtr<GraphicsPipeline> pipeline)
+	{
+		vertexDesc = MakeShared<BasicVertex>(std::move(Vector<BasicVertex::Vertex>{
+			{ {-1.0f, -1.0f, 0.01f}, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f }, { 0.f, 0.f, 1.f }},
+			{ {1.0f, -1.0f, 0.01f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.f, 0.f, 1.f} },
+			{ {1.0f, 1.0f, 0.01f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.f, 0.f, 1.f} },
+			{ {-1.0f, 1.0f, 0.01f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}, {0.f, 0.f, 1.f} },
+		})
+		);
+		VulkanImpl::CreateVertexBuffer(*this);
+		VulkanImpl::CreateIndexBuffer(*this);
+		material = MakeShared<PBRMaterial>();
+		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
+			Vector<Graphics::Texture>{ }
+		);
+	}
+
 	Quad::Quad(SharedPtr<GraphicsPipeline> pipeline, Texture mainTexture)
 		: Geometry(mainTexture ) 
 	{
@@ -3037,9 +3326,14 @@ namespace Graphics
 			textures.push_back(material->occlusionTexture);
 			textures.push_back(material->emissiveTexture);
 		}
+#ifdef USE_BINDLESS
+		// Register material to bindless buffer
+		pbrMat->bindlessIndex = VulkanImpl::RegisterBindlessMaterial(this->material.get());
+#else
 		geometryID.setID = VulkanImpl::CreateDescriptorSets(pipeline->perMeshLayoutID, 1, pipeline->descriptorPoolID.id, Vector<Graphics::Buffer*>{&this->materialUniformBuffer},
 			textures
 		);		
+#endif
 	}
 
 

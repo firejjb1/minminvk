@@ -30,6 +30,8 @@ namespace Graphics
 		u32 samplerID = 0;
 		u32 descriptorSetID = 0;
 		u32 descriptorPoolID = 0;
+
+		u32 descriptorIndex = 0;
 	};
 	struct Texture
 	{
