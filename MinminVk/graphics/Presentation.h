@@ -32,14 +32,14 @@ namespace Graphics
 		u32 maxMSAASamples = 4;
 
 		SwapChainDetails swapChainDetails;
-
+#ifdef USE_DEFERRED
 		struct PsoAttachmentSwapDependent
 		{
 			Vector<Attachment> attachments;
 			SharedPtr<GraphicsPipeline> pso;
 		};
 		Vector<PsoAttachmentSwapDependent> psoAttachmentSwapchainDependent;
-
+#endif
 		// driver and window system integration
 		void Init(void* window);
 

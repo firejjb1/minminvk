@@ -13,3 +13,5 @@ glslc fsquad.vert -o fsquadvert.spv
 glslc fsquad.frag -o fsquadfrag.spv
 glslc skybox.vert -o skyboxvert.spv
 glslc skybox.frag -o skyboxfrag.spv
+glslc bindless/triangle.frag -o bindlesstrianglefrag.spv
+glslc bindless/gbuffer.frag -o bindlessgbufferfrag.spv

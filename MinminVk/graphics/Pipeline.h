@@ -26,11 +26,23 @@ namespace Graphics
 	{
 		// assigned by order they are created, starting with 1
 		PipeLineID pipelineID;
+
 		DescriptorPoolID descriptorPoolID;
 		Vector<PipeLineID> pipelinesToWait;
 
 		void Wait(PipeLineID pipelineID);
 	};
+
+#ifdef USE_BINDLESS
+	struct BindlessPushConstants {
+		u32 materialIndex;
+		u32 albedoIndex;
+		u32 metallicIndex;
+		u32 normalIndex;
+		u32 occlusionIndex;
+		u32 emissiveIndex;
+	};
+#endif
 
 	struct GraphicsPipeline : public Pipeline
 	{

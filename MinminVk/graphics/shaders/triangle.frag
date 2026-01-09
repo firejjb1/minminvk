@@ -95,8 +95,8 @@ void main() {
     {
         // direct lighting unaffected
         // TODO enable when implemented indirect lighting
-        //vec3 occ = texture(texOcclusion, fragTexCoord).rgb;
-        //float occFactor = 1.0 + uboMat.occlusionStrength * (occ.r - 1.0);
+        // vec3 occ = texture(texOcclusion, fragTexCoord).rgb;
+        // float occFactor = 1.0 + uboMat.occlusionStrength * (occ.r - 1.0);
     }
 
 

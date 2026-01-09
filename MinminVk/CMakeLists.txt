@@ -179,7 +179,10 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC GLTF_DIR="${CMAKE_CURRENT_SOUR
 # target_compile_definitions(${PROJECT_NAME} PUBLIC NODEBUG)
 
 # use deferred rendering with dynamic local read
-#target_compile_definitions(${PROJECT_NAME} PUBLIC USE_DEFERRED)
+target_compile_definitions(${PROJECT_NAME} PUBLIC USE_DEFERRED)
+
+# use bindless with descriptor indexing
+target_compile_definitions(${PROJECT_NAME} PUBLIC USE_BINDLESS)
 
 # define vulkan implementation. only supports vulkan for now 
 target_compile_definitions(${PROJECT_NAME} PUBLIC VULKAN_IMPL)

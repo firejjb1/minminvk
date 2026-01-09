@@ -354,6 +354,7 @@ namespace Graphics
 		Geometry(Texture mainTexture);
 
 		Geometry() {
+			node = MakeShared<Node>();
 			vertexDesc = MakeShared<BasicVertex>();
 		}
 
@@ -368,6 +369,7 @@ namespace Graphics
 			0, 2, 1, 2, 0, 3
 		};
 	public:
+		Quad(SharedPtr<GraphicsPipeline> pipeline);
 		Quad(SharedPtr<GraphicsPipeline>, Texture mainTexture);
 
 		SharedPtr<VertexDesc> GetVertexData() override { return vertexDesc; }

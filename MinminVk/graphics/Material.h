@@ -13,7 +13,8 @@ namespace Graphics
 
     struct PBRMaterial : public Material
     {
-        struct MaterialData
+
+        struct alignas(16) MaterialData
         {
             vec4 baseColor = vec4(1);
             vec4 emissiveColor = vec4(1);
@@ -26,10 +27,10 @@ namespace Graphics
             u32 hasEmissiveTex = 0;
             u32 isDoubleSided = 0;
             ALPHA_MODE alphaMode = ALPHA_MODE::ALPHA_OPAQUE; // opaque, blend, mask
-            float alphaCutoff = 1;
-            float occlusionStrength = 1;
+            f32 alphaCutoff = 1;
+            f32 occlusionStrength = 1;
         };
-        UniquePtr<MaterialData> material;
+        UniquePtr<MaterialData> materialData;
 
         Texture albedoTexture;
         Texture metallicTexture;
@@ -37,9 +38,13 @@ namespace Graphics
         Texture occlusionTexture;
         Texture emissiveTexture;
 
+#ifdef USE_BINDLESS
+        u32 bindlessIndex = 0;  // Index into material storage buffer
+#endif
+
         PBRMaterial()
         {
-            material = MakeUnique<MaterialData>();
+            materialData = MakeUnique<MaterialData>();
             albedoTexture.binding.binding = 0;
             metallicTexture.binding.binding = 1;
             normalTexture.binding.binding = 2;
@@ -54,7 +59,7 @@ namespace Graphics
 
         void* GetData() override 
         {
-            return (void *)material.get();
+            return (void *)materialData.get();
         }
     };
 }
